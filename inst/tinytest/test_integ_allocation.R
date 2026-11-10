@@ -244,7 +244,7 @@ count_run_5_preds <- function() {
     as_atomic = TRUE
   )
 }
-alloc_run_5 <- function(update_neighbors) {
+alloc_run_5 <- function(update_neighbors, checkpoint = FALSE) {
   allocate(
     db,
     id_periods = 4L,
@@ -253,13 +253,29 @@ alloc_run_5 <- function(update_neighbors) {
     select_maximize = TRUE,
     id_run = 5L,
     potentials_ancestor = 1L,
-    update_neighbors = update_neighbors
+    update_neighbors = update_neighbors,
+    checkpoint = checkpoint
   )
 }
 expect_message(alloc_run_5(update_neighbors = FALSE), "Allocating with greedy")
 expect_equal(count_run_5_preds(), 0)
 expect_message(alloc_run_5(update_neighbors = TRUE), "Allocating with greedy")
 expect_equal(count_run_5_preds(), 3600)
+
+# checkpoint = TRUE checkpoints once after the last period: with a retention of zero, every
+# older snapshot is expired. DuckLake cannot unset the option again; nothing below checkpoints
+count_snapshots <- function() {
+  db$get_query("select count(*) from ducklake_snapshots(dl_db)", as_atomic = TRUE)
+}
+db$execute("call dl_db.set_option('expire_older_than', '0 seconds')")
+snapshots_before <- count_snapshots()
+expect_message(alloc_run_5(update_neighbors = FALSE), "Allocating with greedy")
+expect_true(count_snapshots() > snapshots_before)
+expect_message(
+  alloc_run_5(update_neighbors = FALSE, checkpoint = TRUE),
+  "Allocating with greedy"
+)
+expect_true(count_snapshots() < snapshots_before)
 
 # --------------------------------------------------------------------------
 # Argument checks
