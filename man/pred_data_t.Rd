@@ -17,7 +17,13 @@ as_pred_data_t(x)
 
 pred_data_available_v(self)
 
-pred_wide_train_v(self, id_trans, id_pred, id_period_anterior = NULL)
+pred_wide_train_v(
+  self,
+  id_trans,
+  id_pred,
+  id_period_anterior = NULL,
+  id_run = self$id_run
+)
 
 pred_wide_predict_v(
   self,
@@ -39,7 +45,8 @@ add_predictor(
   description = NA_character_,
   orig_format = NA_character_,
   sources = list(),
-  unit = NA_character_
+  unit = NA_character_,
+  id_run = self$id_run
 )
 }
 \arguments{
@@ -59,7 +66,7 @@ missing, use all predictor IDs from \link{pred_meta_t}}
 \item{id_period_anterior}{Scalar integerish of anterior period ID, i.e. we
 get the predictors that explain the processes over the next N years}
 
-\item{id_run}{Integer, the run whose predictors and anterior map are read}
+\item{id_run}{Integer; the run the predictor data are written under}
 
 \item{result}{data.table with predictor columns named \verb{id_pred_\{n\}}}
 
@@ -128,8 +135,7 @@ correct data types based on pred_meta_t; also fills NA values with fill_value
 from pred_meta_t if specified
 
 \item \code{add_predictor()}: Add a predictor to the database, given a data.table with
-columns \code{id_coord}, \code{id_period}, and \code{value} (predictor value). Uses the current
-\code{id_run}.
+columns \code{id_coord}, \code{id_period}, and \code{value} (predictor value), under \code{id_run}.
 
 }}
 \keyword{internal}

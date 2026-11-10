@@ -235,7 +235,7 @@ constructs.}
   Fetch data from a table
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
-    \preformatted{ducklake_db$fetch(table_name, cols = NULL, where = NULL, limit = NULL)}
+    \preformatted{ducklake_db$fetch(table_name, cols = NULL, where = NULL, limit = NULL, ...)}
     \if{html}{\out{</div>}}
   }
   \subsection{Arguments}{
@@ -246,6 +246,7 @@ constructs.}
       \item{\code{where}}{Character string. Optional WHERE clause for the SQL query (e.g.
 \verb{id_pred in (0,4,5)})}
       \item{\code{limit}}{Integer. Optional limit on number of rows to return.}
+      \item{\code{...}}{Passed to \verb{$get_read_expr()}, e.g. a subclass's own filters.}
     }
     \if{html}{\out{</div>}}
   }

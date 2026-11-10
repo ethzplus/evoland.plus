@@ -114,11 +114,13 @@ print.trans_preds_t <- function(x, nrow = 10, ...) {
 }
 
 #' @describeIn trans_preds_t Set an initial full set of transition / predictor relations for
-#' the active run: every predictor for every viable transition, all selected
-#' @param reset Bool, start the active run's selection over? This removes the active run's
-#' rows, including their score columns' values, before writing the full set.
-set_full_trans_preds <- function(self, reset = FALSE) {
-  exists <- self$row_count("trans_preds_t", where = glue::glue("id_run = {self$id_run}")) > 0L
+#' a run: every predictor for every viable transition, all selected
+#' @param reset Bool, start the run's selection over? This removes the run's rows, including
+#' their score columns' values, before writing the full set.
+#' @param id_run Integer, the run to write the predictor sets for, or to score.
+set_full_trans_preds <- function(self, reset = FALSE, id_run = self$id_run) {
+  stopifnot("id_run must be a single integer" = is_scalar_integerish(id_run))
+  exists <- self$row_count("trans_preds_t", where = glue::glue("id_run = {id_run}")) > 0L
   if (exists && !reset) {
     stop("`trans_preds_t` already holds predictor sets for this run; use reset = TRUE")
   }
@@ -126,7 +128,7 @@ set_full_trans_preds <- function(self, reset = FALSE) {
   t <- viable_trans_meta(self)
 
   full <- expand.grid(
-    id_run = self$id_run,
+    id_run = id_run,
     id_pred = p[["id_pred"]],
     id_trans = t[["id_trans"]],
     is_selected = TRUE,
@@ -135,10 +137,22 @@ set_full_trans_preds <- function(self, reset = FALSE) {
 
   self$transaction({
     if (exists) {
-      self$delete_from("trans_preds_t", where = glue::glue("id_run = {self$id_run}"))
+      self$delete_from("trans_preds_t", where = glue::glue("id_run = {id_run}"))
     }
     self$commit(as_trans_preds_t(full), "trans_preds_t", method = "upsert")
   })
+}
+
+# The selected predictors of each transition, one list per transition, read through the
+# lineage of `id_run` and labelled with it: the models fitted from them belong to that run
+selected_trans_preds_nested <- function(self, id_run) {
+  self$get_query(
+    "select {id_run}::integer as id_run, id_trans,
+       list(distinct id_pred order by id_pred) as id_pred
+     from {self$get_read_expr('trans_preds_t', id_run = id_run)}
+     where is_selected
+     group by id_trans"
+  )
 }
 
 # Worker function for parallel mlr3filter::Filter
@@ -156,7 +170,8 @@ pred_filter_worker <- function(item, db, filter) {
       # Get wide transition-predictor data
       pred_wide_train <- db$pred_wide_train_v(
         id_trans = id_trans,
-        id_pred = id_pred
+        id_pred = id_pred,
+        id_run = id_run
       )[, -c("id_coord", "id_period_anterior")]
 
       if (nrow(pred_wide_train) == 0L) {
@@ -217,23 +232,27 @@ get_pred_filter_score <- function(
   filter = "correlation",
   id_trans = NULL,
   cluster = NULL,
+  id_run = self$id_run,
   ...
 ) {
   # Accept either a character vector of measure IDs or a list of Measure objects
   if (is.character(filter)) {
     filter <- mlr3filters::flt(filter, ...)
   }
-  stopifnot("id_trans must be NULL or integers" = is.null(id_trans) || is_integerish(id_trans))
+  stopifnot(
+    "id_trans must be NULL or integers" = is.null(id_trans) || is_integerish(id_trans),
+    "id_run must be a single integer" = is_scalar_integerish(id_run)
+  )
   if (self$row_count("trans_preds_t") == 0) {
-    self$set_full_trans_preds()
+    self$set_full_trans_preds(id_run = id_run)
   }
-  # the scores are for the active run; the predictor sets may be inherited from an ancestor,
-  # so they are labelled with the active run here. Only the key columns: scores of earlier
-  # filters are not passed on to the workers
+  # the scores are for id_run; the predictor sets may be inherited from an ancestor, so they
+  # are labelled with id_run here. Only the key columns: scores of earlier filters are not
+  # passed on to the workers
   items <-
     self$get_query(
-      "select {self$id_run}::integer as id_run, id_pred, id_trans, is_selected
-       from {self$get_read_expr('trans_preds_t')}
+      "select {id_run}::integer as id_run, id_pred, id_trans, is_selected
+       from {self$get_read_expr('trans_preds_t', id_run = id_run)}
        where is_selected {id_trans_filter}",
       id_trans_filter = if (is.null(id_trans)) {
         DBI::SQL("")

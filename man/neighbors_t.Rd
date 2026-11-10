@@ -25,7 +25,7 @@ set_neighbors(
   chunksize = 1e+07
 )
 
-generate_neighbor_predictors(self)
+generate_neighbor_predictors(self, id_run = self$id_run)
 
 upsert_new_neighbors(self, id_period, id_run = self$id_run)
 }
@@ -52,11 +52,11 @@ If provided, must have at least 2 elements defining interval breaks.}
 \item{chunksize}{Number of neighbour pairs per chunk; bounds the memory used while
 computing and committing (default: 1e7, a few hundred MB)}
 
-\item{id_period}{Integer period ID for which to generate predictors; if
-missing, only use non-extrapolated periods}
-
 \item{id_run}{Integer, the run whose map is counted and under which the predictors are
 written}
+
+\item{id_period}{Integer period ID for which to generate predictors; if
+missing, only use non-extrapolated periods}
 }
 \value{
 A data.table of class "neighbors_t" with columns:

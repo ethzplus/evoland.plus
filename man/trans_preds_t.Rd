@@ -12,13 +12,14 @@ as_trans_preds_t(x)
 
 \method{print}{trans_preds_t}(x, nrow = 10, ...)
 
-set_full_trans_preds(self, reset = FALSE)
+set_full_trans_preds(self, reset = FALSE, id_run = self$id_run)
 
 get_pred_filter_score(
   self,
   filter = "correlation",
   id_trans = NULL,
   cluster = NULL,
+  id_run = self$id_run,
   ...
 )
 }
@@ -32,8 +33,10 @@ empty table will be created. If it has no \code{is_selected} column, every pair 
 
 \item{self}{An \link{evoland_db} instance with populated trans_meta_t and pred_meta_t tables}
 
-\item{reset}{Bool, start the active run's selection over? This removes the active run's
-rows, including their score columns' values, before writing the full set.}
+\item{reset}{Bool, start the run's selection over? This removes the run's rows, including
+their score columns' values, before writing the full set.}
+
+\item{id_run}{Integer, the run to write the predictor sets for, or to score.}
 
 \item{filter}{An \link[mlr3filters:Filter]{mlr3filters::Filter} object or a character string
 specifying the filter method, retrieved via \link[mlr3filters:flt]{mlr3filters::flt}. Note that your
@@ -71,7 +74,7 @@ flags rather than a subset of it: rows left out of the assignment keep the flags
 \section{Functions}{
 \itemize{
 \item \code{set_full_trans_preds()}: Set an initial full set of transition / predictor relations for
-the active run: every predictor for every viable transition, all selected
+a run: every predictor for every viable transition, all selected
 
 \item \code{get_pred_filter_score()}: Get a filter score for the selected transition-predictor
 relationships based on mlr3filters. Returns trans_preds_t with an additional

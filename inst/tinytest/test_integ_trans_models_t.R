@@ -446,3 +446,23 @@ expect_true(all(!vapply(child_full[["learner_full"]], is.null, logical(1L))))
 child_scores <- suppressMessages(db$get_pred_filter_score(filter = "correlation"))
 expect_equal(unique(child_scores[["id_run"]]), 2L)
 db$id_run <- 0L
+
+# the run can be passed instead of switched to: the same fits and scores for run 2, with run 0
+# still active
+expect_equal(db$id_run, 0L)
+explicit_partial <- suppressMessages(db$fit_partial_models(
+  learner = test_learner,
+  measures = test_measures,
+  seed = 1L,
+  id_run = 2L
+))
+expect_equal(explicit_partial[["crossval_score"]], child_partial[["crossval_score"]])
+explicit_full <- suppressMessages(db$fit_full_models(
+  select_score = "classif.auc",
+  select_maximize = TRUE,
+  id_run = 2L
+))
+expect_equal(unique(explicit_full[["id_run"]]), 2L)
+explicit_scores <- suppressMessages(db$get_pred_filter_score(filter = "correlation", id_run = 2L))
+expect_equal(explicit_scores, child_scores)
+expect_equal(db$id_run, 0L)

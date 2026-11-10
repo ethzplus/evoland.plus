@@ -111,6 +111,7 @@ pred_data_available_v <- function(self) {
 #' @param id_period_anterior Optional integer vector of anterior period IDs to train on,
 #'        e.g. to hold out the last observed transition for validation; if `NULL`
 #'        (default), every observed anterior period is used
+#' @param id_run Integer, the run whose land use and predictors are read, through its lineage
 #' @return data.table with columns id_coord, id_period, did_transition (bool),
 #'         and one column per predictor (`id_pred_{n}`), ordered by id_coord and
 #'         id_period_anterior so that subsampling and order-sensitive learners replay
@@ -118,18 +119,19 @@ pred_wide_train_v <- function(
   self,
   id_trans,
   id_pred,
-  id_period_anterior = NULL
+  id_period_anterior = NULL,
+  id_run = self$id_run
 ) {
   stopifnot(
     "id_trans must be a single integer" = is_scalar_integerish(id_trans),
+    "id_run must be a single integer" = is_scalar_integerish(id_run),
     "id_period_anterior must be integerish or NULL" = {
       is.null(id_period_anterior) || is_integerish(id_period_anterior)
     },
     "id_period_anterior must not be empty" = {
       is.null(id_period_anterior) || length(id_period_anterior) > 0L
     },
-    "id_pred must be missing or a vector of integers" = missing(id_pred) || is_integerish(id_pred),
-    "id_run must be set" = !is.null(self$id_run)
+    "id_pred must be missing or a vector of integers" = missing(id_pred) || is_integerish(id_pred)
   )
 
   pred_meta_t <- self$pred_meta_t
@@ -147,9 +149,9 @@ pred_wide_train_v <- function(
   result <-
     self$get_query(
       read_sql("pred_wide_train.sql"),
-      lulc_data_read_expr = self$get_read_expr("lulc_data_t"),
+      lulc_data_read_expr = self$get_read_expr("lulc_data_t", id_run = id_run),
       period_read_expr = self$get_read_expr("periods_t"),
-      pred_data_read_expr = self$get_read_expr("pred_data_t"),
+      pred_data_read_expr = self$get_read_expr("pred_data_t", id_run = id_run),
       trans_meta_read_expr = self$get_read_expr("trans_meta_t"),
       id_trans = id_trans,
       id_pred = id_pred,
@@ -268,8 +270,7 @@ set_pred_coltypes <- function(result, pred_meta_t) {
 }
 
 #' @describeIn pred_data_t Add a predictor to the database, given a data.table with
-#' columns `id_coord`, `id_period`, and `value` (predictor value). Uses the current
-#' `id_run`.
+#' columns `id_coord`, `id_period`, and `value` (predictor value), under `id_run`.
 #' @param pred_data_raw data.table with columns id_coord, id_period, and value
 #' (predictor value); the data type of the value is stored in [pred_meta_t]
 #' @param name Character scalar, unique name of predictor. If already present in
@@ -286,6 +287,7 @@ set_pred_coltypes <- function(result, pred_meta_t) {
 #' `md5sum` field, see [create_pred_meta_t()] and [download_and_verify()]
 #' @param unit opt. Character scalar. SI unit for physical properties, or more complex
 #' descriptors like "bed nights/year" as a proxy for touristic activity
+#' @param id_run Integer; the run the predictor data are written under
 add_predictor <- function(
   self,
   private,
@@ -296,8 +298,10 @@ add_predictor <- function(
   description = NA_character_,
   orig_format = NA_character_,
   sources = list(),
-  unit = NA_character_
+  unit = NA_character_,
+  id_run = self$id_run
 ) {
+  stopifnot("id_run must be a single integer" = is_scalar_integerish(id_run))
   # one transaction: the id_pred is looked up or allocated against what pred_meta_t holds,
   # and a failure between the two upserts would leave a predictor with no data
   self$transaction({
@@ -345,7 +349,7 @@ add_predictor <- function(
 
     # copy, so that the caller's table does not gain the id columns
     pred_data_to_add <- data.table::copy(pred_data_raw)
-    pred_data_to_add[, id_run := self$id_run]
+    pred_data_to_add[, id_run := as.integer(id_run)]
     pred_data_to_add[, id_pred := id_pred]
     self$pred_data_t <- as_pred_data_t(pred_data_to_add)
   })

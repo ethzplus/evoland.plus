@@ -116,7 +116,8 @@ evoland_db <- R6::R6Class(
 
     #' @description Generate neighbor prediction table, i.e. "how many neighbors within
     #' distance X are of type Y", see [generate_neighbor_predictors()]
-    generate_neighbor_predictors = function() {
+    #' @param id_run Run whose map is counted and under which the predictors are written
+    generate_neighbor_predictors = function(id_run = self$id_run) {
       create_method_binding(generate_neighbor_predictors)
     },
 
@@ -128,7 +129,7 @@ evoland_db <- R6::R6Class(
       create_method_binding(upsert_new_neighbors)
     },
 
-    #' @description Add a predictor using the currently active id_run, see [add_predictor()]
+    #' @description Add a predictor, see [add_predictor()]
     #' @param pred_data_raw Data frame with columns `id_coord`, `id_period`, and `value`
     #' @param name Unique short name
     #' @param fill_value Value to substitute if a coordinate point in [coords_t] does
@@ -140,6 +141,7 @@ evoland_db <- R6::R6Class(
     #' underlying raw data, see [download_and_verify()]
     #' @param unit char, SI unit for physical predictors, or descriptions like
     #' "bed nights/year" as a proxy for touristic activity
+    #' @param id_run Integer; the run the predictor data are written under
     add_predictor = function(
       pred_data_raw,
       name,
@@ -148,7 +150,8 @@ evoland_db <- R6::R6Class(
       description = NA_character_,
       orig_format = NA_character_,
       sources = list(),
-      unit = NA_character_
+      unit = NA_character_,
+      id_run = self$id_run
     ) {
       create_method_binding(add_predictor, with_private = TRUE)
     },
@@ -159,7 +162,13 @@ evoland_db <- R6::R6Class(
     #' @param id_pred Optional integer vector of predictor IDs to include
     #' @param id_period_anterior Optional integer vector of anterior periods to train on;
     #'   `NULL` (default) uses every observed anterior period
-    pred_wide_train_v = function(id_trans, id_pred, id_period_anterior = NULL) {
+    #' @param id_run Integer, the run whose land use and predictors are read
+    pred_wide_train_v = function(
+      id_trans,
+      id_pred,
+      id_period_anterior = NULL,
+      id_run = self$id_run
+    ) {
       create_method_binding(pred_wide_train_v)
     },
 
@@ -211,11 +220,13 @@ evoland_db <- R6::R6Class(
 
     ### Allocation methods ---
     #' @description
-    #' Estimates allocation parameters for all viable transitions under the active `id_run`,
-    #' see [create_alloc_params_t()]
+    #' Estimates allocation parameters for all viable transitions, see
+    #' [create_alloc_params_t()]
     #' @param id_period_post Optional integer vector; estimate only from the period pairs
     #'   ending in these periods. `NULL` (default) uses every observed pair.
-    create_alloc_params_t = function(id_period_post = NULL) {
+    #' @param id_run Integer; the run whose land use is read and whose `id_run` the
+    #'   parameters carry
+    create_alloc_params_t = function(id_period_post = NULL, id_run = self$id_run) {
       create_method_binding(create_alloc_params_t)
     },
 
@@ -223,7 +234,8 @@ evoland_db <- R6::R6Class(
     #' period. See [lulc_data_as_rast()]
     #' @param id_period Optional integer vector of period IDs to include. If
     #'   NULL (default), all periods are included.
-    lulc_data_as_rast = function(id_period = NULL) {
+    #' @param id_run Integer; the run whose land use is read
+    lulc_data_as_rast = function(id_period = NULL, id_run = self$id_run) {
       create_method_binding(lulc_data_as_rast, with_private = TRUE)
     },
 
@@ -240,13 +252,16 @@ evoland_db <- R6::R6Class(
     #' @param id_trans Optional integer vector; fit only these transitions.
     #' @param id_period_anterior Optional integer vector; train only on transitions
     #'   observed from these anterior periods. `NULL` (default) uses all observed periods.
+    #' @param id_run Integer; the run to fit for. Its predictor selection is read through its
+    #'   lineage, and the models are labelled with it.
     fit_full_models = function(
       learner = NULL,
       select_score = NULL,
       select_maximize = TRUE,
       cluster = NULL,
       id_trans = NULL,
-      id_period_anterior = NULL
+      id_period_anterior = NULL,
+      id_run = self$id_run
     ) {
       create_method_binding(fit_full_models)
     },
@@ -264,6 +279,8 @@ evoland_db <- R6::R6Class(
     #' @param id_period_anterior Optional integer vector; train and score only on
     #'   transitions observed from these anterior periods. `NULL` (default) uses all
     #'   observed periods.
+    #' @param id_run Integer; the run to fit for. Its predictor selection is read through its
+    #'   lineage, and the models are labelled with it.
     fit_partial_models = function(
       learner,
       measures,
@@ -271,7 +288,8 @@ evoland_db <- R6::R6Class(
       seed = NULL,
       cluster = NULL,
       id_trans = NULL,
-      id_period_anterior = NULL
+      id_period_anterior = NULL,
+      id_run = self$id_run
     ) {
       create_method_binding(fit_partial_models)
     },
@@ -286,11 +304,12 @@ evoland_db <- R6::R6Class(
     },
 
     #' @description
-    #' Set an initial full set of transition / predictor relations for the active run, see
+    #' Set an initial full set of transition / predictor relations for a run, see
     #' [set_full_trans_preds()]
-    #' @param reset Logical, start the active run's selection over, removing its rows and
-    #' their scores? Default FALSE.
-    set_full_trans_preds = function(reset = FALSE) {
+    #' @param reset Logical, start the run's selection over, removing its rows and their
+    #' scores? Default FALSE.
+    #' @param id_run Integer; the run to write the predictor sets for
+    set_full_trans_preds = function(reset = FALSE, id_run = self$id_run) {
       create_method_binding(set_full_trans_preds)
     },
 
@@ -301,11 +320,14 @@ evoland_db <- R6::R6Class(
     #' feature selection.
     #' @param id_trans Optional integer vector; score only these transitions.
     #' @param cluster Optional cluster object for parallel processing
+    #' @param id_run Integer; the run whose selected predictors are scored, and whose
+    #'   `id_run` the scores carry
     #' @param ... Additional arguments passed to `flt`.
     get_pred_filter_score = function(
       filter = "correlation",
       id_trans = NULL,
       cluster = NULL,
+      id_run = self$id_run,
       ...
     ) {
       create_method_binding(get_pred_filter_score)
@@ -334,7 +356,9 @@ evoland_db <- R6::R6Class(
     },
 
     #' @description Get the transition rates that were observed, see [trans_rates_t]
-    get_obs_trans_rates = function() {
+    #' @param id_run Integer; the run whose land use is read and whose `id_run` the rates
+    #'   carry
+    get_obs_trans_rates = function(id_run = self$id_run) {
       create_method_binding(get_obs_trans_rates)
     },
 
