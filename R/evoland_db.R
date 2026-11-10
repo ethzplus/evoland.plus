@@ -194,6 +194,29 @@ evoland_db <- R6::R6Class(
       create_method_binding(figure_of_merit_v)
     },
 
+    #' @description Ensembles of simulated maps scored as probabilistic forecasts of the
+    #' observed map, see [brier_score_v()]
+    #' @param id_period_anterior Integer, period of the initial map
+    #' @param id_period_post Integer, period of the observed and simulated maps
+    #' @param id_run_reference Integer, run holding the initial and observed maps
+    #' @param ensembles Named list of integer vectors, the runs of each ensemble; or an
+    #' integer vector for a single ensemble
+    #' @param by_anterior Logical; if `TRUE`, report per anterior class instead of overall.
+    #' @param changeable_only Logical; if `TRUE` (default), score only the cells whose
+    #' anterior class has a viable transition.
+    #' @param exclude_id_lulc Integer vector of classes to ignore, see [brier_score_v()].
+    brier_score_v = function(
+      id_period_anterior,
+      id_period_post,
+      id_run_reference,
+      ensembles,
+      by_anterior = FALSE,
+      changeable_only = TRUE,
+      exclude_id_lulc = integer(0)
+    ) {
+      create_method_binding(brier_score_v)
+    },
+
     #' @description Cross-tabulation of land use between two periods, see [lulc_crosstab_v()]
     #' @param id_period_anterior,id_period_post Integer, the two periods to compare
     #' @param id_run_anterior Integer, run to read `id_period_anterior` from; defaults to the
