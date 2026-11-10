@@ -106,7 +106,9 @@ print.trans_pot_t <- function(x, nrow = 10, ...) {
 #' chunked out to any [future](https://future.futureverse.org/) workers available.
 #' @param self an [evoland_db] instance
 #' @param id_period_post scalar integerish, passed to [pred_wide_predict_v()]
-#' @param select_score character scalar, name of score/measure to identify best fitting model
+#' @param select_score character scalar, name of score/measure to identify best fitting model.
+#' `NULL` (default) uses the criterion `id_run` records in [runs_t], inherited from its
+#' ancestors; a given one is recorded on the run if the run's own row holds none.
 #' @param select_maximize logical scalar, whether to maximize or minimize `select_score`
 #' @param force logical, predict even if `trans_pot_t` already holds potentials for `id_run`
 #' and the period (potentials inherited from an ancestor run do not count)
@@ -116,8 +118,8 @@ print.trans_pot_t <- function(x, nrow = 10, ...) {
 predict_trans_pot <- function(
   self,
   id_period_post,
-  select_score,
-  select_maximize,
+  select_score = NULL,
+  select_maximize = NULL,
   force = FALSE,
   id_run = self$id_run
 ) {
@@ -134,6 +136,9 @@ predict_trans_pot <- function(
   if (length(to_predict) == 0L) {
     return(invisible(NULL))
   }
+  criterion <- resolve_model_selection(self, id_run, select_score, select_maximize)
+  select_score <- criterion$select_score
+  select_maximize <- criterion$select_maximize
   .check_viable_trans_models(self, select_score, id_run) # error on missing models
   message(glue::glue("Predicting transition potential for {length(to_predict)} transitions"))
 

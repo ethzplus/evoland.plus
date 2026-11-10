@@ -8,9 +8,9 @@
 allocate(
   db,
   id_periods,
-  allocator = alloc_clumpy_spec(),
-  select_score,
-  select_maximize,
+  allocator = NULL,
+  select_score = NULL,
+  select_maximize = NULL,
   id_run = db$id_run,
   potentials_ancestor = 0L,
   force_predict = FALSE,
@@ -20,9 +20,9 @@ allocate(
 allocate_one_period(
   db,
   id_period_post,
-  allocator = alloc_clumpy_spec(),
-  select_score,
-  select_maximize,
+  allocator = NULL,
+  select_score = NULL,
+  select_maximize = NULL,
   id_run = db$id_run,
   potentials_ancestor = 0L,
   force_predict = FALSE
@@ -33,10 +33,13 @@ allocate_one_period(
 
 \item{id_periods}{Integer vector of contiguous posterior period IDs to simulate.}
 
-\item{allocator}{An allocator specification, see Description.}
+\item{allocator}{An allocator specification, see Description. \code{NULL} (default) uses the
+allocator the run records in \link{runs_t} (inherited from its ancestors), and CLUMPY if none
+does. The allocator used is recorded on the run if it records none itself.}
 
 \item{select_score}{Character; mlr3 measure ID (e.g. \code{"classif.auc"}) used to select the
-model for prediction, see \code{\link[=predict_trans_pot]{predict_trans_pot()}}.}
+model for prediction, see \code{\link[=predict_trans_pot]{predict_trans_pot()}}. \code{NULL} (default) uses the criterion the
+run of the potentials records in \link{runs_t}.}
 
 \item{select_maximize}{Logical; maximize (\code{TRUE}) or minimize (\code{FALSE}) \code{select_score}.}
 
@@ -93,6 +96,14 @@ with \code{db$commit(x, "lulc_data_t", method = "upsert")} and, if a later perio
 The allocator is one of \code{\link[=alloc_clumpy_spec]{alloc_clumpy_spec()}} (stochastic, unbiased; the default),
 \code{\link[=alloc_greedy_spec]{alloc_greedy_spec()}} (deterministic rank-and-fill) or \code{\link[=alloc_dinamica_spec]{alloc_dinamica_spec()}} (Dinamica
 EGO's expander and patcher).
+
+\code{allocate()} seeds R's random number generator with the run's \code{rng_seed} in \link{runs_t} for
+the whole sequence of periods, and restores the generator's previous state afterwards, so
+that a run replays from the database. A run without a seed draws one from the generator's
+current state and records it. Only allocators that draw from R's generator are seeded
+(CLUMPY); Dinamica draws its own seed, see ethzplus/evoland.plus#104. The first period a
+run allocates is recorded as its \code{id_period_eval_start}. \code{allocate_one_period()} neither
+seeds nor records these: seed and record them in your own loop.
 
 The quantity of change is the same for every allocator: each viable transition changes
 \code{round(rate * n_anterior)} cells, where \code{rate} is the transition's rate in \code{trans_rates_t}

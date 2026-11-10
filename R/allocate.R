@@ -27,6 +27,14 @@
 #' [alloc_greedy_spec()] (deterministic rank-and-fill) or [alloc_dinamica_spec()] (Dinamica
 #' EGO's expander and patcher).
 #'
+#' `allocate()` seeds R's random number generator with the run's `rng_seed` in [runs_t] for
+#' the whole sequence of periods, and restores the generator's previous state afterwards, so
+#' that a run replays from the database. A run without a seed draws one from the generator's
+#' current state and records it. Only allocators that draw from R's generator are seeded
+#' (CLUMPY); Dinamica draws its own seed, see ethzplus/evoland.plus#104. The first period a
+#' run allocates is recorded as its `id_period_eval_start`. `allocate_one_period()` neither
+#' seeds nor records these: seed and record them in your own loop.
+#'
 #' The quantity of change is the same for every allocator: each viable transition changes
 #' `round(rate * n_anterior)` cells, where `rate` is the transition's rate in `trans_rates_t`
 #' for the posterior period and `n_anterior` the number of cells of its anterior class in the
@@ -35,9 +43,12 @@
 #' @param db An [evoland_db] instance.
 #' @param id_periods Integer vector of contiguous posterior period IDs to simulate.
 #' @param id_period_post Integer posterior period ID.
-#' @param allocator An allocator specification, see Description.
+#' @param allocator An allocator specification, see Description. `NULL` (default) uses the
+#'   allocator the run records in [runs_t] (inherited from its ancestors), and CLUMPY if none
+#'   does. The allocator used is recorded on the run if it records none itself.
 #' @param select_score Character; mlr3 measure ID (e.g. `"classif.auc"`) used to select the
-#'   model for prediction, see [predict_trans_pot()].
+#'   model for prediction, see [predict_trans_pot()]. `NULL` (default) uses the criterion the
+#'   run of the potentials records in [runs_t].
 #' @param select_maximize Logical; maximize (`TRUE`) or minimize (`FALSE`) `select_score`.
 #' @param id_run Integer; the run to allocate. It reads its anterior map, demand and
 #'   allocation parameters through its lineage, and the allocated maps are written under it.
@@ -68,14 +79,15 @@ NULL
 allocate <- function(
   db,
   id_periods,
-  allocator = alloc_clumpy_spec(),
-  select_score,
-  select_maximize,
+  allocator = NULL,
+  select_score = NULL,
+  select_maximize = NULL,
   id_run = db$id_run,
   potentials_ancestor = 0L,
   force_predict = FALSE,
   update_neighbors = TRUE
 ) {
+  allocator <- resolve_allocator(db, id_run, allocator)
   check_allocation_args(allocator, id_run, potentials_ancestor)
   stopifnot(
     "id_periods must be integers" = is_integerish(id_periods),
@@ -91,6 +103,54 @@ allocate <- function(
     "periods {paste(id_periods, collapse = ' -> ')}"
   ))
 
+  # the seed and the period the run branches off at belong to the run itself
+  own <- list(
+    rng_seed = get_run_param(db, id_run, "rng_seed", inherit = FALSE),
+    id_period_eval_start = get_run_param(db, id_run, "id_period_eval_start", inherit = FALSE)
+  )
+  to_record <- list()
+  if (is.null(own$id_period_eval_start)) {
+    to_record$id_period_eval_start <- as.integer(min(id_periods))
+  }
+  seed <- own$rng_seed
+  if (allocator$seeded && is.null(seed)) {
+    seed <- sample.int(.Machine$integer.max, 1L)
+    to_record$rng_seed <- seed
+  }
+  if (length(to_record) > 0L) {
+    do.call(set_run_params, c(list(self = db, id_run = id_run), to_record))
+  }
+
+  with_seed(
+    if (allocator$seeded) seed,
+    allocate_periods(
+      db,
+      id_periods,
+      allocator,
+      select_score,
+      select_maximize,
+      id_run,
+      potentials_ancestor,
+      force_predict,
+      update_neighbors
+    )
+  )
+
+  invisible(NULL)
+}
+
+# the loop of allocate(), one period after the other
+allocate_periods <- function(
+  db,
+  id_periods,
+  allocator,
+  select_score,
+  select_maximize,
+  id_run,
+  potentials_ancestor,
+  force_predict,
+  update_neighbors
+) {
   for (id_period_post in id_periods) {
     posterior <- allocate_one_period(
       db = db,
@@ -120,13 +180,14 @@ allocate <- function(
 allocate_one_period <- function(
   db,
   id_period_post,
-  allocator = alloc_clumpy_spec(),
-  select_score,
-  select_maximize,
+  allocator = NULL,
+  select_score = NULL,
+  select_maximize = NULL,
   id_run = db$id_run,
   potentials_ancestor = 0L,
   force_predict = FALSE
 ) {
+  allocator <- resolve_allocator(db, id_run, allocator)
   check_allocation_args(allocator, id_run, potentials_ancestor)
   stopifnot(
     "id_period_post must be a single integer" = is_scalar_integerish(id_period_post)
@@ -253,7 +314,11 @@ allocation_context <- function(db, id_period_post, id_run, potentials_run) {
 #' @details
 #' A specification is a list of class `allocator_spec` with
 #' - `name`: a label for messages;
+#' - `id`: the allocator, e.g. `"clumpy"` for [alloc_clumpy_spec()]; recorded in [runs_t]
+#'   together with `args`, from which [allocate()] can recreate the specification;
 #' - `args`: the arguments it was created with;
+#' - `seeded`: whether it draws from R's random number generator, which [allocate()] seeds
+#'   from the run's `rng_seed`;
 #' - `check()`: called by [allocate()] before anything else, e.g. to check that an external
 #'   program is installed;
 #' - `one_period(ctx)`: takes the allocation context [allocate()] builds and returns the
@@ -261,7 +326,9 @@ allocation_context <- function(db, id_period_post, id_run, potentials_run) {
 #'   `ctx$anterior`.
 #'
 #' @param name Character, label for messages.
+#' @param id Character, the allocator: `alloc_<id>_spec()` recreates the specification.
 #' @param args Named list, the specification's arguments.
+#' @param seeded Logical, whether the allocator draws from R's random number generator.
 #' @param one_period Function of the allocation context, see Details.
 #' @param check Function without arguments, see Details.
 #' @param x An allocator specification.
@@ -269,9 +336,18 @@ allocation_context <- function(db, id_period_post, id_run, potentials_run) {
 #'
 #' @name allocator_spec
 #' @keywords internal
-new_allocator_spec <- function(name, args, one_period, check = function() invisible(NULL)) {
+new_allocator_spec <- function(
+  name,
+  id,
+  args,
+  one_period,
+  check = function() invisible(NULL),
+  seeded = FALSE
+) {
   stopifnot(
     "name must be a single string" = is_scalar_character(name),
+    "id must be a single string" = is_scalar_character(id),
+    "seeded must be TRUE or FALSE" = is_scalar_logical(seeded),
     "args must be a list" = is.list(args),
     "one_period must be a function of one argument, the allocation context" = {
       is.function(one_period) && length(formals(one_period)) == 1L
@@ -281,7 +357,14 @@ new_allocator_spec <- function(name, args, one_period, check = function() invisi
     }
   )
   structure(
-    list(name = name, args = args, one_period = one_period, check = check),
+    list(
+      name = name,
+      id = id,
+      args = args,
+      one_period = one_period,
+      check = check,
+      seeded = seeded
+    ),
     class = "allocator_spec"
   )
 }
@@ -294,4 +377,52 @@ print.allocator_spec <- function(x, ...) {
     cat("  ", arg, ": ", deparse1(x[["args"]][[arg]]), "\n", sep = "")
   }
   invisible(x)
+}
+
+# The allocator to use for `id_run`: the given one, or the one the run records (inherited),
+# or CLUMPY. Recorded on the run if its own row holds none.
+resolve_allocator <- function(db, id_run, allocator) {
+  if (is.null(allocator)) {
+    recorded <- get_run_param(db, id_run, "alloc_args")
+    allocator <- if (is.null(recorded)) {
+      alloc_clumpy_spec()
+    } else {
+      spec_fun <- get(paste0("alloc_", recorded[["allocator"]], "_spec"), mode = "function")
+      do.call(spec_fun, decode_run_args(recorded[setdiff(names(recorded), "allocator")]))
+    }
+  }
+  stopifnot(
+    "allocator must be an allocator specification, e.g. alloc_clumpy_spec()" = {
+      inherits(allocator, "allocator_spec")
+    }
+  )
+  if (is.null(get_run_param(db, id_run, "alloc_args", inherit = FALSE))) {
+    set_run_params(
+      db,
+      id_run,
+      alloc_args = c(list(allocator = allocator$id), encode_run_args(allocator$args))
+    )
+  }
+  allocator
+}
+
+# Evaluate `expr` with R's random number generator seeded with `seed`, and restore the
+# generator's previous state afterwards, so that seeding a run does not fix the draws of
+# whatever the caller does next. A NULL seed evaluates `expr` as it is.
+with_seed <- function(seed, expr) {
+  if (is.null(seed)) {
+    return(expr)
+  }
+  had_seed <- exists(".Random.seed", envir = globalenv(), inherits = FALSE)
+  previous_seed <- if (had_seed) get(".Random.seed", envir = globalenv())
+  on.exit(
+    if (had_seed) {
+      assign(".Random.seed", previous_seed, envir = globalenv())
+    } else {
+      rm(".Random.seed", envir = globalenv())
+    },
+    add = TRUE
+  )
+  set.seed(seed)
+  expr
 }

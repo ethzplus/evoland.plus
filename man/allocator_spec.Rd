@@ -6,18 +6,29 @@
 \alias{print.allocator_spec}
 \title{Allocator specifications}
 \usage{
-new_allocator_spec(name, args, one_period, check = function() invisible(NULL))
+new_allocator_spec(
+  name,
+  id,
+  args,
+  one_period,
+  check = function() invisible(NULL),
+  seeded = FALSE
+)
 
 \method{print}{allocator_spec}(x, ...)
 }
 \arguments{
 \item{name}{Character, label for messages.}
 
+\item{id}{Character, the allocator: \verb{alloc_<id>_spec()} recreates the specification.}
+
 \item{args}{Named list, the specification's arguments.}
 
 \item{one_period}{Function of the allocation context, see Details.}
 
 \item{check}{Function without arguments, see Details.}
+
+\item{seeded}{Logical, whether the allocator draws from R's random number generator.}
 
 \item{x}{An allocator specification.}
 
@@ -32,7 +43,11 @@ mistake surfaces before anything is predicted or written.
 A specification is a list of class \code{allocator_spec} with
 \itemize{
 \item \code{name}: a label for messages;
+\item \code{id}: the allocator, e.g. \code{"clumpy"} for \code{\link[=alloc_clumpy_spec]{alloc_clumpy_spec()}}; recorded in \link{runs_t}
+together with \code{args}, from which \code{\link[=allocate]{allocate()}} can recreate the specification;
 \item \code{args}: the arguments it was created with;
+\item \code{seeded}: whether it draws from R's random number generator, which \code{\link[=allocate]{allocate()}} seeds
+from the run's \code{rng_seed};
 \item \code{check()}: called by \code{\link[=allocate]{allocate()}} before anything else, e.g. to check that an external
 program is installed;
 \item \code{one_period(ctx)}: takes the allocation context \code{\link[=allocate]{allocate()}} builds and returns the
