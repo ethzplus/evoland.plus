@@ -1,6 +1,7 @@
-# evoland utility functions to work with terra objects
+# evoland.plus utility functions to work with terra objects
 
-Useful to coax terra raster and vector data into evoland tabular form.
+Useful to coax terra raster and vector data into evoland.plus tabular
+form.
 
 ## Usage
 
@@ -20,7 +21,7 @@ tabular_to_raster(data, coords, value_col = "id_lulc", resolution = NULL)
 - coords:
 
   A
-  [coords_t](https://ethzplus.github.io/evoland-plus/reference/coords_t.md)
+  [coords_t](https://ethzplus.github.io/evoland.plus/reference/coords_t.md)
   object with coordinate information. Must have `epsg` and optionally
   `resolution` attributes.
 

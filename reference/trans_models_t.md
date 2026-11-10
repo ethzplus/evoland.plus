@@ -16,8 +16,8 @@ fit_partial_models(
   sample_frac = 0.7,
   seed = NULL,
   cluster = NULL,
-  trans_preds = NULL,
-  trans_meta = NULL
+  id_trans = NULL,
+  id_period_anterior = NULL
 )
 
 fit_full_models(
@@ -26,8 +26,8 @@ fit_full_models(
   select_score = NULL,
   select_maximize = TRUE,
   cluster = NULL,
-  trans_preds = NULL,
-  trans_meta = NULL
+  id_trans = NULL,
+  id_period_anterior = NULL
 )
 
 # S3 method for class 'trans_models_t'
@@ -44,7 +44,7 @@ get_crossval_plots(self, id_run = NULL, id_trans = NULL, ...)
 
 - self:
 
-  [evoland_db](https://ethzplus.github.io/evoland-plus/reference/evoland_db.md)
+  [evoland_db](https://ethzplus.github.io/evoland.plus/reference/evoland_db.md)
   instance
 
 - learner:
@@ -81,21 +81,16 @@ get_crossval_plots(self, id_run = NULL, id_trans = NULL, ...)
   or
   [`mirai::make_cluster()`](https://mirai.r-lib.org/reference/make_cluster.html).
 
-- trans_preds:
+- id_trans:
 
-  Optional
-  [trans_preds_t](https://ethzplus.github.io/evoland-plus/reference/trans_preds_t.md)
-  object. When supplied in direct-learner mode, it is used directly
-  instead of reading `trans_preds_t` from the database. Ignored in
-  score-select mode.
+  Optional integer; filter by transition ID.
 
-- trans_meta:
+- id_period_anterior:
 
-  Optional
-  [trans_meta_t](https://ethzplus.github.io/evoland-plus/reference/trans_meta_t.md)
-  object. When supplied in direct-learner mode, it is used directly
-  instead of reading `trans_meta_t` from the database. Ignored in
-  score-select mode.
+  Optional integer vector of anterior period IDs; only the transitions
+  observed from these periods are used for training. In score-select
+  mode this should match what was passed to `fit_partial_models()`.
+  `NULL` (default) uses every observed period.
 
 - select_score:
 
@@ -116,10 +111,6 @@ get_crossval_plots(self, id_run = NULL, id_trans = NULL, ...)
 - id_run:
 
   Optional integer; filter by run ID.
-
-- id_trans:
-
-  Optional integer; filter by transition ID.
 
 ## Value
 
@@ -173,7 +164,7 @@ A data.table of class "trans_models_t" with columns:
     each transition. `crossval_predictions` will be `NULL` in the
     result, and `crossval_score` holds the sentinel `no.crossval = 1` so
     that the model stays selectable by
-    [`predict_trans_pot()`](https://ethzplus.github.io/evoland-plus/reference/trans_pot_t.md).
+    [`predict_trans_pot()`](https://ethzplus.github.io/evoland.plus/reference/trans_pot_t.md).
     Does not require a prior call to `fit_partial_models()`.
 
   - **Score-select mode** (`select_score` provided, `learner` omitted):

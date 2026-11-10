@@ -2,7 +2,7 @@
 
 Unit conversion and label normalisation that happen before any program
 is built. The program itself is in
-[trans_rate_lp](https://ethzplus.github.io/evoland-plus/reference/trans_rate_lp.md).
+[trans_rate_lp](https://ethzplus.github.io/evoland.plus/reference/trans_rate_lp.md).
 
 ## Usage
 

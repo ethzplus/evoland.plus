@@ -21,7 +21,7 @@ isometry_from_elongation(
 
 compute_alloc_params_single(lulc_ant, lulc_post, id_lulc_ant, id_lulc_post)
 
-create_alloc_params_t(self)
+create_alloc_params_t(self, id_period_post = NULL)
 ```
 
 ## Arguments
@@ -72,8 +72,15 @@ create_alloc_params_t(self)
 
 - self:
 
-  [evoland_db](https://ethzplus.github.io/evoland-plus/reference/evoland_db.md)
+  [evoland_db](https://ethzplus.github.io/evoland.plus/reference/evoland_db.md)
   instance to query
+
+- id_period_post:
+
+  Optional integer vector of posterior period IDs; only the period pairs
+  ending in these periods are estimated from, e.g. to hold out the last
+  observed transition for a backcast. `NULL` (default) uses every
+  observed pair.
 
 ## Value
 
@@ -98,11 +105,6 @@ A data.table of class "alloc_params_t" with columns:
   patches
 
 - `frac_patcher`: Fraction of transition cells forming new patches
-
-- `similarity`: Similarity metric for allocation parameters, see
-  [`calc_transition_similarity()`](https://ethzplus.github.io/evoland-plus/reference/calc_transition_similarity.md)
-  and
-  [`eval_alloc_params_t()`](https://ethzplus.github.io/evoland-plus/reference/alloc_dinamica.md)
 
 A named list with allocation parameters:
 

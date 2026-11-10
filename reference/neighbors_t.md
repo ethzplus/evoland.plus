@@ -24,7 +24,7 @@ set_neighbors(
 
 generate_neighbor_predictors(self)
 
-upsert_new_neighbors(self, id_period)
+upsert_new_neighbors(self, id_period, id_run = self$id_run)
 ```
 
 ## Arguments
@@ -39,7 +39,7 @@ upsert_new_neighbors(self, id_period)
   Passed to
   [`data.table::print.data.table()`](https://rdrr.io/pkg/data.table/man/print.data.table.html)
   resp.
-  [`validate()`](https://ethzplus.github.io/evoland-plus/reference/util.md)
+  [`validate()`](https://ethzplus.github.io/evoland.plus/reference/util.md)
 
 - nrow:
 
@@ -78,6 +78,11 @@ upsert_new_neighbors(self, id_period)
 
   Integer period ID for which to generate predictors; if missing, only
   use non-extrapolated periods
+
+- id_run:
+
+  Integer, the run whose map is counted and under which the predictors
+  are written
 
 ## Value
 

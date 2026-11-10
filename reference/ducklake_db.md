@@ -240,13 +240,17 @@ Get row count for a table; returns 0 if table does not exist
 
 #### Usage
 
-    ducklake_db$row_count(table_name)
+    ducklake_db$row_count(table_name, where = NULL)
 
 #### Arguments
 
 - `table_name`:
 
   Character string. Name of the table to query.
+
+- `where`:
+
+  Character string. Optional WHERE clause, e.g. `"id_run = 2"`.
 
 #### Returns
 
@@ -369,7 +373,7 @@ the target's specs, and a table first created from one has none.
 - `x`:
 
   If data.table, the data to commit; use
-  [as_ducklake_db_t](https://ethzplus.github.io/evoland-plus/reference/ducklake_db_utils.md)
+  [as_ducklake_db_t](https://ethzplus.github.io/evoland.plus/reference/ducklake_db_utils.md)
   for setting constraints. If character, treated as an in-DuckDB-memory
   table or view name.
 
@@ -380,9 +384,11 @@ the target's specs, and a table first created from one has none.
 - `method`:
 
   Character, one of "overwrite", "append", "upsert" (upsert being an
-  update for existing rows, and insert for new rows). Only "overwrite"
-  can change a table's schema; even if a table is empty, the others
-  reject columns the table does not have.
+  update for existing rows, and insert for new rows). "overwrite"
+  replaces the table's schema along with its data. "append" and "upsert"
+  add the columns of `x` that the table does not have yet, as an
+  `alter table ... add column`, which leaves the data files alone, so
+  existing rows read `NULL` in them.
 
 #### Returns
 
@@ -501,7 +507,7 @@ counter in DB.
 
 Get SQL expression to read a table, potentially with additional
 filtering applied.
-[evoland_db](https://ethzplus.github.io/evoland-plus/reference/evoland_db.md)
+[evoland_db](https://ethzplus.github.io/evoland.plus/reference/evoland_db.md)
 uses it to inject its own state based filter.
 
 #### Usage
@@ -517,7 +523,7 @@ uses it to inject its own state based filter.
 - `...`:
 
   Ignored here; lets subclasses add their own filters, see
-  [evoland_db](https://ethzplus.github.io/evoland-plus/reference/evoland_db.md)
+  [evoland_db](https://ethzplus.github.io/evoland.plus/reference/evoland_db.md)
 
 #### Returns
 

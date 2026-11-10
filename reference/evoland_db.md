@@ -1,11 +1,12 @@
 # `evoland_db` - R6 Class for lulc data management
 
 An R6 class that provides an interface to a folder-based data storage
-system for the evoland package. This class uses DuckDB for in-memory SQL
-operations while persisting data to a DuckLake catalog on disk.
+system for the evoland.plus package. This class uses DuckDB for
+in-memory SQL operations while persisting data to a DuckLake catalog on
+disk.
 
 Inherits from
-[ducklake_db](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.md)
+[ducklake_db](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.md)
 for generic database operations.
 
 ## See also
@@ -13,12 +14,12 @@ for generic database operations.
 Additional methods and active bindings are added to this class in
 separate files:
 
-- [evoland_db_views](https://ethzplus.github.io/evoland-plus/reference/evoland_db_views.md) -
+- [evoland_db_views](https://ethzplus.github.io/evoland.plus/reference/evoland_db_views.md) -
   View active bindings (lulc_meta_long_v, etc.) and methods
 
 ## Super class
 
-[`ducklake_db`](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.md)
+[`ducklake_db`](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.md)
 -\> `evoland_db`
 
 ## Active bindings
@@ -26,106 +27,99 @@ separate files:
 - `coords_t`:
 
   Get or upsert
-  [coords_t](https://ethzplus.github.io/evoland-plus/reference/coords_t.md)
+  [coords_t](https://ethzplus.github.io/evoland.plus/reference/coords_t.md)
 
 - `periods_t`:
 
   Get or upsert
-  [periods_t](https://ethzplus.github.io/evoland-plus/reference/periods_t.md)
+  [periods_t](https://ethzplus.github.io/evoland.plus/reference/periods_t.md)
 
 - `lulc_meta_t`:
 
   Get or upsert
-  [lulc_meta_t](https://ethzplus.github.io/evoland-plus/reference/lulc_meta_t.md)
+  [lulc_meta_t](https://ethzplus.github.io/evoland.plus/reference/lulc_meta_t.md)
 
 - `lulc_data_t`:
 
   Get or upsert
-  [lulc_data_t](https://ethzplus.github.io/evoland-plus/reference/lulc_data_t.md)
+  [lulc_data_t](https://ethzplus.github.io/evoland.plus/reference/lulc_data_t.md)
 
 - `pred_data_t`:
 
   Get or upsert
-  [pred_data_t](https://ethzplus.github.io/evoland-plus/reference/pred_data_t.md)
+  [pred_data_t](https://ethzplus.github.io/evoland.plus/reference/pred_data_t.md)
 
 - `pred_meta_t`:
 
   Get or upsert
-  [pred_meta_t](https://ethzplus.github.io/evoland-plus/reference/pred_meta_t.md)
+  [pred_meta_t](https://ethzplus.github.io/evoland.plus/reference/pred_meta_t.md)
 
 - `trans_meta_t`:
 
   Get or upsert
-  [trans_meta_t](https://ethzplus.github.io/evoland-plus/reference/trans_meta_t.md)
+  [trans_meta_t](https://ethzplus.github.io/evoland.plus/reference/trans_meta_t.md)
 
 - `trans_preds_t`:
 
   Get or upsert
-  [trans_preds_t](https://ethzplus.github.io/evoland-plus/reference/trans_preds_t.md)
+  [trans_preds_t](https://ethzplus.github.io/evoland.plus/reference/trans_preds_t.md);
+  deselect a predictor by setting its `is_selected` to `FALSE`
 
 - `trans_rates_t`:
 
   Get or upsert
-  [trans_rates_t](https://ethzplus.github.io/evoland-plus/reference/trans_rates_t.md)
-
-- `intrv_meta_t`:
-
-  Get or upsert
-  [intrv_meta_t](https://ethzplus.github.io/evoland-plus/reference/intrv_meta_t.md)
-
-- `intrv_masks_t`:
-
-  Get or upsert
-  [intrv_masks_t](https://ethzplus.github.io/evoland-plus/reference/intrv_masks_t.md)
+  [trans_rates_t](https://ethzplus.github.io/evoland.plus/reference/trans_rates_t.md)
 
 - `trans_models_t`:
 
   Get or upsert
-  [trans_models_t](https://ethzplus.github.io/evoland-plus/reference/trans_models_t.md)
+  [trans_models_t](https://ethzplus.github.io/evoland.plus/reference/trans_models_t.md)
 
 - `alloc_params_t`:
 
   Get or upsert
-  [alloc_params_t](https://ethzplus.github.io/evoland-plus/reference/alloc_params_t.md)
+  [alloc_params_t](https://ethzplus.github.io/evoland.plus/reference/alloc_params_t.md)
 
 - `trans_pot_t`:
 
   Get or upsert raw transition potentials
-  [trans_pot_t](https://ethzplus.github.io/evoland-plus/reference/trans_pot_t.md).
+  [trans_pot_t](https://ethzplus.github.io/evoland.plus/reference/trans_pot_t.md).
   These are per-transition model probabilities stored by
-  [`predict_trans_pot()`](https://ethzplus.github.io/evoland-plus/reference/trans_pot_t.md).
+  [`predict_trans_pot()`](https://ethzplus.github.io/evoland.plus/reference/trans_pot_t.md).
   Use
-  [`adjusted_trans_pot_v()`](https://ethzplus.github.io/evoland-plus/reference/evoland_db_views.md)
+  [`adjusted_trans_pot_v()`](https://ethzplus.github.io/evoland.plus/reference/evoland_db_views.md)
   for allocation-ready values.
 
 - `neighbors_t`:
 
   Get or upsert
-  [neighbors_t](https://ethzplus.github.io/evoland-plus/reference/neighbors_t.md)
+  [neighbors_t](https://ethzplus.github.io/evoland.plus/reference/neighbors_t.md)
 
 - `reporting_t`:
 
   Get or upsert
-  [reporting_t](https://ethzplus.github.io/evoland-plus/reference/reporting_t.md)
+  [reporting_t](https://ethzplus.github.io/evoland.plus/reference/reporting_t.md)
 
 - `runs_t`:
 
   Get or upsert
-  [runs_t](https://ethzplus.github.io/evoland-plus/reference/runs_t.md)
+  [runs_t](https://ethzplus.github.io/evoland.plus/reference/runs_t.md)
 
 - `id_run`:
 
   Get or set active id_run, see
-  [runs_t](https://ethzplus.github.io/evoland-plus/reference/runs_t.md)
+  [runs_t](https://ethzplus.github.io/evoland.plus/reference/runs_t.md)
 
 - `run_lineage`:
 
   Get id_run, see
-  [runs_t](https://ethzplus.github.io/evoland-plus/reference/runs_t.md)
+  [runs_t](https://ethzplus.github.io/evoland.plus/reference/runs_t.md)
 
 ## Methods
 
 ### Public methods
+
+- [`evoland_db$adjusted_trans_pot_v()`](#method-evoland_db-adjusted_trans_pot_v)
 
 - [`evoland_db$new()`](#method-evoland_db-initialize)
 
@@ -151,14 +145,6 @@ separate files:
 
 - [`evoland_db$lulc_crosstab_v()`](#method-evoland_db-lulc_crosstab_v)
 
-- [`evoland_db$alloc_dinamica()`](#method-evoland_db-alloc_dinamica)
-
-- [`evoland_db$alloc_clumpy()`](#method-evoland_db-alloc_clumpy)
-
-- [`evoland_db$alloc_greedy()`](#method-evoland_db-alloc_greedy)
-
-- [`evoland_db$eval_alloc_params_t()`](#method-evoland_db-eval_alloc_params_t)
-
 - [`evoland_db$create_alloc_params_t()`](#method-evoland_db-create_alloc_params_t)
 
 - [`evoland_db$lulc_data_as_rast()`](#method-evoland_db-lulc_data_as_rast)
@@ -177,27 +163,33 @@ separate files:
 
 - [`evoland_db$get_obs_trans_rates()`](#method-evoland_db-get_obs_trans_rates)
 
-- [`evoland_db$trans_rates_dinamica_v()`](#method-evoland_db-trans_rates_dinamica_v)
-
-- [`evoland_db$adjusted_trans_pot_v()`](#method-evoland_db-adjusted_trans_pot_v)
-
-- [`evoland_db$alloc_params_clumpy_v()`](#method-evoland_db-alloc_params_clumpy_v)
-
 - [`evoland_db$clone()`](#method-evoland_db-clone)
 
 Inherited methods
 
-- [`ducklake_db$checkpoint()`](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.html#method-checkpoint)
-- [`ducklake_db$commit()`](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.html#method-commit)
-- [`ducklake_db$delete_from()`](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.html#method-delete_from)
-- [`ducklake_db$execute()`](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.html#method-execute)
-- [`ducklake_db$fetch()`](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.html#method-fetch)
-- [`ducklake_db$get_query()`](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.html#method-get_query)
-- [`ducklake_db$get_table_metadata()`](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.html#method-get_table_metadata)
-- [`ducklake_db$list_tables()`](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.html#method-list_tables)
-- [`ducklake_db$next_id()`](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.html#method-next_id)
-- [`ducklake_db$row_count()`](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.html#method-row_count)
-- [`ducklake_db$transaction()`](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.html#method-transaction)
+- [`ducklake_db$checkpoint()`](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.html#method-checkpoint)
+- [`ducklake_db$commit()`](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.html#method-commit)
+- [`ducklake_db$delete_from()`](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.html#method-delete_from)
+- [`ducklake_db$execute()`](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.html#method-execute)
+- [`ducklake_db$fetch()`](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.html#method-fetch)
+- [`ducklake_db$get_query()`](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.html#method-get_query)
+- [`ducklake_db$get_table_metadata()`](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.html#method-get_table_metadata)
+- [`ducklake_db$list_tables()`](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.html#method-list_tables)
+- [`ducklake_db$next_id()`](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.html#method-next_id)
+- [`ducklake_db$row_count()`](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.html#method-row_count)
+- [`ducklake_db$transaction()`](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.html#method-transaction)
+
+------------------------------------------------------------------------
+
+### `evoland_db$adjusted_trans_pot_v()`
+
+#### Usage
+
+    evoland_db$adjusted_trans_pot_v(
+      id_period_post,
+      id_run = self$id_run,
+      id_run_trans_pot = id_run
+    )
 
 ------------------------------------------------------------------------
 
@@ -225,7 +217,7 @@ Initialize a new evoland_db object
 
   Character. Path to the data folder; may be omitted when both `catalog`
   and `data_path` are given, see
-  [ducklake_db](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.md).
+  [ducklake_db](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.md).
 
 - `id_run`:
 
@@ -239,22 +231,22 @@ Initialize a new evoland_db object
 - `catalog`:
 
   Character. DuckLake catalog connection, see
-  [ducklake_db](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.md).
+  [ducklake_db](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.md).
 
 - `data_path`:
 
   Character. DuckLake data files location, see
-  [ducklake_db](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.md).
+  [ducklake_db](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.md).
 
 - `sqlite_journal_mode`:
 
   Character. Journal mode for a SQLite catalog, see
-  [ducklake_db](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.md).
+  [ducklake_db](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.md).
 
 - `expire_older_than, delete_older_than`:
 
   Retention for `$checkpoint()`, see
-  [ducklake_db](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.md).
+  [ducklake_db](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.md).
 
 - `...`:
 
@@ -311,7 +303,7 @@ Print method for evoland_db
 ### `evoland_db$set_report()`
 
 Set reporting metadata, see
-[`db_set_report()`](https://ethzplus.github.io/evoland-plus/reference/reporting_t.md)
+[`db_set_report()`](https://ethzplus.github.io/evoland.plus/reference/reporting_t.md)
 
 #### Usage
 
@@ -329,13 +321,13 @@ Set reporting metadata, see
 ### `evoland_db$set_neighbors()`
 
 Set the neighbors table, see
-[`set_neighbors()`](https://ethzplus.github.io/evoland-plus/reference/neighbors_t.md)
+[`set_neighbors()`](https://ethzplus.github.io/evoland.plus/reference/neighbors_t.md)
 
 #### Usage
 
     evoland_db$set_neighbors(
       max_distance = 1000,
-      distance_breaks = NULL,
+      distance_breaks = c(0, 100, 500, 1000),
       overwrite = FALSE,
       quiet = FALSE,
       chunksize = 1e+07
@@ -369,7 +361,7 @@ Set the neighbors table, see
 
 Generate neighbor prediction table, i.e. "how many neighbors within
 distance X are of type Y", see
-[`generate_neighbor_predictors()`](https://ethzplus.github.io/evoland-plus/reference/neighbors_t.md)
+[`generate_neighbor_predictors()`](https://ethzplus.github.io/evoland.plus/reference/neighbors_t.md)
 
 #### Usage
 
@@ -384,7 +376,7 @@ generate_neighbor_predictors() having been run.
 
 #### Usage
 
-    evoland_db$upsert_new_neighbors(id_period)
+    evoland_db$upsert_new_neighbors(id_period, id_run = self$id_run)
 
 #### Arguments
 
@@ -392,12 +384,16 @@ generate_neighbor_predictors() having been run.
 
   Period to calculate predictors for
 
+- `id_run`:
+
+  Run whose map is counted and under which the predictors are written
+
 ------------------------------------------------------------------------
 
 ### `evoland_db$add_predictor()`
 
 Add a predictor using the currently active id_run, see
-[`add_predictor()`](https://ethzplus.github.io/evoland-plus/reference/pred_data_t.md)
+[`add_predictor()`](https://ethzplus.github.io/evoland.plus/reference/pred_data_t.md)
 
 #### Usage
 
@@ -408,7 +404,7 @@ Add a predictor using the currently active id_run, see
       pretty_name = name,
       description = NA_character_,
       orig_format = NA_character_,
-      sources = data.frame(url = character(0), md5sum = character(0)),
+      sources = list(),
       unit = NA_character_
     )
 
@@ -425,7 +421,7 @@ Add a predictor using the currently active id_run, see
 - `fill_value`:
 
   Value to substitute if a coordinate point in
-  [coords_t](https://ethzplus.github.io/evoland-plus/reference/coords_t.md)
+  [coords_t](https://ethzplus.github.io/evoland.plus/reference/coords_t.md)
   does not have an explicit associated value
 
 - `pretty_name`:
@@ -444,7 +440,7 @@ Add a predictor using the currently active id_run, see
 
   data.frame with url/md5sum columns, used for keeping track of
   underlying raw data, see
-  [`download_and_verify()`](https://ethzplus.github.io/evoland-plus/reference/util_download.md)
+  [`download_and_verify()`](https://ethzplus.github.io/evoland.plus/reference/util_download.md)
 
 - `unit`:
 
@@ -457,51 +453,64 @@ Add a predictor using the currently active id_run, see
 
 Get transitions along with their predictor data in a wide data.table,
 see
-[`pred_wide_train_v()`](https://ethzplus.github.io/evoland-plus/reference/pred_data_t.md)
+[`pred_wide_train_v()`](https://ethzplus.github.io/evoland.plus/reference/pred_data_t.md)
 
 #### Usage
 
-    evoland_db$pred_wide_train_v(id_trans, id_pred)
+    evoland_db$pred_wide_train_v(id_trans, id_pred, id_period_anterior = NULL)
 
 #### Arguments
 
 - `id_trans`:
 
   Integer transition ID, see
-  [trans_meta_t](https://ethzplus.github.io/evoland-plus/reference/trans_meta_t.md)
+  [trans_meta_t](https://ethzplus.github.io/evoland.plus/reference/trans_meta_t.md)
 
 - `id_pred`:
 
   Optional integer vector of predictor IDs to include
+
+- `id_period_anterior`:
+
+  Optional integer vector of anterior periods to train on; `NULL`
+  (default) uses every observed anterior period
 
 ------------------------------------------------------------------------
 
 ### `evoland_db$pred_wide_predict_v()`
 
 Retrieve a wide view of the predictor data, see
-[`pred_wide_predict_v()`](https://ethzplus.github.io/evoland-plus/reference/pred_data_t.md)
+[`pred_wide_predict_v()`](https://ethzplus.github.io/evoland.plus/reference/pred_data_t.md)
 
 #### Usage
 
-    evoland_db$pred_wide_predict_v(id_trans, id_period_anterior)
+    evoland_db$pred_wide_predict_v(
+      id_trans,
+      id_period_anterior,
+      id_run = self$id_run
+    )
 
 #### Arguments
 
 - `id_trans`:
 
   Integer transition ID, see
-  [trans_meta_t](https://ethzplus.github.io/evoland-plus/reference/trans_meta_t.md)
+  [trans_meta_t](https://ethzplus.github.io/evoland.plus/reference/trans_meta_t.md)
 
 - `id_period_anterior`:
 
   Integer ID of period to retrieve data for
+
+- `id_run`:
+
+  Integer, the run whose predictors and anterior map are read
 
 ------------------------------------------------------------------------
 
 ### `evoland_db$figure_of_merit_v()`
 
 Pontius' figure of merit of simulated against observed change, see
-[`figure_of_merit_v()`](https://ethzplus.github.io/evoland-plus/reference/figure_of_merit_v.md)
+[`figure_of_merit_v()`](https://ethzplus.github.io/evoland.plus/reference/figure_of_merit_v.md)
 
 #### Usage
 
@@ -548,7 +557,7 @@ Pontius' figure of merit of simulated against observed change, see
 ### `evoland_db$lulc_crosstab_v()`
 
 Cross-tabulation of land use between two periods, see
-[`lulc_crosstab_v()`](https://ethzplus.github.io/evoland-plus/reference/lulc_crosstab_v.md)
+[`lulc_crosstab_v()`](https://ethzplus.github.io/evoland.plus/reference/lulc_crosstab_v.md)
 
 #### Usage
 
@@ -577,248 +586,29 @@ Cross-tabulation of land use between two periods, see
 
 ------------------------------------------------------------------------
 
-### `evoland_db$alloc_dinamica()`
-
-Runs a path-dependent Monte Carlo simulation using Dinamica EGO, see
-[`alloc_dinamica()`](https://ethzplus.github.io/evoland-plus/reference/alloc_dinamica.md)
-
-#### Usage
-
-    evoland_db$alloc_dinamica(
-      id_periods,
-      select_score,
-      select_maximize,
-      work_dir = NULL,
-      keep_intermediate = FALSE,
-      use_parent_trans_pot = FALSE,
-      force_predict_trans_pot = FALSE,
-      update_neighbors = TRUE
-    )
-
-#### Arguments
-
-- `id_periods`:
-
-  Integer vector of period IDs to include in the simulation.
-
-- `select_score`:
-
-  Character string; mlr3 measure ID (e.g. `"classif.auc"`) used to
-  select model for extrapolation
-
-- `select_maximize`:
-
-  Logical; maximize (`TRUE`) or minimize (`FALSE`) the score.
-
-- `work_dir`:
-
-  Character path for Dinamica working directory; `NULL` (default) uses a
-  temporary directory.
-
-- `keep_intermediate`:
-
-  Logical, keep intermediate Dinamica files? Default FALSE.
-
-- `use_parent_trans_pot`:
-
-  Logical; use the direct parent run's transition potentials
-
-- `force_predict_trans_pot`:
-
-  Logical; re-run prediction for trans_pot_t even if those values
-  already exist
-
-- `update_neighbors`:
-
-  Logical; recompute neighbour predictors after the last requested
-  period. Intermediate periods are always updated.
-
-------------------------------------------------------------------------
-
-### `evoland_db$alloc_clumpy()`
-
-Runs CLUMPY-style LULC allocation, see
-[`alloc_clumpy()`](https://ethzplus.github.io/evoland-plus/reference/alloc_clumpy.md).
-The method (uSAM vs uPAM) is selected automatically from the patch
-parameters: mono-pixel patches (`area_mean == 1`, `area_var == 0`) use
-uSAM, otherwise uPAM.
-
-#### Usage
-
-    evoland_db$alloc_clumpy(
-      id_periods,
-      select_score,
-      select_maximize,
-      area_dist = "lognormal",
-      avoid_aggregation = TRUE,
-      batch_size = 0L,
-      use_parent_trans_pot = FALSE,
-      force_predict_trans_pot = FALSE,
-      update_neighbors = TRUE
-    )
-
-#### Arguments
-
-- `id_periods`:
-
-  Integer vector of period IDs to include in the simulation.
-
-- `select_score`:
-
-  Character string; mlr3 measure ID (e.g. `"classif.auc"`) used to
-  select model for extrapolation.
-
-- `select_maximize`:
-
-  Logical; maximize (`TRUE`) or minimize (`FALSE`) the score.
-
-- `area_dist`:
-
-  Character; patch-area distribution, `"lognormal"` (default) or
-  `"normal"`. See
-  [`alloc_clumpy()`](https://ethzplus.github.io/evoland-plus/reference/alloc_clumpy.md).
-
-- `avoid_aggregation`:
-
-  Logical; if `TRUE` (default) uPAM patches that would merge fail and
-  allocate nothing. Ignored for uSAM.
-
-- `batch_size`:
-
-  Integer; uPAM pivots attempted per MuST re-draw. `0` (default)
-  auto-scales with the source pool; `> 0` is an explicit cap (`1` =
-  strict uPAM); `< 0` = all candidates in one pass. Ignored for uSAM.
-
-- `use_parent_trans_pot`:
-
-  Logical; use the direct parent run's transition potentials (useful for
-  repeated allocation)
-
-- `force_predict_trans_pot`:
-
-  Logical; re-run prediction for trans_pot_t even if those values
-  already exist
-
-- `update_neighbors`:
-
-  Logical; recompute neighbour predictors after the last requested
-  period. Intermediate periods are always updated.
-
-------------------------------------------------------------------------
-
-### `evoland_db$alloc_greedy()`
-
-Runs deterministic greedy (rank-and-fill) allocation, see
-[`alloc_greedy()`](https://ethzplus.github.io/evoland-plus/reference/alloc_greedy.md):
-each transition's demand goes to the cells of highest adjusted
-potential, every cell changes at most once.
-
-#### Usage
-
-    evoland_db$alloc_greedy(
-      id_periods,
-      select_score,
-      select_maximize,
-      arbitration = c("joint", "ordered"),
-      order = NULL,
-      use_parent_trans_pot = FALSE,
-      force_predict_trans_pot = FALSE,
-      update_neighbors = TRUE
-    )
-
-#### Arguments
-
-- `id_periods`:
-
-  Integer vector of period IDs to include in the simulation.
-
-- `select_score`:
-
-  Character string; mlr3 measure ID (e.g. `"classif.auc"`) used to
-  select model for extrapolation.
-
-- `select_maximize`:
-
-  Logical; maximize (`TRUE`) or minimize (`FALSE`) the score.
-
-- `arbitration`:
-
-  Character; `"joint"` (default) ranks all transitions together,
-  `"ordered"` lets transitions claim cells in the priority given by
-  `order`.
-
-- `order`:
-
-  Integer vector of `id_trans`, the priority for `"ordered"`.
-
-- `use_parent_trans_pot`:
-
-  Logical; use the direct parent run's transition potentials
-
-- `force_predict_trans_pot`:
-
-  Logical; re-run prediction for trans_pot_t even if those values
-  already exist
-
-- `update_neighbors`:
-
-  Logical; recompute neighbour predictors after the last requested
-  period. Intermediate periods are always updated.
-
-------------------------------------------------------------------------
-
-### `evoland_db$eval_alloc_params_t()`
-
-Evaluates allocation parameters in dinamica, see
-[`eval_alloc_params_t()`](https://ethzplus.github.io/evoland-plus/reference/alloc_dinamica.md)
-
-#### Usage
-
-    evoland_db$eval_alloc_params_t(
-      select_score,
-      select_maximize,
-      work_dir = NULL,
-      keep_intermediate = FALSE
-    )
-
-#### Arguments
-
-- `select_score`:
-
-  Character string; mlr3 measure ID (e.g. `"classif.auc"`) used to
-  select model for extrapolation
-
-- `select_maximize`:
-
-  Logical; maximize (`TRUE`) or minimize (`FALSE`) the score.
-
-- `work_dir`:
-
-  Character path for Dinamica working directory; `NULL` (default) uses a
-  temporary directory.
-
-- `keep_intermediate`:
-
-  Logical, keep intermediate Dinamica files? Default FALSE.
-
-------------------------------------------------------------------------
-
 ### `evoland_db$create_alloc_params_t()`
 
 Estimates allocation parameters for all viable transitions under the
 active `id_run`, see
-[`create_alloc_params_t()`](https://ethzplus.github.io/evoland-plus/reference/alloc_params_t.md)
+[`create_alloc_params_t()`](https://ethzplus.github.io/evoland.plus/reference/alloc_params_t.md)
 
 #### Usage
 
-    evoland_db$create_alloc_params_t()
+    evoland_db$create_alloc_params_t(id_period_post = NULL)
+
+#### Arguments
+
+- `id_period_post`:
+
+  Optional integer vector; estimate only from the period pairs ending in
+  these periods. `NULL` (default) uses every observed pair.
 
 ------------------------------------------------------------------------
 
 ### `evoland_db$lulc_data_as_rast()`
 
 Retrieve LULC data as a SpatRaster object for a given period. See
-[`lulc_data_as_rast()`](https://ethzplus.github.io/evoland-plus/reference/lulc_data_t.md)
+[`lulc_data_as_rast()`](https://ethzplus.github.io/evoland.plus/reference/lulc_data_t.md)
 
 #### Usage
 
@@ -837,7 +627,7 @@ Retrieve LULC data as a SpatRaster object for a given period. See
 
 Fit full models (trained on the complete dataset) for each viable
 transition, see
-[`fit_full_models()`](https://ethzplus.github.io/evoland-plus/reference/trans_models_t.md).
+[`fit_full_models()`](https://ethzplus.github.io/evoland.plus/reference/trans_models_t.md).
 Two mutually exclusive modes: pass `learner` to train directly, or pass
 `select_score` to pick the best partial model by score.
 
@@ -848,8 +638,8 @@ Two mutually exclusive modes: pass `learner` to train directly, or pass
       select_score = NULL,
       select_maximize = TRUE,
       cluster = NULL,
-      trans_preds = NULL,
-      trans_meta = NULL
+      id_trans = NULL,
+      id_period_anterior = NULL
     )
 
 #### Arguments
@@ -872,19 +662,14 @@ Two mutually exclusive modes: pass `learner` to train directly, or pass
 
   Optional cluster object for parallel processing
 
-- `trans_preds`:
+- `id_trans`:
 
-  Optional
-  [trans_preds_t](https://ethzplus.github.io/evoland-plus/reference/trans_preds_t.md);
-  bypasses the database read in direct-learner mode. Ignored in
-  score-select mode.
+  Optional integer vector; fit only these transitions.
 
-- `trans_meta`:
+- `id_period_anterior`:
 
-  Optional
-  [trans_meta_t](https://ethzplus.github.io/evoland-plus/reference/trans_meta_t.md);
-  bypasses the database read in direct-learner mode. Ignored in
-  score-select mode.
+  Optional integer vector; train only on transitions observed from these
+  anterior periods. `NULL` (default) uses all observed periods.
 
 ------------------------------------------------------------------------
 
@@ -892,7 +677,7 @@ Two mutually exclusive modes: pass `learner` to train directly, or pass
 
 Fit partial models for each viable transition using stratified sampling.
 Models are trained on a subsample and evaluated on held-out data, see
-[`fit_partial_models()`](https://ethzplus.github.io/evoland-plus/reference/trans_models_t.md)
+[`fit_partial_models()`](https://ethzplus.github.io/evoland.plus/reference/trans_models_t.md)
 for details.
 
 #### Usage
@@ -903,8 +688,8 @@ for details.
       sample_frac = 0.7,
       seed = NULL,
       cluster = NULL,
-      trans_preds = NULL,
-      trans_meta = NULL
+      id_trans = NULL,
+      id_period_anterior = NULL
     )
 
 #### Arguments
@@ -931,24 +716,22 @@ for details.
 
   Optional cluster object for parallel processing
 
-- `trans_preds`:
+- `id_trans`:
 
-  Optional
-  [trans_preds_t](https://ethzplus.github.io/evoland-plus/reference/trans_preds_t.md);
-  bypasses the `trans_preds_t` database read.
+  Optional integer vector; fit only these transitions.
 
-- `trans_meta`:
+- `id_period_anterior`:
 
-  Optional
-  [trans_meta_t](https://ethzplus.github.io/evoland-plus/reference/trans_meta_t.md);
-  bypasses the `trans_meta_t` database read.
+  Optional integer vector; train and score only on transitions observed
+  from these anterior periods. `NULL` (default) uses all observed
+  periods.
 
 ------------------------------------------------------------------------
 
 ### `evoland_db$get_crossval_plots()`
 
 Get cross-validation plots for stored predictions, see
-[`get_crossval_plots()`](https://ethzplus.github.io/evoland-plus/reference/trans_models_t.md)
+[`get_crossval_plots()`](https://ethzplus.github.io/evoland.plus/reference/trans_models_t.md)
 
 #### Usage
 
@@ -973,32 +756,33 @@ Get cross-validation plots for stored predictions, see
 
 ### `evoland_db$set_full_trans_preds()`
 
-Set an initial full set of transition / predictor relations, see
-[`set_full_trans_preds()`](https://ethzplus.github.io/evoland-plus/reference/trans_preds_t.md)
+Set an initial full set of transition / predictor relations for the
+active run, see
+[`set_full_trans_preds()`](https://ethzplus.github.io/evoland.plus/reference/trans_preds_t.md)
 
 #### Usage
 
-    evoland_db$set_full_trans_preds(overwrite = FALSE)
+    evoland_db$set_full_trans_preds(reset = FALSE)
 
 #### Arguments
 
-- `overwrite`:
+- `reset`:
 
-  Logical, whether to overwrite existing `trans_preds_t` table. Default
-  FALSE.
+  Logical, start the active run's selection over, removing its rows and
+  their scores? Default FALSE.
 
 ------------------------------------------------------------------------
 
 ### `evoland_db$get_pred_filter_score()`
 
 Add filter scores to predictors for each `id_run, id_trans`. See
-[`get_pred_filter_score()`](https://ethzplus.github.io/evoland-plus/reference/trans_preds_t.md).
+[`get_pred_filter_score()`](https://ethzplus.github.io/evoland.plus/reference/trans_preds_t.md).
 
 #### Usage
 
     evoland_db$get_pred_filter_score(
       filter = "correlation",
-      trans_preds = NULL,
+      id_trans = NULL,
       cluster = NULL,
       ...
     )
@@ -1013,12 +797,9 @@ Add filter scores to predictors for each `id_run, id_trans`. See
   [mlr3filters::Filter](https://mlr3filters.mlr-org.com/reference/Filter.html)
   object specifying the filter method to use for feature selection.
 
-- `trans_preds`:
+- `id_trans`:
 
-  Optional
-  [trans_preds_t](https://ethzplus.github.io/evoland-plus/reference/trans_preds_t.md);
-  when supplied, it is used directly instead of reading from the
-  database.
+  Optional integer vector; score only these transitions.
 
 - `cluster`:
 
@@ -1034,10 +815,10 @@ Add filter scores to predictors for each `id_run, id_trans`. See
 
 Predict the raw transition potential for a given period and store in
 `trans_pot_t`, see
-[`predict_trans_pot()`](https://ethzplus.github.io/evoland-plus/reference/trans_pot_t.md).
+[`predict_trans_pot()`](https://ethzplus.github.io/evoland.plus/reference/trans_pot_t.md).
 Raw potentials are per-transition model probabilities (not yet
 allocation-ready); use
-[`adjusted_trans_pot_v()`](https://ethzplus.github.io/evoland-plus/reference/evoland_db_views.md)
+[`adjusted_trans_pot_v()`](https://ethzplus.github.io/evoland.plus/reference/evoland_db_views.md)
 to obtain column-scaled, row-closed values.
 
 #### Usage
@@ -1046,7 +827,8 @@ to obtain column-scaled, row-closed values.
       id_period_post,
       select_score,
       select_maximize,
-      force = FALSE
+      force = FALSE,
+      id_run = self$id_run
     )
 
 #### Arguments
@@ -1064,40 +846,25 @@ to obtain column-scaled, row-closed values.
 
   Logical; maximize (`TRUE`) or minimize (`FALSE`) the score.
 
+- `force`:
+
+  Logical; predict even if `trans_pot_t` already holds potentials for
+  `id_run` and the period.
+
+- `id_run`:
+
+  Integer; the run to predict for, and to write the potentials under.
+
 ------------------------------------------------------------------------
 
 ### `evoland_db$get_obs_trans_rates()`
 
 Get the transition rates that were observed, see
-[trans_rates_t](https://ethzplus.github.io/evoland-plus/reference/trans_rates_t.md)
+[trans_rates_t](https://ethzplus.github.io/evoland.plus/reference/trans_rates_t.md)
 
 #### Usage
 
     evoland_db$get_obs_trans_rates()
-
-------------------------------------------------------------------------
-
-### `evoland_db$trans_rates_dinamica_v()`
-
-#### Usage
-
-    evoland_db$trans_rates_dinamica_v(id_period)
-
-------------------------------------------------------------------------
-
-### `evoland_db$adjusted_trans_pot_v()`
-
-#### Usage
-
-    evoland_db$adjusted_trans_pot_v(id_period_post)
-
-------------------------------------------------------------------------
-
-### `evoland_db$alloc_params_clumpy_v()`
-
-#### Usage
-
-    evoland_db$alloc_params_clumpy_v()
 
 ------------------------------------------------------------------------
 

@@ -5,6 +5,8 @@ Interact with Dinamica from R, see **Functions** section below.
 ## Usage
 
 ``` r
+check_dinamica(quiet = FALSE)
+
 exec_dinamica(
   model_path,
   disable_parallel = TRUE,
@@ -23,6 +25,10 @@ process_dinamica_script(infile, outfile, mode = "encode", check = TRUE)
 ```
 
 ## Arguments
+
+- quiet:
+
+  bool, suppress the message summarising the result?
 
 - model_path:
 
@@ -78,7 +84,22 @@ process_dinamica_script(infile, outfile, mode = "encode", check = TRUE)
   Default TRUE, simple check to ensure that you're handling what you're
   expecting
 
+## Value
+
+`check_dinamica()`: a list with character vectors `required` and
+`recommended` naming the problems found, invisibly; both are empty for a
+complete setup.
+
 ## Functions
+
+- `check_dinamica()`: Check that Dinamica EGO is installed and
+  configured as the `install-dinamica` vignette describes. Problems that
+  stop evoland.plus from running Dinamica at all (platform,
+  `DinamicaConsole` on the `PATH`, `DINAMICA_EGO_8_HOME` and its
+  libraries) are *required*; those that make a run fail inside Dinamica
+  (configuration file, Dinamica's R package) are *recommended*.
+  `DINAMICA_EGO_8_TEMP_DIR` is not checked: Dinamica sets it for each R
+  process it starts, and a value set by the user breaks that coupling.
 
 - `exec_dinamica()`: Execute a Dinamica .ego file using
   `DinamicaConsole`

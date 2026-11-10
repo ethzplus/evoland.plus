@@ -10,7 +10,7 @@ a database to work in, and setting some coordinate points
 
 ``` r
 
-library(evoland)
+library(evoland.plus)
 library(data.table)
 db <- evoland_db$new(path = "noisemodel.evolanddb")
 db$set_coords(

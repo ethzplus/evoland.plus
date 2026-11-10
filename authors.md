@@ -7,16 +7,15 @@
 ## Citation
 
 Source:
-[`DESCRIPTION`](https://github.com/ethzplus/evoland-plus/blob/main/DESCRIPTION)
+[`DESCRIPTION`](https://github.com/ethzplus/evoland.plus/blob/main/DESCRIPTION)
 
-Hartman J (2026). *evoland: evoland-plus - or evoland for short -
-analyses land use evolution*. R package version 0.1.0.9000,
-<https://ethzplus.github.io/evoland-plus>.
+Hartman J (2026). *evoland.plus: Simulate Land Use Evolution*. R package
+version 0.1.1, <https://ethzplus.github.io/evoland.plus>.
 
     @Manual{,
-      title = {evoland: evoland-plus - or evoland for short - analyses land use evolution},
+      title = {evoland.plus: Simulate Land Use Evolution},
       author = {Jan Hartman},
       year = {2026},
-      note = {R package version 0.1.0.9000},
-      url = {https://ethzplus.github.io/evoland-plus},
+      note = {R package version 0.1.1},
+      url = {https://ethzplus.github.io/evoland.plus},
     }

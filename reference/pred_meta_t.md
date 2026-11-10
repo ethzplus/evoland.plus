@@ -58,7 +58,7 @@ A data.table of class "pred_meta_t" with columns:
   for coercion.
 
 - `fill_value`: Value to use for missing data for
-  [coords_t](https://ethzplus.github.io/evoland-plus/reference/coords_t.md)
+  [coords_t](https://ethzplus.github.io/evoland.plus/reference/coords_t.md)
   coordinate points that are not explicitly stored.
 
 - `factor_levels`: list of character vectors; order matters!
@@ -70,9 +70,9 @@ A data.table of class "pred_meta_t" with columns:
 
 ## Functions
 
-- `create_pred_meta_t()`: Creates a `pred_meta_t` table from
-  intervention specifications. Attributes incremental IDs to predictors,
-  starting from `starting_id`. See examples for schema of `pred_spec`.
+- `create_pred_meta_t()`: Creates a `pred_meta_t` table from predictor
+  specifications. Attributes incremental IDs to predictors, starting
+  from `starting_id`. See examples for schema of `pred_spec`.
 
 ## Examples
 

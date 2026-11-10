@@ -1,7 +1,7 @@
 # DuckLake database utility functions
 
 A set of utility functions for working with
-[ducklake_db](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.md).
+[ducklake_db](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.md).
 
 ## Usage
 
@@ -47,7 +47,7 @@ create_method_binding(fun, with_private = FALSE, with_super = FALSE)
   Optional character vector. Used for data.table's
   [data.table::setkey](https://rdrr.io/pkg/data.table/man/setkey.html)
   and used by
-  [ducklake_db](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.md)
+  [ducklake_db](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.md)
   to determine which columns to use for upsert operations. Together with
   `alternate_key_cols`, these are used to define uniqueness constraints.
 
@@ -117,7 +117,7 @@ create_method_binding(fun, with_private = FALSE, with_super = FALSE)
 
 - `as_ducklake_db_t()`: Coerce to ducklake_db_t subclass. It coerces an
   object to a data.table and adds attributes that
-  [ducklake_db](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.md)
+  [ducklake_db](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.md)
   relies on for database-like operations. See the paramaters for
   details.
 
@@ -127,7 +127,7 @@ create_method_binding(fun, with_private = FALSE, with_super = FALSE)
 
 - `serialize_metadata()`: Serialize a named list of atomic vectors into
   the single string that
-  [ducklake_db](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.md)
+  [ducklake_db](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.md)
   stores as a comment on the catalog table. Each entry becomes one line,
   `key: "value1", "value2"`.
 

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<title>Installing Dinamica EGO • evoland</title>
+<title>Installing Dinamica EGO • evoland.plus</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
 <script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
@@ -19,9 +19,9 @@
 
     <nav class="navbar navbar-expand-lg fixed-top bg-light" data-bs-theme="light" aria-label="Site navigation"><div class="container">
 
-    <a class="navbar-brand me-2" href="../index.html">evoland</a>
+    <a class="navbar-brand me-2" href="../index.html">evoland.plus</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.0.9000</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.1.1</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -30,12 +30,12 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
-<li class="nav-item"><a class="nav-link" href="../articles/evoland.html">Get started</a></li>
 <li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
 <li class="active nav-item dropdown">
   <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
   <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="../articles/ingest-predictors.html">Ingest GeoTIFFs as Predictors</a></li>
+<li><a class="dropdown-item" href="../articles/evoland.plus.html">`evoland.plus` tutorial</a></li>
+    <li><a class="dropdown-item" href="../articles/ingest-predictors.html">Ingest GeoTIFFs as Predictors</a></li>
     <li><a class="dropdown-item" href="../articles/install-dinamica.html">Installing Dinamica EGO</a></li>
     <li><a class="dropdown-item" href="../articles/stochastic-allocation-sensitivity.html">Stochastic allocation sensitivity with `runs_t`</a></li>
   </ul>
@@ -45,7 +45,7 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json">
 </form></li>
-<li class="nav-item"><a class="external-link nav-link" href="https://github.com/ethzplus/evoland-plus/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/ethzplus/evoland.plus/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
 
@@ -58,9 +58,9 @@
       <h1>Installing Dinamica EGO</h1>
 
       <p class="author">Jan Hartman</p>
-      <p class="date">2026-10-28</p>
+      <p class="date">2026-11-10</p>
 
-      <small class="dont-index">Source: <a href="https://github.com/ethzplus/evoland-plus/blob/main/vignettes/install-dinamica.qmd" class="external-link"><code>vignettes/install-dinamica.qmd</code></a></small>
+      <small class="dont-index">Source: <a href="https://github.com/ethzplus/evoland.plus/blob/main/vignettes/install-dinamica.qmd" class="external-link"><code>vignettes/install-dinamica.qmd</code></a></small>
       <div class="d-none name"><code></code></div>
     </div>
 
@@ -69,16 +69,16 @@
 
 
 
-    <p><code>evoland-plus</code> uses <a href="https://dinamicaego.com/" class="external-link">Dinamica EGO</a> as its spatial allocation engine. This vignette explains how to install it so the package can find and use it.</p>
+    <p><code>evoland.plus</code> uses <a href="https://dinamicaego.com/" class="external-link">Dinamica EGO</a> as its spatial allocation engine. This vignette explains how to install it so the package can find and use it.</p>
 <section class="level2"><h2 id="platform-support">Platform Support<a class="anchor" aria-label="anchor" href="#platform-support"></a>
 </h2>
 <div>
 <blockquote>
 <p><strong>Warning</strong></p>
-<p>Dinamica EGO is distributed as a <strong>Linux x86 / amd64 AppImage</strong> and a <strong>Windows installer</strong>. It does <strong>not</strong> run on ARM architectures (e.g. Apple Silicon, Raspberry Pi) or on macOS. The Linux AppImage path described in this vignette is well-tested; the Windows installer has <strong>not been tested</strong> with <code>evoland-plus</code>.</p>
+<p>Dinamica EGO is distributed as a <strong>Linux x86 / amd64 AppImage</strong> and a <strong>Windows installer</strong>. It does <strong>not</strong> run on ARM architectures (e.g. Apple Silicon, Raspberry Pi) or on macOS. The Linux AppImage path described in this vignette is well-tested; the Windows installer has <strong>not been tested</strong> with <code>evoland.plus</code>.</p>
 </blockquote>
 </div>
-<p>If you are on an unsupported platform, your best option is to build the Docker image from <a href="https://github.com/ethzplus/rocker-geospatial-dinamica/" class="external-link uri">https://github.com/ethzplus/rocker-geospatial-dinamica/</a>. Because Dinamica EGO cannot be redistributed, the image is not pre-built; you must clone that repository and build it locally. The <code>evoland-plus</code> repository ships a <a href="https://containers.dev/" class="external-link">devcontainer</a> configuration, so once the image is built you can open the project directly inside the container from VS Code or any other IDE that supports the devcontainer specification — just make sure a Docker-compatible runtime is running first (e.g. <a href="https://www.docker.com/products/docker-desktop/" class="external-link">Docker Desktop</a>, <a href="https://orbstack.dev/" class="external-link">OrbStack</a>, <a href="https://github.com/abiosoft/colima" class="external-link">Colima</a>, or <a href="https://www.portainer.io/" class="external-link">Portainer</a>).</p>
+<p>If you are on an unsupported platform, you can run Dinamica in a Docker image built from <a href="https://github.com/ethzplus/rocker-geospatial-dinamica/" class="external-link uri">https://github.com/ethzplus/rocker-geospatial-dinamica/</a>. Because Dinamica EGO cannot be redistributed, the image is not pre-built; you must clone that repository and build it locally. Dinamica is optional: the other allocators (<code><a href="../reference/alloc_clumpy_spec.html">alloc_clumpy_spec()</a></code>, <code><a href="../reference/alloc_greedy_spec.html">alloc_greedy_spec()</a></code>) run wherever R does.</p>
 </section><section class="level2"><h2 id="installing-on-linux-x86-amd64">Installing on Linux x86 / amd64<a class="anchor" aria-label="anchor" href="#installing-on-linux-x86-amd64"></a>
 </h2>
 <p>The steps below mirror the <a href="https://github.com/ethzplus/rocker-geospatial-dinamica/blob/main/Dockerfile" class="external-link"><code>Dockerfile</code></a> used to build the official container image.</p>
@@ -113,42 +113,43 @@
 <div class="sourceCode" id="cb4"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DINAMICA_EGO_8_INSTALLATION_DIRECTORY</span><span class="op">=</span><span class="st">"/opt/dinamica/usr/bin"</span></span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DINAMICA_EGO_CLI</span><span class="op">=</span><span class="st">"/opt/dinamica/usr/bin/DinamicaConsole"</span></span>
 <span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DINAMICA_EGO_8_HOME</span><span class="op">=</span><span class="st">"/opt/dinamica"</span></span>
-<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">DINAMICA_EGO_8_TEMP_DIR</span><span class="op">=</span><span class="st">"/tmp/dinamica"</span></span>
-<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">PATH</span><span class="op">=</span><span class="st">"</span><span class="va">$PATH</span><span class="st">:/opt/dinamica/usr/bin"</span></span></code></pre></div>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="bu">export</span> <span class="va">PATH</span><span class="op">=</span><span class="st">"</span><span class="va">$PATH</span><span class="st">:/opt/dinamica/usr/bin"</span></span></code></pre></div>
 <div>
 <blockquote>
 <p><strong>Note</strong></p>
-<p><code>LD_LIBRARY_PATH</code> does <strong>not</strong> need to be set manually. <code>evoland</code> automatically prepends <code>/opt/dinamica/usr/lib</code> (derived from <code>DINAMICA_EGO_8_HOME</code>) to <code>LD_LIBRARY_PATH</code> when it invokes <code>DinamicaConsole</code>, so your system-wide library path is never affected.</p>
+<p><code>LD_LIBRARY_PATH</code> does <strong>not</strong> need to be set manually. <code>evoland.plus</code> automatically prepends <code>/opt/dinamica/usr/lib</code> (derived from <code>DINAMICA_EGO_8_HOME</code>) to <code>LD_LIBRARY_PATH</code> when it invokes <code>DinamicaConsole</code>, so your system-wide library path is never affected.</p>
 </blockquote>
 </div>
 <div>
 <blockquote>
 <p><strong>Warning</strong></p>
-<p>Set these in your <strong>shell</strong> profile, not in <code>~/.Renviron</code>. For every <code>Calculate R Expression</code> it runs, Dinamica starts <code>Rscript</code> with <code>DINAMICA_EGO_8_TEMP_DIR</code> pointing to a per-run subdirectory, where it places the message queues it shares with that R process. R reads <code>~/.Renviron</code> at startup and would reset the variable to the top-level directory, so the R side cannot find the queues and the model fails with <code>Failed to send message, session is closed</code>.</p>
+<p>Do <strong>not</strong> set <code>DINAMICA_EGO_8_TEMP_DIR</code>, neither in your shell profile nor in an R startup file (<code>~/.Renviron</code>, <code>Renviron.site</code>). For every <code>Calculate R Expression</code> it runs, Dinamica starts <code>Rscript</code> with <code>DINAMICA_EGO_8_TEMP_DIR</code> pointing to a per-run subdirectory, where it places the message queues it shares with that R process. A value set by you can override that directory, so the R side cannot find the queues and the model fails with <code>Failed to send message, session is closed</code>.</p>
 </blockquote>
 </div>
-<p>Create the temporary directory Dinamica uses at runtime:</p>
-<div class="sourceCode" id="cb5"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">mkdir</span> <span class="at">-p</span> /tmp/dinamica</span></code></pre></div>
 </section><section class="level3"><h3 id="create-the-dinamica-configuration-file">6. Create the Dinamica configuration file<a class="anchor" aria-label="anchor" href="#create-the-dinamica-configuration-file"></a>
 </h3>
-<p>Dinamica looks for a per-user configuration file in your home directory. Create <code>~/.dinamica_ego_8.conf</code> with at least the following content. The <code>AlternativePathForR</code> key must point to the <code>Rscript</code> binary that <code>evoland</code> uses; verify the correct path with <code>which Rscript</code> in your terminal and update the value accordingly. Adjust the CRAN mirror if you prefer a different one:</p>
-<div class="sourceCode" id="cb6"><pre class="sourceCode ini"><code class="sourceCode ini"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="dt">AlternativePathForR </span><span class="ot">=</span><span class="st"> "/usr/local/bin/Rscript"</span></span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a><span class="dt">ClConfig </span><span class="ot">=</span><span class="st"> "0"</span></span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="dt">MemoryAllocationPolicy </span><span class="ot">=</span><span class="st"> "1"</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="dt">RCranMirror </span><span class="ot">=</span><span class="st"> "https://cloud.r-project.org/"</span></span></code></pre></div>
+<p>Dinamica looks for a per-user configuration file in your home directory. Create <code>~/.dinamica_ego_8.conf</code> with at least the following content. The <code>AlternativePathForR</code> key must point to the <code>Rscript</code> binary that <code>evoland.plus</code> uses; verify the correct path with <code>which Rscript</code> in your terminal and update the value accordingly. Adjust the CRAN mirror if you prefer a different one:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode ini"><code class="sourceCode ini"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="dt">AlternativePathForR </span><span class="ot">=</span><span class="st"> "/usr/local/bin/Rscript"</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="dt">ClConfig </span><span class="ot">=</span><span class="st"> "0"</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="dt">MemoryAllocationPolicy </span><span class="ot">=</span><span class="st"> "1"</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="dt">RCranMirror </span><span class="ot">=</span><span class="st"> "https://cloud.r-project.org/"</span></span></code></pre></div>
 </section><section class="level3"><h3 id="verify-the-installation">7. Verify the installation<a class="anchor" aria-label="anchor" href="#verify-the-installation"></a>
 </h3>
 <p>Check that Dinamica can be found on the PATH:</p>
-<div class="sourceCode" id="cb7"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="ex">DinamicaConsole</span> <span class="at">--version</span></span></code></pre></div>
-<p>You should see version information printed to the terminal. From R, run the Dinamica-specific test file that ships with <code>evoland</code> to confirm the full integration works:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="ex">DinamicaConsole</span> <span class="at">--version</span></span></code></pre></div>
+<p>You should see version information printed to the terminal. From R, <code><a href="../reference/util_dinamica.html">check_dinamica()</a></code> lists anything missing from the steps above; the Dinamica allocators run the same check before they start and stop with this list if Dinamica cannot run at all:</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ethzplus.github.io/evoland.plus">evoland.plus</a></span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/util_dinamica.html">check_dinamica</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<p>Then run the Dinamica-specific test file that ships with <code>evoland.plus</code> to confirm the full integration works:</p>
 <div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ethzplus.github.io/evoland-plus">evoland</a></span><span class="op">)</span></span>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ethzplus.github.io/evoland.plus">evoland.plus</a></span><span class="op">)</span></span>
 <span><span class="fu">tinytest</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/tinytest/man/run_test_file.html" class="external-link">run_test_file</a></span><span class="op">(</span></span>
-<span>  <span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"tinytest"</span>, <span class="st">"test_util_dinamica.R"</span>, package <span class="op">=</span> <span class="st">"evoland"</span><span class="op">)</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/system.file.html" class="external-link">system.file</a></span><span class="op">(</span><span class="st">"tinytest"</span>, <span class="st">"test_util_dinamica.R"</span>, package <span class="op">=</span> <span class="st">"evoland.plus"</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
 <p>Alternatively, run the full test suite (takes longer but validates the complete installation):</p>
 <div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">tinytest</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/tinytest/man/test_package.html" class="external-link">test_package</a></span><span class="op">(</span><span class="st">"evoland"</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu">tinytest</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/pkg/tinytest/man/test_package.html" class="external-link">test_package</a></span><span class="op">(</span><span class="st">"evoland.plus"</span><span class="op">)</span></span></code></pre></div>
 </section></section><section class="level2"><h2 id="troubleshooting">Troubleshooting<a class="anchor" aria-label="anchor" href="#troubleshooting"></a>
 </h2>
 <dl>
@@ -158,15 +159,11 @@ Make sure <code>/opt/dinamica/usr/bin</code> is on your <code>PATH</code> and th
 </dd>
 <dt><strong>Shared library errors (<code>libXXX.so not found</code>)</strong></dt>
 <dd>
-<code>evoland</code> sets <code>LD_LIBRARY_PATH</code> to <code>$DINAMICA_EGO_8_HOME/usr/lib</code> for every <code>DinamicaConsole</code> call. If you still see library errors, verify that <code>DINAMICA_EGO_8_HOME</code> is set correctly with <code>echo $DINAMICA_EGO_8_HOME</code> and that the shared libraries exist under that path.
+<code>evoland.plus</code> sets <code>LD_LIBRARY_PATH</code> to <code>$DINAMICA_EGO_8_HOME/usr/lib</code> for every <code>DinamicaConsole</code> call. If you still see library errors, verify that <code>DINAMICA_EGO_8_HOME</code> is set correctly with <code>echo $DINAMICA_EGO_8_HOME</code> and that the shared libraries exist under that path.
 </dd>
 <dt><strong><code>Failed to send message, session is closed</code> in a Dinamica log</strong></dt>
 <dd>
-An R startup file (<code>~/.Renviron</code>, <code>Renviron.site</code>) sets <code>DINAMICA_EGO_8_TEMP_DIR</code> and overrides the per-run directory Dinamica passes to R; remove it from there (see step 5).
-</dd>
-<dt><strong>Dinamica falls back to the anterior LULC map with a warning</strong></dt>
-<dd>
-The <code>DINAMICA_EGO_CLI</code> environment variable is not set or points to a wrong path. Double-check the path with <code>echo $DINAMICA_EGO_CLI</code> and that the file is executable.
+<code>DINAMICA_EGO_8_TEMP_DIR</code> is set somewhere (shell profile, <code>~/.Renviron</code>, <code>Renviron.site</code>) and overrides the per-run directory Dinamica passes to R; remove it (see step 5).
 </dd>
 </dl></section><script id="quarto-html-after-body" type="application/javascript">
   window.document.addEventListener("DOMContentLoaded", function (event) {
@@ -177,7 +174,8 @@ The <code>DINAMICA_EGO_CLI</code> environment variable is not set or points to a
           return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
       }
       // Inspect non-navigation links and adorn them if external
-     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      window.quartoDecorateExternalLinks = function (root) {
+     var links = (root || window.document).querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
       for (var i=0; i<links.length; i++) {
         const link = links[i];
         if (!isInternal(link.href)) {
@@ -186,8 +184,69 @@ The <code>DINAMICA_EGO_CLI</code> environment variable is not set or points to a
           if (link.dataset.originalHref !== undefined) {
             link.href = link.dataset.originalHref;
           }
+          if (!link.classList.contains('no-external-icon')) {
+          }
         }
       }
+      };
+      window.quartoDecorateExternalLinks(window.document);
+    // Esc closes the popup (WCAG 1.4.13) and focus leaving both trigger and
+    // popup closes it (WCAG 2.4.11); tippy handles neither for interactive popups.
+    const hideOnEscAndFocusOut = {
+      name: 'hideOnEscAndFocusOut',
+      defaultValue: true,
+      fn(instance) {
+        const dismiss = () => {
+          // A show scheduled by the trigger delay would otherwise reopen it
+          instance.clearDelayTimeouts();
+          instance.hide();
+        };
+        const onKeyDown = (event) => {
+          if (event.key !== 'Escape') {
+            return;
+          }
+          // Keep Esc from also reaching page handlers (e.g. reveal.js overview),
+          // except an open reveal.js slide menu, which Esc should close too.
+          // The menu handles keys only when its keyboard option is on.
+          const menuHandlesEsc = window.Reveal?.getPlugin?.('menu')?.isOpen() &&
+            window.Reveal.getConfig().menu?.keyboard !== false;
+          if (!menuHandlesEsc) {
+            event.stopPropagation();
+          }
+          if (instance.popper.contains(window.document.activeElement)) {
+            // Disabled while refocusing so the focus trigger does not reopen it
+            instance.disable();
+            instance.reference.focus();
+            instance.enable();
+          }
+          dismiss();
+        };
+        const onFocusOut = (event) => {
+          const target = event.relatedTarget;
+          if (target && !instance.reference.contains(target) &&
+              !instance.popper.contains(target)) {
+            dismiss();
+          }
+        };
+        // On the trigger too: a click trigger (code-annotations: select) has no
+        // blur handling. Attached for the instance's lifetime so leaving the
+        // trigger also cancels a show still pending on the trigger delay.
+        instance.reference.addEventListener('focusout', onFocusOut);
+        return {
+          onShow() {
+            window.document.addEventListener('keydown', onKeyDown, true);
+            instance.popper.addEventListener('focusout', onFocusOut);
+          },
+          onHide() {
+            window.document.removeEventListener('keydown', onKeyDown, true);
+            instance.popper.removeEventListener('focusout', onFocusOut);
+          },
+          onDestroy() {
+            instance.reference.removeEventListener('focusout', onFocusOut);
+          },
+        };
+      },
+    };
     function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
       const config = {
         allowHTML: true,
@@ -201,6 +260,7 @@ The <code>DINAMICA_EGO_CLI</code> environment variable is not set or points to a
         interactiveBorder: 10,
         theme: 'light-border',
         placement: 'bottom-start',
+        plugins: [hideOnEscAndFocusOut],
       };
       if (contentFn) {
         config.content = contentFn;

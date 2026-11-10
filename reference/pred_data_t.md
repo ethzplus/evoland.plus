@@ -14,9 +14,15 @@ print(x, nrow = 10, ...)
 
 pred_data_available_v(self)
 
-pred_wide_train_v(self, id_trans, id_pred)
+pred_wide_train_v(self, id_trans, id_pred, id_period_anterior = NULL)
 
-pred_wide_predict_v(self, private, id_trans, id_period_anterior)
+pred_wide_predict_v(
+  self,
+  private,
+  id_trans,
+  id_period_anterior,
+  id_run = self$id_run
+)
 
 set_pred_coltypes(result, pred_meta_t)
 
@@ -52,24 +58,28 @@ add_predictor(
 
 - self, :
 
-  [evoland_db](https://ethzplus.github.io/evoland-plus/reference/evoland_db.md)
+  [evoland_db](https://ethzplus.github.io/evoland.plus/reference/evoland_db.md)
   instance to query
 
 - id_trans:
 
   Integer transition ID, see
-  [trans_meta_t](https://ethzplus.github.io/evoland-plus/reference/trans_meta_t.md)
+  [trans_meta_t](https://ethzplus.github.io/evoland.plus/reference/trans_meta_t.md)
 
 - id_pred:
 
   Optional integer vector of predictor IDs to include; if missing, use
   all predictor IDs from
-  [pred_meta_t](https://ethzplus.github.io/evoland-plus/reference/pred_meta_t.md)
+  [pred_meta_t](https://ethzplus.github.io/evoland.plus/reference/pred_meta_t.md)
 
 - id_period_anterior:
 
   Scalar integerish of anterior period ID, i.e. we get the predictors
   that explain the processes over the next N years
+
+- id_run:
+
+  Integer, the run whose predictors and anterior map are read
 
 - result:
 
@@ -78,13 +88,13 @@ add_predictor(
 - pred_meta_t:
 
   see
-  [pred_meta_t](https://ethzplus.github.io/evoland-plus/reference/pred_meta_t.md)
+  [pred_meta_t](https://ethzplus.github.io/evoland.plus/reference/pred_meta_t.md)
 
 - pred_data_raw:
 
   data.table with columns id_coord, id_period, and value (predictor
   value); the data type of the value is stored in
-  [pred_meta_t](https://ethzplus.github.io/evoland-plus/reference/pred_meta_t.md)
+  [pred_meta_t](https://ethzplus.github.io/evoland.plus/reference/pred_meta_t.md)
 
 - name:
 
@@ -94,7 +104,7 @@ add_predictor(
 - fill_value:
 
   Value to use for coordinates registered in
-  [coords_t](https://ethzplus.github.io/evoland-plus/reference/coords_t.md)
+  [coords_t](https://ethzplus.github.io/evoland.plus/reference/coords_t.md)
   but not in the provided `pred_data_raw`. e.g. where no known
   population is registered, assume pop. 0. For a factor variable, this
   could be a base case, e.g. for different nature reserve types, this
@@ -116,9 +126,9 @@ add_predictor(
 
   opt. list of lists: each list containing one `url` and a `md5sum`
   field, see
-  [`create_pred_meta_t()`](https://ethzplus.github.io/evoland-plus/reference/pred_meta_t.md)
+  [`create_pred_meta_t()`](https://ethzplus.github.io/evoland.plus/reference/pred_meta_t.md)
   and
-  [`download_and_verify()`](https://ethzplus.github.io/evoland-plus/reference/util_download.md)
+  [`download_and_verify()`](https://ethzplus.github.io/evoland.plus/reference/util_download.md)
 
 - unit:
 
@@ -139,7 +149,7 @@ A data.table of class "pred_data_t" with columns:
 - `id_period`: Foreign key to periods_t
 
 - `value`: Predictor value (coerced to double, recoverable through
-  [pred_meta_t](https://ethzplus.github.io/evoland-plus/reference/pred_meta_t.md))
+  [pred_meta_t](https://ethzplus.github.io/evoland.plus/reference/pred_meta_t.md))
 
 data.table with columns id_coord, id_period, did_transition (bool), and
 one column per predictor (`id_pred_{n}`), ordered by id_coord and
@@ -155,7 +165,7 @@ replay
 
 - `pred_data_available_v()`: Check if predictor data is complete, i.e.
   each entry in
-  [pred_meta_t](https://ethzplus.github.io/evoland-plus/reference/pred_meta_t.md)
+  [pred_meta_t](https://ethzplus.github.io/evoland.plus/reference/pred_meta_t.md)
   is either present in period 0 or for all other periods for a given
   run.
 

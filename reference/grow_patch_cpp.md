@@ -6,7 +6,7 @@ direct use / unit testing. On success the allocated cells are written
 back into `landscape` (set to `to_class`); on failure nothing is
 committed. Neighbour vectors are 1-based with 0 == no neighbour, as
 produced by
-[`raster_neighbors_cpp()`](https://ethzplus.github.io/evoland-plus/reference/raster_neighbors_cpp.md).
+[`raster_neighbors_cpp()`](https://ethzplus.github.io/evoland.plus/reference/raster_neighbors_cpp.md).
 
 ## Usage
 

@@ -6,7 +6,7 @@ describe the change that happened; for extrapolated periods, they
 prescribe the change allocation has to produce. Future rates can be
 extrapolated with a linear regression (`extrapolate_trans_rates()`) or
 derived from target class shares or areas with a linear program
-([`solve_trans_rates()`](https://ethzplus.github.io/evoland-plus/reference/trans_rates_solver.md)).
+([`solve_trans_rates()`](https://ethzplus.github.io/evoland.plus/reference/trans_rates_solver.md)).
 
 ## Usage
 
@@ -60,7 +60,7 @@ trans_rate_areas(lulc_data, rates, trans_meta)
 - lulc_data:
 
   A
-  [lulc_data_t](https://ethzplus.github.io/evoland-plus/reference/lulc_data_t.md)
+  [lulc_data_t](https://ethzplus.github.io/evoland.plus/reference/lulc_data_t.md)
   for a single `id_run`; the areas of its last period are the state the
   replay starts from.
 
@@ -71,7 +71,7 @@ trans_rate_areas(lulc_data, rates, trans_meta)
 - trans_meta:
 
   A
-  [trans_meta_t](https://ethzplus.github.io/evoland-plus/reference/trans_meta_t.md)
+  [trans_meta_t](https://ethzplus.github.io/evoland.plus/reference/trans_meta_t.md)
   table, resolving `id_trans` to a pair of classes.
 
 ## Value

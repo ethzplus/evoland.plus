@@ -16,7 +16,8 @@ predict_trans_pot(
   id_period_post,
   select_score,
   select_maximize,
-  force = FALSE
+  force = FALSE,
+  id_run = self$id_run
 )
 ```
 
@@ -39,13 +40,13 @@ predict_trans_pot(
 - self:
 
   an
-  [evoland_db](https://ethzplus.github.io/evoland-plus/reference/evoland_db.md)
+  [evoland_db](https://ethzplus.github.io/evoland.plus/reference/evoland_db.md)
   instance
 
 - id_period_post:
 
   scalar integerish, passed to
-  [`pred_wide_predict_v()`](https://ethzplus.github.io/evoland-plus/reference/pred_data_t.md)
+  [`pred_wide_predict_v()`](https://ethzplus.github.io/evoland.plus/reference/pred_data_t.md)
 
 - select_score:
 
@@ -57,24 +58,32 @@ predict_trans_pot(
 
 - force:
 
-  logical, Force prediction even if a prediction is found
+  logical, predict even if `trans_pot_t` already holds potentials for
+  `id_run` and the period (potentials inherited from an ancestor run do
+  not count)
+
+- id_run:
+
+  integer, the run to predict for: its models, predictors and anterior
+  map are read through its lineage, and the potentials are written under
+  it
 
 ## Value
 
 A data.table of class "trans_pot_t" with columns:
 
 - `id_run`: Foreign key to
-  [`runs_t()`](https://ethzplus.github.io/evoland-plus/reference/runs_t.md)
+  [`runs_t()`](https://ethzplus.github.io/evoland.plus/reference/runs_t.md)
 
 - `id_trans`: Foreign key to
-  [`trans_meta_t()`](https://ethzplus.github.io/evoland-plus/reference/trans_meta_t.md)
+  [`trans_meta_t()`](https://ethzplus.github.io/evoland.plus/reference/trans_meta_t.md)
 
 - `id_period_post`: Foreign key to
-  [`periods_t()`](https://ethzplus.github.io/evoland-plus/reference/periods_t.md),
+  [`periods_t()`](https://ethzplus.github.io/evoland.plus/reference/periods_t.md),
   the posterior period
 
 - `id_coord`: Foreign key to
-  [`coords_t()`](https://ethzplus.github.io/evoland-plus/reference/coords_t.md)
+  [`coords_t()`](https://ethzplus.github.io/evoland.plus/reference/coords_t.md)
 
 - `value`: Raw transition potential in \[0, 1\], as predicted by the
   transition's model
@@ -89,15 +98,15 @@ database
 
 ## Functions
 
-- `predict_trans_pot()`: For each viable transition in current `id_run`,
-  predict the raw transition potential for a given period and store it
-  in `trans_pot_t` in the database. Raw potentials are per-transition
-  MLR3 model probabilities; they are **not** yet allocation-ready (not
+- `predict_trans_pot()`: For each viable transition in `id_run`, predict
+  the raw transition potential for a given period and store it in
+  `trans_pot_t` in the database. Raw potentials are per-transition MLR3
+  model probabilities; they are **not** yet allocation-ready (not
   column-scaled to target rates, not row-closed to max probability of
   1). Use
-  [`adjusted_trans_pot_v()`](https://ethzplus.github.io/evoland-plus/reference/evoland_db_views.md)
+  [`adjusted_trans_pot_v()`](https://ethzplus.github.io/evoland.plus/reference/evoland_db_views.md)
   to obtain allocation-ready values. Set
-  `options(evoland.use_prefetch_predict=TRUE)` to prefetch all
+  `options(evoland.plus.use_prefetch_predict=TRUE)` to prefetch all
   predictors; this causes higher memory pressure but only needs to go to
   disk once. The learners have `parallel_predict` enabled, see
   [mlr3::Learner](https://mlr3.mlr-org.com/reference/Learner.html): the

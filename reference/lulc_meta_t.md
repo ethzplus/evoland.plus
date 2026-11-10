@@ -24,7 +24,7 @@ print(x, nrow = 10, ...)
 
 - lulc_class_spec:
 
-  A list of intervention specifications, see examples
+  A named list of land use class specifications, see examples
 
 - nrow:
 
@@ -57,8 +57,8 @@ A data.table of class "lulc_meta_t" with columns:
 
 ## Functions
 
-- `create_lulc_meta_t()`: Creates a lulc_meta_t table from intervention
-  specifications
+- `create_lulc_meta_t()`: Creates a lulc_meta_t table from land use
+  class specifications
 
 ## Examples
 

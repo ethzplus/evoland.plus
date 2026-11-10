@@ -42,7 +42,7 @@ run_parallel_evoland(items, worker_fun, parent_db, cluster = NULL, ...)
 - parent_db:
 
   An
-  [evoland_db](https://ethzplus.github.io/evoland-plus/reference/evoland_db.md)
+  [evoland_db](https://ethzplus.github.io/evoland.plus/reference/evoland_db.md)
   instance; used for its `path` and `id_run`; or passed directly to the
   worker for serial case.
 

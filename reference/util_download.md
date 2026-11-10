@@ -8,7 +8,7 @@ with retrieving the raw data from an online source and caching it.
 ``` r
 download_and_verify(
   df_in,
-  target_dir = getOption("evoland.cachedir"),
+  target_dir = getOption("evoland.plus.cachedir"),
   overwrite = FALSE
 )
 ```
@@ -18,13 +18,13 @@ download_and_verify(
 - df_in:
 
   Data frame with 'url' and 'md5sum' columns. This can be retrieved from
-  [pred_meta_t](https://ethzplus.github.io/evoland-plus/reference/pred_meta_t.md)
-  or
-  [intrv_meta_t](https://ethzplus.github.io/evoland-plus/reference/intrv_meta_t.md).
+  the `sources` column of
+  [pred_meta_t](https://ethzplus.github.io/evoland.plus/reference/pred_meta_t.md).
 
 - target_dir:
 
-  Target directory for downloads, defaults to option `evoland.cachedir`
+  Target directory for downloads, defaults to option
+  `evoland.plus.cachedir`
 
 - overwrite:
 

@@ -34,7 +34,7 @@ constructed.
 
 ## See also
 
-[trans_rate_lp](https://ethzplus.github.io/evoland-plus/reference/trans_rate_lp.md)
+[trans_rate_lp](https://ethzplus.github.io/evoland.plus/reference/trans_rate_lp.md)
 
 ## Active bindings
 

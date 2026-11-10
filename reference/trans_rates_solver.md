@@ -2,7 +2,7 @@
 
 A coupled linear program that derives per-transition flows from
 per-class area targets, as an alternative to
-[`extrapolate_trans_rates()`](https://ethzplus.github.io/evoland-plus/reference/trans_rates_t.md),
+[`extrapolate_trans_rates()`](https://ethzplus.github.io/evoland.plus/reference/trans_rates_t.md),
 which fits one independent univariate regression per transition and has
 no input for a scenario target.
 
@@ -21,33 +21,33 @@ solve_trans_rates(lulc_data, targets, shapes, bounds, periods, ...)
 - obs_rates:
 
   A
-  [trans_rates_t](https://ethzplus.github.io/evoland-plus/reference/trans_rates_t.md)
+  [trans_rates_t](https://ethzplus.github.io/evoland.plus/reference/trans_rates_t.md)
   table of observed rates for a single `id_run`, as returned by
   `evoland_db$get_obs_trans_rates()`.
 
 - periods:
 
   A
-  [periods_t](https://ethzplus.github.io/evoland-plus/reference/periods_t.md)
+  [periods_t](https://ethzplus.github.io/evoland.plus/reference/periods_t.md)
   table, used for the true period lengths.
 
 - trans_meta:
 
   A
-  [trans_meta_t](https://ethzplus.github.io/evoland-plus/reference/trans_meta_t.md)
+  [trans_meta_t](https://ethzplus.github.io/evoland.plus/reference/trans_meta_t.md)
   table, defining the full set of transitions and their viability.
 
 - include_persistence:
 
   Whether to reconstruct the `i -> i` diagonal as `1 - sum(rate)` over
   all transitions out of `i`. The diagonal is not part of
-  [trans_meta_t](https://ethzplus.github.io/evoland-plus/reference/trans_meta_t.md)
+  [trans_meta_t](https://ethzplus.github.io/evoland.plus/reference/trans_meta_t.md)
   but the LP needs it; without it, persistence is left unbounded.
 
 - lulc_data:
 
   A
-  [lulc_data_t](https://ethzplus.github.io/evoland-plus/reference/lulc_data_t.md)
+  [lulc_data_t](https://ethzplus.github.io/evoland.plus/reference/lulc_data_t.md)
   for a single `id_run`; the areas of its last observed period are the
   initial state.
 
@@ -65,7 +65,7 @@ solve_trans_rates(lulc_data, targets, shapes, bounds, periods, ...)
 
   A data.table with `id_lulc` and `shape`, or `NULL` for no shape
   preference. See
-  [trans_rate_lp](https://ethzplus.github.io/evoland-plus/reference/trans_rate_lp.md).
+  [trans_rate_lp](https://ethzplus.github.io/evoland.plus/reference/trans_rate_lp.md).
 
 - ...:
 
@@ -83,7 +83,7 @@ historic-preference term) and `is_viable`.
 `id_period`, `area_init`, `area_min` and `area_max`, in cells.
 
 `solve_trans_rates()` returns the solved
-[trans_rate_lp](https://ethzplus.github.io/evoland-plus/reference/trans_rate_lp.md)
+[trans_rate_lp](https://ethzplus.github.io/evoland.plus/reference/trans_rate_lp.md)
 object.
 
 ## Details
@@ -92,14 +92,14 @@ The model works in three unit layers, each at the layer where it is
 correct: scenario targets may be given as a share of the landscape
 (grid-independent), the LP itself is solved in shares and reported in
 cells (readable diagnostics), and the result is written to
-[trans_rates_t](https://ethzplus.github.io/evoland-plus/reference/trans_rates_t.md)
+[trans_rates_t](https://ethzplus.github.io/evoland.plus/reference/trans_rates_t.md)
 as both a `rate` (what
-[evoland_db](https://ethzplus.github.io/evoland-plus/reference/evoland_db.md)
+[evoland_db](https://ethzplus.github.io/evoland.plus/reference/evoland_db.md)
 `adjusted_trans_pot_v` and the allocators consume) and a `count` of
 cells.
 
 The program is built and solved by the
-[trans_rate_lp](https://ethzplus.github.io/evoland-plus/reference/trans_rate_lp.md)
+[trans_rate_lp](https://ethzplus.github.io/evoland.plus/reference/trans_rate_lp.md)
 class; these functions are the one-call form of it. Decision variables
 are the per-period flows between classes and the per-period class areas.
 Constraints are the initial condition, row and column closure,
@@ -129,7 +129,7 @@ that small classes are not ignored.
 - `solve_trans_rates()`: Solve for the per-transition flows that take
   the landscape from its observed state to `targets` over the
   extrapolated periods. A one-call form of
-  [trans_rate_lp](https://ethzplus.github.io/evoland-plus/reference/trans_rate_lp.md);
+  [trans_rate_lp](https://ethzplus.github.io/evoland.plus/reference/trans_rate_lp.md);
   use the class itself to inspect the program or to write the same
   solution to several runs.
 
@@ -152,15 +152,15 @@ Terms that would usually be written as quadratic penalties (terminal
 fit, historic preference, fairness across classes) are implemented as
 their L1 or minimax equivalents, which are linear.
 
-`lpSolve` is a *suggested* dependency, because most of evoland never
-solves a linear program: `trans_rate_bounds()` and
-[`trans_rate_areas()`](https://ethzplus.github.io/evoland-plus/reference/trans_rates_t.md)
+`lpSolve` is a *suggested* dependency, because most of evoland.plus
+never solves a linear program: `trans_rate_bounds()` and
+[`trans_rate_areas()`](https://ethzplus.github.io/evoland.plus/reference/trans_rates_t.md)
 work without it, while `trans_rate_reachability()` and
 `solve_trans_rates()` need it installed and say so if it is missing.
 
 ## See also
 
-[trans_rate_lp](https://ethzplus.github.io/evoland-plus/reference/trans_rate_lp.md),
-[trans_rates_t](https://ethzplus.github.io/evoland-plus/reference/trans_rates_t.md),
-[trans_meta_t](https://ethzplus.github.io/evoland-plus/reference/trans_meta_t.md),
-[periods_t](https://ethzplus.github.io/evoland-plus/reference/periods_t.md)
+[trans_rate_lp](https://ethzplus.github.io/evoland.plus/reference/trans_rate_lp.md),
+[trans_rates_t](https://ethzplus.github.io/evoland.plus/reference/trans_rates_t.md),
+[trans_meta_t](https://ethzplus.github.io/evoland.plus/reference/trans_meta_t.md),
+[periods_t](https://ethzplus.github.io/evoland.plus/reference/periods_t.md)

@@ -24,7 +24,7 @@ lulc_crosstab_v(
 - self:
 
   An
-  [evoland_db](https://ethzplus.github.io/evoland-plus/reference/evoland_db.md)
+  [evoland_db](https://ethzplus.github.io/evoland.plus/reference/evoland_db.md)
   instance
 
 - id_period_anterior, id_period_post:

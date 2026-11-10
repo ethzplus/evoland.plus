@@ -1,6 +1,6 @@
-# evoland utility functions
+# evoland.plus utility functions
 
-These are mostly used to validate evoland S3 objects.
+These are mostly used to validate evoland.plus S3 objects.
 
 ## Usage
 
@@ -82,9 +82,9 @@ The indexed result, which may be a single element or a list of elements
 - `ensure_dir()`: Ensure that a directory exists; return its argument
   for pipeability
 
-- `require_suggested()`: Require a package that evoland only suggests,
-  failing with an actionable message rather than with the one R gives
-  for a missing namespace
+- `require_suggested()`: Require a package that evoland.plus only
+  suggests, failing with an actionable message rather than with the one
+  R gives for a missing namespace
 
 - `print_rowwise_yaml()`: Print a dataframe in a row-wise yaml style
 

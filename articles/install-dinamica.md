@@ -1,6 +1,6 @@
 # Installing Dinamica EGO
 
-`evoland-plus` uses [Dinamica EGO](https://dinamicaego.com/) as its
+`evoland.plus` uses [Dinamica EGO](https://dinamicaego.com/) as its
 spatial allocation engine. This vignette explains how to install it so
 the package can find and use it.
 
@@ -12,22 +12,17 @@ the package can find and use it.
 > **Windows installer**. It does **not** run on ARM architectures
 > (e.g. Apple Silicon, Raspberry Pi) or on macOS. The Linux AppImage
 > path described in this vignette is well-tested; the Windows installer
-> has **not been tested** with `evoland-plus`.
+> has **not been tested** with `evoland.plus`.
 
-If you are on an unsupported platform, your best option is to build the
-Docker image from
+If you are on an unsupported platform, you can run Dinamica in a Docker
+image built from
 <https://github.com/ethzplus/rocker-geospatial-dinamica/>. Because
 Dinamica EGO cannot be redistributed, the image is not pre-built; you
-must clone that repository and build it locally. The `evoland-plus`
-repository ships a [devcontainer](https://containers.dev/)
-configuration, so once the image is built you can open the project
-directly inside the container from VS Code or any other IDE that
-supports the devcontainer specification — just make sure a
-Docker-compatible runtime is running first (e.g. [Docker
-Desktop](https://www.docker.com/products/docker-desktop/),
-[OrbStack](https://orbstack.dev/),
-[Colima](https://github.com/abiosoft/colima), or
-[Portainer](https://www.portainer.io/)).
+must clone that repository and build it locally. Dinamica is optional:
+the other allocators
+([`alloc_clumpy_spec()`](https://ethzplus.github.io/evoland.plus/reference/alloc_clumpy_spec.md),
+[`alloc_greedy_spec()`](https://ethzplus.github.io/evoland.plus/reference/alloc_greedy_spec.md))
+run wherever R does.
 
 ## Installing on Linux x86 / amd64
 
@@ -89,41 +84,35 @@ session, then reload the profile or log out and back in:
 export DINAMICA_EGO_8_INSTALLATION_DIRECTORY="/opt/dinamica/usr/bin"
 export DINAMICA_EGO_CLI="/opt/dinamica/usr/bin/DinamicaConsole"
 export DINAMICA_EGO_8_HOME="/opt/dinamica"
-export DINAMICA_EGO_8_TEMP_DIR="/tmp/dinamica"
 export PATH="$PATH:/opt/dinamica/usr/bin"
 ```
 
 > **Note**
 >
-> `LD_LIBRARY_PATH` does **not** need to be set manually. `evoland`
+> `LD_LIBRARY_PATH` does **not** need to be set manually. `evoland.plus`
 > automatically prepends `/opt/dinamica/usr/lib` (derived from
 > `DINAMICA_EGO_8_HOME`) to `LD_LIBRARY_PATH` when it invokes
 > `DinamicaConsole`, so your system-wide library path is never affected.
 
 > **Warning**
 >
-> Set these in your **shell** profile, not in `~/.Renviron`. For every
-> `Calculate R Expression` it runs, Dinamica starts `Rscript` with
+> Do **not** set `DINAMICA_EGO_8_TEMP_DIR`, neither in your shell
+> profile nor in an R startup file (`~/.Renviron`, `Renviron.site`). For
+> every `Calculate R Expression` it runs, Dinamica starts `Rscript` with
 > `DINAMICA_EGO_8_TEMP_DIR` pointing to a per-run subdirectory, where it
-> places the message queues it shares with that R process. R reads
-> `~/.Renviron` at startup and would reset the variable to the top-level
-> directory, so the R side cannot find the queues and the model fails
-> with `Failed to send message, session is closed`.
-
-Create the temporary directory Dinamica uses at runtime:
-
-``` bash
-mkdir -p /tmp/dinamica
-```
+> places the message queues it shares with that R process. A value set
+> by you can override that directory, so the R side cannot find the
+> queues and the model fails with
+> `Failed to send message, session is closed`.
 
 ### 6. Create the Dinamica configuration file
 
 Dinamica looks for a per-user configuration file in your home directory.
 Create `~/.dinamica_ego_8.conf` with at least the following content. The
 `AlternativePathForR` key must point to the `Rscript` binary that
-`evoland` uses; verify the correct path with `which Rscript` in your
-terminal and update the value accordingly. Adjust the CRAN mirror if you
-prefer a different one:
+`evoland.plus` uses; verify the correct path with `which Rscript` in
+your terminal and update the value accordingly. Adjust the CRAN mirror
+if you prefer a different one:
 
 ``` ini
 AlternativePathForR = "/usr/local/bin/Rscript"
@@ -140,15 +129,26 @@ Check that Dinamica can be found on the PATH:
 DinamicaConsole --version
 ```
 
-You should see version information printed to the terminal. From R, run
-the Dinamica-specific test file that ships with `evoland` to confirm the
-full integration works:
+You should see version information printed to the terminal. From R,
+[`check_dinamica()`](https://ethzplus.github.io/evoland.plus/reference/util_dinamica.md)
+lists anything missing from the steps above; the Dinamica allocators run
+the same check before they start and stop with this list if Dinamica
+cannot run at all:
 
 ``` r
 
-library(evoland)
+library(evoland.plus)
+check_dinamica()
+```
+
+Then run the Dinamica-specific test file that ships with `evoland.plus`
+to confirm the full integration works:
+
+``` r
+
+library(evoland.plus)
 tinytest::run_test_file(
-  system.file("tinytest", "test_util_dinamica.R", package = "evoland")
+  system.file("tinytest", "test_util_dinamica.R", package = "evoland.plus")
 )
 ```
 
@@ -157,7 +157,7 @@ complete installation):
 
 ``` r
 
-tinytest::test_package("evoland")
+tinytest::test_package("evoland.plus")
 ```
 
 ## Troubleshooting
@@ -169,20 +169,14 @@ tinytest::test_package("evoland")
 
 - **Shared library errors (`libXXX.so not found`)**:
 
-  `evoland` sets `LD_LIBRARY_PATH` to `$DINAMICA_EGO_8_HOME/usr/lib` for
-  every `DinamicaConsole` call. If you still see library errors, verify
-  that `DINAMICA_EGO_8_HOME` is set correctly with
-  `echo $DINAMICA_EGO_8_HOME` and that the shared libraries exist under
-  that path.
+  `evoland.plus` sets `LD_LIBRARY_PATH` to
+  `$DINAMICA_EGO_8_HOME/usr/lib` for every `DinamicaConsole` call. If
+  you still see library errors, verify that `DINAMICA_EGO_8_HOME` is set
+  correctly with `echo $DINAMICA_EGO_8_HOME` and that the shared
+  libraries exist under that path.
 
 - **`Failed to send message, session is closed` in a Dinamica log**:
 
-  An R startup file (`~/.Renviron`, `Renviron.site`) sets
-  `DINAMICA_EGO_8_TEMP_DIR` and overrides the per-run directory Dinamica
-  passes to R; remove it from there (see step 5).
-
-- **Dinamica falls back to the anterior LULC map with a warning**:
-
-  The `DINAMICA_EGO_CLI` environment variable is not set or points to a
-  wrong path. Double-check the path with `echo $DINAMICA_EGO_CLI` and
-  that the file is executable.
+  `DINAMICA_EGO_8_TEMP_DIR` is set somewhere (shell profile,
+  `~/.Renviron`, `Renviron.site`) and overrides the per-run directory
+  Dinamica passes to R; remove it (see step 5).

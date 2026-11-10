@@ -54,7 +54,7 @@ figure_of_merit_v(
 - self:
 
   An
-  [evoland_db](https://ethzplus.github.io/evoland-plus/reference/evoland_db.md)
+  [evoland_db](https://ethzplus.github.io/evoland.plus/reference/evoland_db.md)
   instance
 
 - id_period_anterior:

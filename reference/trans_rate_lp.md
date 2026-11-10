@@ -3,7 +3,7 @@
 A coupled linear program that derives per-transition flows from
 per-class area targets. It is assembled one constraint block at a time;
 every block has an `add_` method of the same name, and
-[lp_problem](https://ethzplus.github.io/evoland-plus/reference/lp_problem.md)
+[lp_problem](https://ethzplus.github.io/evoland.plus/reference/lp_problem.md)
 keeps the resulting rows tagged with that name so a program can be
 solved over a subset of its blocks. That is what makes the reachability
 precheck the same program as the solve, rather than a second
@@ -20,7 +20,7 @@ anchor period.
 ## Periods
 
 Following
-[trans_rates_t](https://ethzplus.github.io/evoland-plus/reference/trans_rates_t.md),
+[trans_rates_t](https://ethzplus.github.io/evoland.plus/reference/trans_rates_t.md),
 the flows of period `p` take the landscape from its state at `p - 1` to
 its state at `p`. Area variables therefore exist at the anchor period –
 the last observed one – and at every extrapolated period, while flow
@@ -53,20 +53,20 @@ and which enter the reachability precheck.
 
 ## Installation
 
-Solving needs `lpSolve`, which evoland only suggests: most of the
+Solving needs `lpSolve`, which evoland.plus only suggests: most of the
 package never solves a linear program. `trans_rate_lp$new()` fails with
 an actionable message if it is missing, so install it before
 constructing one – `install.packages("lpSolve")`.
 
 ## See also
 
-[trans_rates_solver](https://ethzplus.github.io/evoland-plus/reference/trans_rates_solver.md),
-[lp_problem](https://ethzplus.github.io/evoland-plus/reference/lp_problem.md),
-[trans_rates_t](https://ethzplus.github.io/evoland-plus/reference/trans_rates_t.md)
+[trans_rates_solver](https://ethzplus.github.io/evoland.plus/reference/trans_rates_solver.md),
+[lp_problem](https://ethzplus.github.io/evoland.plus/reference/lp_problem.md),
+[trans_rates_t](https://ethzplus.github.io/evoland.plus/reference/trans_rates_t.md)
 
 ## Super class
 
-[`lp_problem`](https://ethzplus.github.io/evoland-plus/reference/lp_problem.md)
+[`lp_problem`](https://ethzplus.github.io/evoland.plus/reference/lp_problem.md)
 -\> `trans_rate_lp`
 
 ## Active bindings
@@ -106,7 +106,7 @@ constructing one – `install.packages("lpSolve")`.
 - `rates`:
 
   The solved flows as rates of their anterior class, which is what
-  [`adjusted_trans_pot_v()`](https://ethzplus.github.io/evoland-plus/reference/evoland_db_views.md)
+  [`adjusted_trans_pot_v()`](https://ethzplus.github.io/evoland.plus/reference/evoland_db_views.md)
   and the allocators consume.
 
 - `diagnostics`:
@@ -157,7 +157,7 @@ constructing one – `install.packages("lpSolve")`.
 
 Inherited methods
 
-- [`lp_problem$add_constraints()`](https://ethzplus.github.io/evoland-plus/reference/lp_problem.html#method-add_constraints)
+- [`lp_problem$add_constraints()`](https://ethzplus.github.io/evoland.plus/reference/lp_problem.html#method-add_constraints)
 
 ------------------------------------------------------------------------
 
@@ -194,19 +194,19 @@ solve. Requires the suggested `lpSolve` package to be installed.
 - `lulc_data`:
 
   A
-  [lulc_data_t](https://ethzplus.github.io/evoland-plus/reference/lulc_data_t.md)
+  [lulc_data_t](https://ethzplus.github.io/evoland.plus/reference/lulc_data_t.md)
   for a single `id_run`. The areas of its last observed period are the
   initial state.
 
 - `bounds`:
 
   Per-transition rate bounds, see
-  [`trans_rate_bounds()`](https://ethzplus.github.io/evoland-plus/reference/trans_rates_solver.md).
+  [`trans_rate_bounds()`](https://ethzplus.github.io/evoland.plus/reference/trans_rates_solver.md).
 
 - `periods`:
 
   A
-  [periods_t](https://ethzplus.github.io/evoland-plus/reference/periods_t.md).
+  [periods_t](https://ethzplus.github.io/evoland.plus/reference/periods_t.md).
   Its extrapolated periods are the steps to solve for, and their lengths
   set the time scale of the trajectory-shape constraints.
 
@@ -281,9 +281,9 @@ solve. Requires the suggested `lpSolve` package to be installed.
 - `forbid_non_viable`:
 
   Whether to hard-zero flows on transitions that
-  [trans_meta_t](https://ethzplus.github.io/evoland-plus/reference/trans_meta_t.md)
+  [trans_meta_t](https://ethzplus.github.io/evoland.plus/reference/trans_meta_t.md)
   marks as non-viable. Such flows have no
-  [trans_pot_t](https://ethzplus.github.io/evoland-plus/reference/trans_pot_t.md)
+  [trans_pot_t](https://ethzplus.github.io/evoland.plus/reference/trans_pot_t.md)
   rows and would be silently dropped at allocation time, so the
   trajectory would not materialise.
 
@@ -363,7 +363,7 @@ The `trans_rate_lp` object, invisibly
 
 A non-viable transition carries no flow at all. It is zero, not merely
 expensive: it has no
-[trans_pot_t](https://ethzplus.github.io/evoland-plus/reference/trans_pot_t.md)
+[trans_pot_t](https://ethzplus.github.io/evoland.plus/reference/trans_pot_t.md)
 rows and would be dropped at allocation time. One row per transition and
 period – a single row summing the periods says the same thing about
 non-negative flows, but it is dense enough for
@@ -545,7 +545,7 @@ Print a summary of the program.
 ### `trans_rate_lp$trans_rates_t()`
 
 trans_rates_t The solved rates as a
-[trans_rates_t](https://ethzplus.github.io/evoland-plus/reference/trans_rates_t.md)
+[trans_rates_t](https://ethzplus.github.io/evoland.plus/reference/trans_rates_t.md)
 for the indicated `id_run`. Persistence and non-viable transitions are
 dropped.
 

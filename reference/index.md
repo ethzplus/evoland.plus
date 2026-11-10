@@ -2,145 +2,138 @@
 
 ## All functions
 
-- [`LearnerClassifGrrf`](https://ethzplus.github.io/evoland-plus/reference/LearnerClassifGrrf.md)
+- [`LearnerClassifGrrf`](https://ethzplus.github.io/evoland.plus/reference/LearnerClassifGrrf.md)
   : Guided Regularized Random Forest Learner
 
-- [`alloc_clumpy_one_period()`](https://ethzplus.github.io/evoland-plus/reference/alloc_clumpy.md)
-  [`alloc_clumpy()`](https://ethzplus.github.io/evoland-plus/reference/alloc_clumpy.md)
-  : CLUMPY-style Allocation Methods
+- [`alloc_clumpy_spec()`](https://ethzplus.github.io/evoland.plus/reference/alloc_clumpy_spec.md)
+  : CLUMPY allocator
 
-- [`alloc_dinamica_one_period()`](https://ethzplus.github.io/evoland-plus/reference/alloc_dinamica.md)
-  [`alloc_dinamica()`](https://ethzplus.github.io/evoland-plus/reference/alloc_dinamica.md)
-  [`eval_alloc_params_t()`](https://ethzplus.github.io/evoland-plus/reference/alloc_dinamica.md)
-  : Dinamica EGO Allocation Methods
+- [`alloc_dinamica_spec()`](https://ethzplus.github.io/evoland.plus/reference/alloc_dinamica_spec.md)
+  : Dinamica EGO allocator
 
-- [`alloc_greedy_one_period()`](https://ethzplus.github.io/evoland-plus/reference/alloc_greedy.md)
-  [`alloc_greedy()`](https://ethzplus.github.io/evoland-plus/reference/alloc_greedy.md)
-  : Greedy (rank-and-fill) Allocation Methods
+- [`alloc_greedy_spec()`](https://ethzplus.github.io/evoland.plus/reference/alloc_greedy_spec.md)
+  : Greedy (rank-and-fill) allocator
 
-- [`calc_transition_similarity()`](https://ethzplus.github.io/evoland-plus/reference/calc_transition_similarity.md)
+- [`allocate()`](https://ethzplus.github.io/evoland.plus/reference/allocate.md)
+  [`allocate_one_period()`](https://ethzplus.github.io/evoland.plus/reference/allocate.md)
+  : Allocate land use change
+
+- [`calc_transition_similarity()`](https://ethzplus.github.io/evoland.plus/reference/calc_transition_similarity.md)
   : Compute fuzzy similarity of differences for transition validation
 
-- [`as_coords_t()`](https://ethzplus.github.io/evoland-plus/reference/coords_t.md)
-  [`print(`*`<coords_t>`*`)`](https://ethzplus.github.io/evoland-plus/reference/coords_t.md)
-  [`create_coords_t_square()`](https://ethzplus.github.io/evoland-plus/reference/coords_t.md)
+- [`as_coords_t()`](https://ethzplus.github.io/evoland.plus/reference/coords_t.md)
+  [`print(`*`<coords_t>`*`)`](https://ethzplus.github.io/evoland.plus/reference/coords_t.md)
+  [`create_coords_t_square()`](https://ethzplus.github.io/evoland.plus/reference/coords_t.md)
   : Coordinate Tables
 
-- [`ducklake_db`](https://ethzplus.github.io/evoland-plus/reference/ducklake_db.md)
+- [`ducklake_db`](https://ethzplus.github.io/evoland.plus/reference/ducklake_db.md)
   : R6 Base Class for DuckLake-Backed Storage
 
-- [`evoland_db`](https://ethzplus.github.io/evoland-plus/reference/evoland_db.md)
+- [`evoland_db`](https://ethzplus.github.io/evoland.plus/reference/evoland_db.md)
   :
 
   `evoland_db` - R6 Class for lulc data management
 
-- [`get_evoland_db_read_expr()`](https://ethzplus.github.io/evoland-plus/reference/evoland_db_util.md)
-  [`run_parallel_evoland()`](https://ethzplus.github.io/evoland-plus/reference/evoland_db_util.md)
+- [`get_evoland_db_read_expr()`](https://ethzplus.github.io/evoland.plus/reference/evoland_db_util.md)
+  [`run_parallel_evoland()`](https://ethzplus.github.io/evoland.plus/reference/evoland_db_util.md)
   :
 
   Utility functions and methods for `evoland_db`
 
-- [`evoland_db_views`](https://ethzplus.github.io/evoland-plus/reference/evoland_db_views.md)
-  [`lulc_meta_long_v`](https://ethzplus.github.io/evoland-plus/reference/evoland_db_views.md)
-  [`pred_sources_v`](https://ethzplus.github.io/evoland-plus/reference/evoland_db_views.md)
-  [`trans_v`](https://ethzplus.github.io/evoland-plus/reference/evoland_db_views.md)
-  [`coords_minimal`](https://ethzplus.github.io/evoland-plus/reference/evoland_db_views.md)
-  [`trans_rates_dinamica_v`](https://ethzplus.github.io/evoland-plus/reference/evoland_db_views.md)
-  [`adjusted_trans_pot_v`](https://ethzplus.github.io/evoland-plus/reference/evoland_db_views.md)
-  [`alloc_params_clumpy_v`](https://ethzplus.github.io/evoland-plus/reference/evoland_db_views.md)
-  : Views on the evoland-plus data model
+- [`evoland_db_views`](https://ethzplus.github.io/evoland.plus/reference/evoland_db_views.md)
+  [`lulc_meta_long_v`](https://ethzplus.github.io/evoland.plus/reference/evoland_db_views.md)
+  [`pred_sources_v`](https://ethzplus.github.io/evoland.plus/reference/evoland_db_views.md)
+  [`trans_v`](https://ethzplus.github.io/evoland.plus/reference/evoland_db_views.md)
+  [`coords_minimal`](https://ethzplus.github.io/evoland.plus/reference/evoland_db_views.md)
+  [`adjusted_trans_pot_v`](https://ethzplus.github.io/evoland.plus/reference/evoland_db_views.md)
+  : Views on the evoland.plus data model
 
-- [`as_intrv_masks_t()`](https://ethzplus.github.io/evoland-plus/reference/intrv_masks_t.md)
-  [`print(`*`<intrv_masks_t>`*`)`](https://ethzplus.github.io/evoland-plus/reference/intrv_masks_t.md)
-  : Create Intervention Masks Table
-
-- [`as_intrv_meta_t()`](https://ethzplus.github.io/evoland-plus/reference/intrv_meta_t.md)
-  [`create_intrv_meta_t()`](https://ethzplus.github.io/evoland-plus/reference/intrv_meta_t.md)
-  [`print(`*`<intrv_meta_t>`*`)`](https://ethzplus.github.io/evoland-plus/reference/intrv_meta_t.md)
-  : Create Intervention Metadata Table / Entries
-
-- [`lp_problem`](https://ethzplus.github.io/evoland-plus/reference/lp_problem.md)
+- [`lp_problem`](https://ethzplus.github.io/evoland.plus/reference/lp_problem.md)
   : R6 Class for Sparse Linear Programs
 
-- [`as_lulc_meta_t()`](https://ethzplus.github.io/evoland-plus/reference/lulc_meta_t.md)
-  [`create_lulc_meta_t()`](https://ethzplus.github.io/evoland-plus/reference/lulc_meta_t.md)
-  [`print(`*`<lulc_meta_t>`*`)`](https://ethzplus.github.io/evoland-plus/reference/lulc_meta_t.md)
+- [`as_lulc_meta_t()`](https://ethzplus.github.io/evoland.plus/reference/lulc_meta_t.md)
+  [`create_lulc_meta_t()`](https://ethzplus.github.io/evoland.plus/reference/lulc_meta_t.md)
+  [`print(`*`<lulc_meta_t>`*`)`](https://ethzplus.github.io/evoland.plus/reference/lulc_meta_t.md)
   : Create LULC Metadata Table
 
-- [`as_neighbors_t()`](https://ethzplus.github.io/evoland-plus/reference/neighbors_t.md)
-  [`validate(`*`<neighbors_t>`*`)`](https://ethzplus.github.io/evoland-plus/reference/neighbors_t.md)
-  [`print(`*`<neighbors_t>`*`)`](https://ethzplus.github.io/evoland-plus/reference/neighbors_t.md)
-  [`set_neighbors()`](https://ethzplus.github.io/evoland-plus/reference/neighbors_t.md)
-  [`generate_neighbor_predictors()`](https://ethzplus.github.io/evoland-plus/reference/neighbors_t.md)
-  [`upsert_new_neighbors()`](https://ethzplus.github.io/evoland-plus/reference/neighbors_t.md)
+- [`as_neighbors_t()`](https://ethzplus.github.io/evoland.plus/reference/neighbors_t.md)
+  [`validate(`*`<neighbors_t>`*`)`](https://ethzplus.github.io/evoland.plus/reference/neighbors_t.md)
+  [`print(`*`<neighbors_t>`*`)`](https://ethzplus.github.io/evoland.plus/reference/neighbors_t.md)
+  [`set_neighbors()`](https://ethzplus.github.io/evoland.plus/reference/neighbors_t.md)
+  [`generate_neighbor_predictors()`](https://ethzplus.github.io/evoland.plus/reference/neighbors_t.md)
+  [`upsert_new_neighbors()`](https://ethzplus.github.io/evoland.plus/reference/neighbors_t.md)
   : Create Neighbors Table
 
-- [`as_periods_t()`](https://ethzplus.github.io/evoland-plus/reference/periods_t.md)
-  [`create_periods_t()`](https://ethzplus.github.io/evoland-plus/reference/periods_t.md)
-  [`print(`*`<periods_t>`*`)`](https://ethzplus.github.io/evoland-plus/reference/periods_t.md)
+- [`as_periods_t()`](https://ethzplus.github.io/evoland.plus/reference/periods_t.md)
+  [`create_periods_t()`](https://ethzplus.github.io/evoland.plus/reference/periods_t.md)
+  [`print(`*`<periods_t>`*`)`](https://ethzplus.github.io/evoland.plus/reference/periods_t.md)
   : Create Period Table
 
-- [`as_pred_meta_t()`](https://ethzplus.github.io/evoland-plus/reference/pred_meta_t.md)
-  [`create_pred_meta_t()`](https://ethzplus.github.io/evoland-plus/reference/pred_meta_t.md)
-  [`print(`*`<pred_meta_t>`*`)`](https://ethzplus.github.io/evoland-plus/reference/pred_meta_t.md)
+- [`as_pred_meta_t()`](https://ethzplus.github.io/evoland.plus/reference/pred_meta_t.md)
+  [`create_pred_meta_t()`](https://ethzplus.github.io/evoland.plus/reference/pred_meta_t.md)
+  [`print(`*`<pred_meta_t>`*`)`](https://ethzplus.github.io/evoland.plus/reference/pred_meta_t.md)
   : Create Predictor Metadata Table
 
-- [`as_runs_t()`](https://ethzplus.github.io/evoland-plus/reference/runs_t.md)
-  [`print(`*`<runs_t>`*`)`](https://ethzplus.github.io/evoland-plus/reference/runs_t.md)
-  [`db_active_id_run()`](https://ethzplus.github.io/evoland-plus/reference/runs_t.md)
+- [`as_runs_t()`](https://ethzplus.github.io/evoland.plus/reference/runs_t.md)
+  [`print(`*`<runs_t>`*`)`](https://ethzplus.github.io/evoland.plus/reference/runs_t.md)
+  [`db_active_id_run()`](https://ethzplus.github.io/evoland.plus/reference/runs_t.md)
   : Create Runs Table
 
-- [`as_trans_meta_t()`](https://ethzplus.github.io/evoland-plus/reference/trans_meta_t.md)
-  [`create_trans_meta_t()`](https://ethzplus.github.io/evoland-plus/reference/trans_meta_t.md)
-  [`print(`*`<trans_meta_t>`*`)`](https://ethzplus.github.io/evoland-plus/reference/trans_meta_t.md)
+- [`synthetic_landscape()`](https://ethzplus.github.io/evoland.plus/reference/synthetic_landscape.md)
+  : Synthetic land use with a known change process
+
+- [`as_trans_meta_t()`](https://ethzplus.github.io/evoland.plus/reference/trans_meta_t.md)
+  [`create_trans_meta_t()`](https://ethzplus.github.io/evoland.plus/reference/trans_meta_t.md)
+  [`print(`*`<trans_meta_t>`*`)`](https://ethzplus.github.io/evoland.plus/reference/trans_meta_t.md)
   : Create Transition Metadata Table
 
-- [`as_trans_models_t()`](https://ethzplus.github.io/evoland-plus/reference/trans_models_t.md)
-  [`fit_partial_models()`](https://ethzplus.github.io/evoland-plus/reference/trans_models_t.md)
-  [`fit_full_models()`](https://ethzplus.github.io/evoland-plus/reference/trans_models_t.md)
-  [`print(`*`<trans_models_t>`*`)`](https://ethzplus.github.io/evoland-plus/reference/trans_models_t.md)
-  [`get_crossval_plots()`](https://ethzplus.github.io/evoland-plus/reference/trans_models_t.md)
+- [`as_trans_models_t()`](https://ethzplus.github.io/evoland.plus/reference/trans_models_t.md)
+  [`fit_partial_models()`](https://ethzplus.github.io/evoland.plus/reference/trans_models_t.md)
+  [`fit_full_models()`](https://ethzplus.github.io/evoland.plus/reference/trans_models_t.md)
+  [`print(`*`<trans_models_t>`*`)`](https://ethzplus.github.io/evoland.plus/reference/trans_models_t.md)
+  [`get_crossval_plots()`](https://ethzplus.github.io/evoland.plus/reference/trans_models_t.md)
   : Create Transition Models Table
 
-- [`as_trans_pot_t()`](https://ethzplus.github.io/evoland-plus/reference/trans_pot_t.md)
-  [`print(`*`<trans_pot_t>`*`)`](https://ethzplus.github.io/evoland-plus/reference/trans_pot_t.md)
-  [`predict_trans_pot()`](https://ethzplus.github.io/evoland-plus/reference/trans_pot_t.md)
+- [`as_trans_pot_t()`](https://ethzplus.github.io/evoland.plus/reference/trans_pot_t.md)
+  [`print(`*`<trans_pot_t>`*`)`](https://ethzplus.github.io/evoland.plus/reference/trans_pot_t.md)
+  [`predict_trans_pot()`](https://ethzplus.github.io/evoland.plus/reference/trans_pot_t.md)
   : Calculate Transition Potential
 
-- [`as_trans_preds_t()`](https://ethzplus.github.io/evoland-plus/reference/trans_preds_t.md)
-  [`print(`*`<trans_preds_t>`*`)`](https://ethzplus.github.io/evoland-plus/reference/trans_preds_t.md)
-  [`set_full_trans_preds()`](https://ethzplus.github.io/evoland-plus/reference/trans_preds_t.md)
-  [`get_pred_filter_score()`](https://ethzplus.github.io/evoland-plus/reference/trans_preds_t.md)
+- [`as_trans_preds_t()`](https://ethzplus.github.io/evoland.plus/reference/trans_preds_t.md)
+  [`print(`*`<trans_preds_t>`*`)`](https://ethzplus.github.io/evoland.plus/reference/trans_preds_t.md)
+  [`set_full_trans_preds()`](https://ethzplus.github.io/evoland.plus/reference/trans_preds_t.md)
+  [`get_pred_filter_score()`](https://ethzplus.github.io/evoland.plus/reference/trans_preds_t.md)
   : Create Transition-Predictor Relationship Table
 
-- [`trans_rate_lp`](https://ethzplus.github.io/evoland-plus/reference/trans_rate_lp.md)
+- [`trans_rate_lp`](https://ethzplus.github.io/evoland.plus/reference/trans_rate_lp.md)
   : R6 Class for the Demand-Driven Transition Rate Program
 
-- [`trans_rate_bounds()`](https://ethzplus.github.io/evoland-plus/reference/trans_rates_solver.md)
-  [`trans_rate_reachability()`](https://ethzplus.github.io/evoland-plus/reference/trans_rates_solver.md)
-  [`solve_trans_rates()`](https://ethzplus.github.io/evoland-plus/reference/trans_rates_solver.md)
+- [`trans_rate_bounds()`](https://ethzplus.github.io/evoland.plus/reference/trans_rates_solver.md)
+  [`trans_rate_reachability()`](https://ethzplus.github.io/evoland.plus/reference/trans_rates_solver.md)
+  [`solve_trans_rates()`](https://ethzplus.github.io/evoland.plus/reference/trans_rates_solver.md)
   : Demand-driven transition rate solver
 
-- [`validate()`](https://ethzplus.github.io/evoland-plus/reference/util.md)
-  [`` `%||%` ``](https://ethzplus.github.io/evoland-plus/reference/util.md)
-  [`pluck_wildcard()`](https://ethzplus.github.io/evoland-plus/reference/util.md)
-  [`ensure_dir()`](https://ethzplus.github.io/evoland-plus/reference/util.md)
-  [`require_suggested()`](https://ethzplus.github.io/evoland-plus/reference/util.md)
-  [`print_rowwise_yaml()`](https://ethzplus.github.io/evoland-plus/reference/util.md)
-  [`cast_dt_col()`](https://ethzplus.github.io/evoland-plus/reference/util.md)
-  : evoland utility functions
+- [`validate()`](https://ethzplus.github.io/evoland.plus/reference/util.md)
+  [`` `%||%` ``](https://ethzplus.github.io/evoland.plus/reference/util.md)
+  [`pluck_wildcard()`](https://ethzplus.github.io/evoland.plus/reference/util.md)
+  [`ensure_dir()`](https://ethzplus.github.io/evoland.plus/reference/util.md)
+  [`require_suggested()`](https://ethzplus.github.io/evoland.plus/reference/util.md)
+  [`print_rowwise_yaml()`](https://ethzplus.github.io/evoland.plus/reference/util.md)
+  [`cast_dt_col()`](https://ethzplus.github.io/evoland.plus/reference/util.md)
+  : evoland.plus utility functions
 
-- [`exec_dinamica()`](https://ethzplus.github.io/evoland-plus/reference/util_dinamica.md)
-  [`run_alloc_dinamica()`](https://ethzplus.github.io/evoland-plus/reference/util_dinamica.md)
-  [`process_dinamica_script()`](https://ethzplus.github.io/evoland-plus/reference/util_dinamica.md)
+- [`check_dinamica()`](https://ethzplus.github.io/evoland.plus/reference/util_dinamica.md)
+  [`exec_dinamica()`](https://ethzplus.github.io/evoland.plus/reference/util_dinamica.md)
+  [`run_alloc_dinamica()`](https://ethzplus.github.io/evoland.plus/reference/util_dinamica.md)
+  [`process_dinamica_script()`](https://ethzplus.github.io/evoland.plus/reference/util_dinamica.md)
   : Dinamica Utility Functions
 
-- [`download_and_verify()`](https://ethzplus.github.io/evoland-plus/reference/util_download.md)
+- [`download_and_verify()`](https://ethzplus.github.io/evoland.plus/reference/util_download.md)
   : Utilities to download and manage files
 
-- [`extract_using_coords_t()`](https://ethzplus.github.io/evoland-plus/reference/util_terra.md)
-  [`tabular_to_raster()`](https://ethzplus.github.io/evoland-plus/reference/util_terra.md)
-  : evoland utility functions to work with terra objects
+- [`extract_using_coords_t()`](https://ethzplus.github.io/evoland.plus/reference/util_terra.md)
+  [`tabular_to_raster()`](https://ethzplus.github.io/evoland.plus/reference/util_terra.md)
+  : evoland.plus utility functions to work with terra objects
 
-- [`validation`](https://ethzplus.github.io/evoland-plus/reference/validation.md)
+- [`validation`](https://ethzplus.github.io/evoland.plus/reference/validation.md)
   : Validation of simulated land use change

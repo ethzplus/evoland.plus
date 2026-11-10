@@ -1,12 +1,12 @@
-# evoland-plus ![plus shaped logo](reference/figures/evoland-plus-logo.svg)
+# evoland.plus ![plus shaped logo](reference/figures/evoland-plus-logo.svg)
 
 ## Overview
 
-The `evoland-plus` R package (`evoland` for evolving land use, `plus`
+The `evoland.plus` R package (`evoland` for evolving land use, `plus`
 for [plus.ethz.ch](https://plus.ethz.ch/)) provides tools for land use
 change simulations. The package implements a statistically calibrated,
 constrained model for predicting locations of future land use / land
-cover change (LULCC). The scope of `evoland-plus` is to:
+cover change (LULCC). The scope of `evoland.plus` is to:
 
 - **Gather and process** LULCC and predictor data from multiple sources
   into a clearly defined database structure.
@@ -14,8 +14,8 @@ cover change (LULCC). The scope of `evoland-plus` is to:
   transitions
 - **Project future land use patterns** using predictive models and
   allocation algorithms
-- **Support scenario analysis** through interventions and parameter
-  modifications
+- **Support scenario analysis** through scenario-specific runs,
+  transition rates, allocation parameters and transition potentials
 
 ## Installation
 
@@ -24,8 +24,8 @@ Install the development version from GitHub:
 ``` r
 
 # install.packages("remotes")
-remotes::install_github("ethzplus/evoland-plus")
-library(evoland)
+remotes::install_github("ethzplus/evoland.plus")
+library(evoland.plus)
 ```
 
 The package compiles C++ code, so you need a working build toolchain
@@ -38,7 +38,7 @@ If you manage project libraries with
 
 ``` toml
 dependencies = [
-    { name = "evoland", git = "https://github.com/ethzplus/evoland-plus/", branch = "main" },
+    { name = "evoland.plus", git = "https://github.com/ethzplus/evoland.plus/", branch = "main" },
 ]
 ```
 
@@ -47,8 +47,8 @@ dependencies = [
 PRs are very welcome! It’s probably best to first discuss the underlying
 issue; @mmyrte is very happy to help figure out a solution. Conventions
 for R, C++, SQL and prose are collected in the [style
-guide](https://ethzplus.github.io/evoland-plus/devdocs/style/README.md);
-[AGENTS.md](https://ethzplus.github.io/evoland-plus/AGENTS.md) has the
+guide](https://ethzplus.github.io/evoland.plus/devdocs/style/README.md);
+[AGENTS.md](https://ethzplus.github.io/evoland.plus/AGENTS.md) has the
 project layout and development commands. Code should be formatted with
 [air](https://posit-dev.github.io/air/) before committing. Tests are
 written as `tinytest`s that can be run after package installation,
@@ -60,7 +60,7 @@ load the package from your checkout:
 ``` toml
 dependencies = [
     # only install dependencies declared in DESCRIPTION
-    { name = "evoland", path = "~/path/to/local/repo", dependencies_only = true, install_suggestions = true },
+    { name = "evoland.plus", path = "~/path/to/local/repo", dependencies_only = true, install_suggestions = true },
     "devtools", # sundry development tasks
     "mirai", # modern multiprocessing
     "httpgd", # webview plotting
@@ -69,47 +69,49 @@ dependencies = [
 ```
 
 `devtools::load_all()` then acts as though you were calling
-[`library(evoland)`](https://ethzplus.github.io/evoland-plus) on an
+[`library(evoland.plus)`](https://ethzplus.github.io/evoland.plus) on an
 installed package, which makes it easy to reload code after a change.
 
 ## Allocation
 
-`evoland-plus` places projected land use change on the map with one of
-three allocators:
+`evoland.plus` places projected land use change on the map with
+`allocate(db, id_periods, allocator)`, using one of three allocators:
 
-- `db$alloc_clumpy()`: stochastic patch-based allocation after
+- [`alloc_clumpy_spec()`](https://ethzplus.github.io/evoland.plus/reference/alloc_clumpy_spec.md):
+  stochastic patch-based allocation after
   [CLUMPY](https://github.com/mmyrte/clumpy), implemented in C++ and
   available wherever the package installs.
-- `db$alloc_greedy()`: deterministic rank-and-fill allocation, a
-  baseline for comparison.
-- `db$alloc_dinamica()`: allocation with [Dinamica
-  EGO](https://dinamicaego.com/), which is optional. Dinamica only runs
-  on **Linux x86 / amd64** (the Windows installer exists but is untested
-  with `evoland-plus`); see the [Installing Dinamica
-  EGO](https://ethzplus.github.io/evoland-plus/articles/install-dinamica.html)
+- [`alloc_greedy_spec()`](https://ethzplus.github.io/evoland.plus/reference/alloc_greedy_spec.md):
+  deterministic rank-and-fill allocation, a baseline for comparison.
+- [`alloc_dinamica_spec()`](https://ethzplus.github.io/evoland.plus/reference/alloc_dinamica_spec.md):
+  allocation with [Dinamica EGO](https://dinamicaego.com/), which is
+  optional. Dinamica only runs on **Linux x86 / amd64** (the Windows
+  installer exists but is untested with `evoland.plus`); see the
+  [Installing Dinamica
+  EGO](https://ethzplus.github.io/evoland.plus/articles/install-dinamica.html)
   vignette, or use the [Docker
   container](https://github.com/ethzplus/rocker-geospatial-dinamica/) on
   other platforms.
 
 ## Documentation
 
-This package uses pkgdown, see <http://ethzplus.github.io/evoland-plus>.
+This package uses pkgdown, see <http://ethzplus.github.io/evoland.plus>.
 
 - **Tutorials & How-to Guides**: Package vignettes and examples in R man
   pages
 - **Reference Documentation**: R man pages using the standard
   `?function_name`
 - **Explanation & Design Rationale**: See
-  [`devdocs/design/`](https://ethzplus.github.io/evoland-plus/devdocs/design/)
+  [`devdocs/design/`](https://ethzplus.github.io/evoland.plus/devdocs/design/)
   for the modelling workflow, the database schema and architecture
   decisions
 - **Development guidelines and coding standards**: See the [style
-  guide](https://ethzplus.github.io/evoland-plus/devdocs/style/README.md)
+  guide](https://ethzplus.github.io/evoland.plus/devdocs/style/README.md)
 
 ## License
 
 This project is licensed under the AGPL-3 License - see the
-[LICENSE.md](https://ethzplus.github.io/evoland-plus/LICENSE.md) file
+[LICENSE.md](https://ethzplus.github.io/evoland.plus/LICENSE.md) file
 for details.
 
 ## Acknowledgments
