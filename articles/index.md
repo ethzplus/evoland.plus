@@ -3,7 +3,7 @@
 ### All vignettes
 
 - [\`evoland.plus\`
-  tutorial](https://ethzplus.github.io/evoland.plus/articles/evoland.plus.md):
+  tutorial](https://ethzplus.github.io/evoland.plus/articles/evoland-plus.md):
 - [Ingest GeoTIFFs as
   Predictors](https://ethzplus.github.io/evoland.plus/articles/ingest-predictors.md):
 - [Installing Dinamica
