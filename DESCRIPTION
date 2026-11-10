@@ -1,6 +1,6 @@
 Package: evoland.plus
 Title: Simulate Land Use Evolution
-Version: 0.1.0.9000
+Version: 0.1.1.9000
 Authors@R:
     person("Jan", "Hartman", email = "jhartman@ethz.ch", role = c("aut", "cre"))
 Description: Gathers land use data and extrapolates likely future land use
