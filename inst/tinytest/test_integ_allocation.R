@@ -13,11 +13,7 @@ source(file.path(system.file("tinytest", package = "evoland.plus"), "helper_test
 db <- make_test_db()
 
 db$trans_rates_t <- db$get_obs_trans_rates()
-db$trans_rates_t <- extrapolate_trans_rates(
-  db$trans_rates_t,
-  db$periods_t,
-  coord_count = nrow(db$coords_t)
-)
+db$trans_rates_t <- extrapolate_trans_rates(db$trans_rates_t, db$periods_t)
 
 test_learner <- mlr3::lrn("classif.featureless", predict_type = "prob")
 test_measures <- c("classif.auc")
