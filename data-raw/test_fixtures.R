@@ -1,8 +1,8 @@
 # Creates canonical test fixture data for use in tests, examples, and vignettes.
 #
-# This script is not run during checks. Each fixture below is replicated in the
-# corresponding inst/tinytest/test_*.R file, which compares the freshly built object
-# against the one stored in R/sysdata.rda. Changing a fixture here therefore requires
+# This script is not run during checks. Each fixture below is rebuilt in the
+# corresponding inst/tinytest/test_*.R file (the synthetic ones by helper_fixtures.R),
+# which compares the freshly built object against the one stored in R/sysdata.rda. Changing a fixture here therefore requires
 # rerunning this script, so that the stored data cannot go stale relative to the
 # constructors it is built from.
 library("evoland.plus")
@@ -23,36 +23,13 @@ test_periods_t <- create_periods_t(
   end_extrapolated = "2015-01-01"
 )
 
-# LULC classes
-test_lulc_meta_t <- create_lulc_meta_t(list(
-  forest = list(pretty_name = "Forest", src_classes = 1:3),
-  urban = list(pretty_name = "Urban", src_classes = 4L),
-  agriculture = list(pretty_name = "Agriculture", src_classes = 5:6)
-))
-
-# Synthetic LULC observations with known transition signal
-set.seed(42)
-n_coords <- nrow(test_coords_t)
-test_lulc_data_t <- as_lulc_data_t(rbindlist(list(
-  data.table(
-    id_run = 0L,
-    id_coord = 1:n_coords,
-    id_lulc = sample(1:2, n_coords, TRUE, c(0.7, 0.3)),
-    id_period = 1L
-  ),
-  data.table(
-    id_run = 0L,
-    id_coord = 1:n_coords,
-    id_lulc = sample(1:2, n_coords, TRUE, c(0.5, 0.5)),
-    id_period = 2L
-  ),
-  data.table(
-    id_run = 0L,
-    id_coord = 1:n_coords,
-    id_lulc = sample(1:2, n_coords, TRUE, c(0.4, 0.6)),
-    id_period = 3L
-  )
-)))
+# Land use with a known change process, and predictors derived from its drivers, on the same
+# grid; built by inst/tinytest/helper_fixtures.R, which the constructor tests use to check the
+# stored data
+source("inst/tinytest/helper_fixtures.R")
+landscape <- fixture_landscape()
+test_lulc_meta_t <- fixture_lulc_meta_t()
+test_lulc_data_t <- fixture_lulc_data_t(landscape, test_coords_t)
 
 # Predictor metadata (one for each data type)
 test_pred_spec <- list(
@@ -88,42 +65,7 @@ test_pred_spec <- list(
 )
 test_pred_meta_t <- create_pred_meta_t(test_pred_spec)
 
-# Predictor data (static + time-varying)
-set.seed(43)
-test_pred_data_t <- as_pred_data_t(
-  rbind(
-    # TODO add some time-varying predictors
-    # Static predictors (period 0)
-    data.table(
-      id_run = 0L,
-      id_pred = 1L,
-      id_coord = 1:n_coords,
-      id_period = 0L,
-      value = runif(n_coords, 400, 800)
-    ),
-    data.table(
-      id_run = 0L,
-      id_pred = 2L,
-      id_coord = 1:n_coords,
-      id_period = 0L,
-      value = sample(0:1000, n_coords, replace = TRUE)
-    ),
-    data.table(
-      id_run = 0L,
-      id_pred = 3L,
-      id_coord = 1:n_coords,
-      id_period = 0L,
-      value = sample(c(0, 1), n_coords, replace = TRUE)
-    ),
-    data.table(
-      id_run = 0L,
-      id_pred = 4L,
-      id_coord = 1:n_coords,
-      id_period = 0L,
-      value = sample(1:5, n_coords, replace = TRUE)
-    )
-  )
-)
+test_pred_data_t <- fixture_pred_data_t(landscape, test_coords_t)
 
 # Save all fixtures
 usethis::use_data(
