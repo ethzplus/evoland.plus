@@ -18,8 +18,8 @@ fit_partial_models(
   sample_frac = 0.7,
   seed = NULL,
   cluster = NULL,
-  trans_preds = NULL,
-  trans_meta = NULL
+  id_trans = NULL,
+  id_period_anterior = NULL
 )
 
 fit_full_models(
@@ -28,8 +28,8 @@ fit_full_models(
   select_score = NULL,
   select_maximize = TRUE,
   cluster = NULL,
-  trans_preds = NULL,
-  trans_meta = NULL
+  id_trans = NULL,
+  id_period_anterior = NULL
 )
 
 \method{print}{trans_models_t}(x, ...)
@@ -60,13 +60,12 @@ testing).}
 \item{cluster}{An optional cluster object created by \code{\link[parallel:makeCluster]{parallel::makeCluster()}} or
 \code{\link[mirai:make_cluster]{mirai::make_cluster()}}.}
 
-\item{trans_preds}{Optional \link{trans_preds_t} object. When supplied in direct-learner
-mode, it is used directly instead of reading \code{trans_preds_t} from the database.
-Ignored in score-select mode.}
+\item{id_trans}{Optional integer; filter by transition ID.}
 
-\item{trans_meta}{Optional \link{trans_meta_t} object. When supplied in direct-learner
-mode, it is used directly instead of reading \code{trans_meta_t} from the database.
-Ignored in score-select mode.}
+\item{id_period_anterior}{Optional integer vector of anterior period IDs; only the
+transitions observed from these periods are used for training. In score-select mode
+this should match what was passed to \code{\link[=fit_partial_models]{fit_partial_models()}}. \code{NULL} (default) uses
+every observed period.}
 
 \item{select_score}{Character string; mlr3 measure ID (e.g. \code{"classif.auc"}) used to
 rank partial models in score-select mode. Must be \code{NULL} when \code{learner} is provided.}
@@ -77,8 +76,6 @@ rank partial models in score-select mode. Must be \code{NULL} when \code{learner
 \item{...}{Passed to \code{\link[mlr3viz:autoplot.PredictionClassif]{mlr3viz::autoplot.PredictionClassif()}}}
 
 \item{id_run}{Optional integer; filter by run ID.}
-
-\item{id_trans}{Optional integer; filter by transition ID.}
 }
 \value{
 A data.table of class "trans_models_t" with columns:

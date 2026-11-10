@@ -34,7 +34,7 @@ if (!at_home()) {
 
 # Load fixtures via helper
 source(file.path(
-  system.file("tinytest", package = "evoland"),
+  system.file("tinytest", package = "evoland.plus"),
   "helper_testdb.R"
 ))
 db <- make_test_db(
@@ -120,52 +120,47 @@ expect_message(
   "Fitting full models for"
 )
 
-# fit_partial_models: supply trans_preds restricted to id_trans == 1
-trans_preds_t1 <- db$trans_preds_t[id_trans == 1L]
+# score-select mode narrows to id_trans as well
+expect_message(
+  full_models_t1 <- db$fit_full_models(select_score = "classif.auc", id_trans = 1L),
+  "Fitting full models for 1 transitions"
+)
+expect_equal(full_models_t1$id_trans, 1L)
+
+# fit_partial_models: restricted to id_trans == 1
 expect_message(
   partial_t1 <- db$fit_partial_models(
     learner = test_learner,
     measures = test_measures,
     sample_frac = 0.7,
     seed = 123,
-    trans_preds = trans_preds_t1
+    id_trans = 1L
   ),
   "Fitting partial models for 1 transitions"
 )
 expect_equal(partial_t1$id_trans, 1L)
 
-# fit_partial_models: supply trans_meta restricted to id_trans == 1
-trans_meta_t1 <- db$trans_meta_t[id_trans == 1L]
+# fit_partial_models: id_period_anterior = 1 holds out the transitions from period 2. With
+# the seed fixed, 30% of the 1067 training rows (636 from period 1) are scored
 expect_message(
-  partial_meta_t1 <- db$fit_partial_models(
+  partial_t1_held_out <- db$fit_partial_models(
     learner = test_learner,
     measures = test_measures,
     sample_frac = 0.7,
     seed = 123,
-    trans_meta = trans_meta_t1
+    id_trans = 1L,
+    id_period_anterior = 1L
   ),
   "Fitting partial models for 1 transitions"
 )
-expect_equal(partial_meta_t1$id_trans, 1L)
+n_scored <- function(models) length(qs2::qs_deserialize(models$crossval_predictions[[1L]])$row_ids)
+expect_equal(n_scored(partial_t1), 321L)
+expect_equal(n_scored(partial_t1_held_out), 190L)
 
-# fit_partial_models: wrong type for trans_preds should error
+# fit_partial_models: id_trans must be integers
 expect_error(
-  db$fit_partial_models(
-    learner = test_learner,
-    measures = test_measures,
-    trans_preds = data.table::data.table(id_run = 0L, id_pred = 1L, id_trans = 1L)
-  ),
-  "trans_preds must be a trans_preds_t"
-)
-
-# fit_partial_models: wrong type for trans_meta should error
-expect_error(
-  db$fit_partial_models(
-    learner = test_learner,
-    measures = test_measures,
-    trans_meta = data.table::data.table(id_trans = 1L, is_viable = TRUE)
-  ),
-  "trans_meta must be a trans_meta_t"
+  db$fit_partial_models(learner = test_learner, measures = test_measures, id_trans = "1"),
+  "id_trans must be NULL or integers"
 )
 
 # model crashes during execution
@@ -178,12 +173,12 @@ expect_match(
   "Error from classif.debug->predict()"
 )
 
-# fit_full_models (direct mode): supply trans_preds restricted to id_trans == 1
-db$set_full_trans_preds(overwrite = TRUE)
+# fit_full_models (direct mode): restricted to id_trans == 1
+db$set_full_trans_preds(reset = TRUE)
 expect_message(
   full_direct_t1 <- db$fit_full_models(
     learner = test_learner,
-    trans_preds = db$trans_preds_t[id_trans == 1L]
+    id_trans = 1L
   ),
   "Fitting full models for 1 transitions"
 )
@@ -191,16 +186,19 @@ expect_equal(nrow(full_direct_t1), 1L)
 expect_equal(full_direct_t1$id_trans, 1L)
 expect_true(is.raw(full_direct_t1$learner_full[[1]]))
 
-# fit_full_models (direct mode): supply trans_meta restricted to id_trans == 1
+# fit_full_models (direct mode): id_period_anterior = 1 trains on the 636 rows from period 1
+# instead of all 1067; a featureless learner's class counts add up to its training rows
 expect_message(
-  full_direct_meta_t1 <- db$fit_full_models(
+  full_direct_t1_held_out <- db$fit_full_models(
     learner = test_learner,
-    trans_meta = db$trans_meta_t[id_trans == 1L]
+    id_trans = 1L,
+    id_period_anterior = 1L
   ),
   "Fitting full models for 1 transitions"
 )
-expect_equal(nrow(full_direct_meta_t1), 1L)
-expect_equal(full_direct_meta_t1$id_trans, 1L)
+n_trained <- function(models) sum(qs2::qs_deserialize(models$learner_full[[1L]])$model$tab)
+expect_equal(n_trained(full_direct_t1), 1067L)
+expect_equal(n_trained(full_direct_t1_held_out), 636L)
 
 # Test error handling - missing learner parameter
 expect_error(
@@ -298,7 +296,7 @@ expect_warning(
 expect_equal(partial_models_error$learner_id, "classif.featureless")
 
 # Test direct-learner mode: fit_full_models with a learner
-db$set_full_trans_preds(overwrite = TRUE)
+db$set_full_trans_preds(reset = TRUE)
 expect_message(
   db$trans_models_t <- full_models_direct <- db$fit_full_models(learner = test_learner),
   "Fitting full models for"
@@ -359,7 +357,7 @@ expect_message(
   db$trans_models_t <- db$fit_full_models(learner = mlr3::lrn("classif.rpart")),
   "Fitting full"
 )
-options("evoland.use_prefetch_predict" = FALSE)
+options("evoland.plus.use_prefetch_predict" = FALSE)
 expect_message(
   db$predict_trans_pot(id_period_post = 4, select_score = "no.crossval", select_maximize = TRUE),
   "Predicting transition 2/2 (id_trans=2)",
@@ -374,7 +372,7 @@ expect_silent(
 expect_silent(
   db$predict_trans_pot(id_period_post = 4, select_score = "classif.bogus", select_maximize = TRUE)
 )
-options("evoland.use_prefetch_predict" = TRUE)
+options("evoland.plus.use_prefetch_predict" = TRUE)
 expect_message(
   db$predict_trans_pot(
     id_period_post = 4,
@@ -420,8 +418,7 @@ if (
   seeded_forest <- function() {
     fitted <- suppressMessages(db$fit_full_models(
       learner = mlr3::lrn("classif.ranger", predict_type = "prob", num.trees = 20, seed = 1L),
-      trans_preds = db$trans_preds_t[id_trans == 1L],
-      trans_meta = db$trans_meta_t[id_trans == 1L]
+      id_trans = 1L
     ))
     qs2::qs_deserialize(fitted$learner_full[[1L]])$model$forest$split.values
   }

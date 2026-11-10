@@ -7,16 +7,16 @@
 \usage{
 download_and_verify(
   df_in,
-  target_dir = getOption("evoland.cachedir"),
+  target_dir = getOption("evoland.plus.cachedir"),
   overwrite = FALSE
 )
 }
 \arguments{
 \item{df_in}{Data frame with 'url' and 'md5sum' columns. This can be
-retrieved from \link{pred_meta_t} or \link{intrv_meta_t}.}
+retrieved from the \code{sources} column of \link{pred_meta_t}.}
 
 \item{target_dir}{Target directory for downloads, defaults to option
-\code{evoland.cachedir}}
+\code{evoland.plus.cachedir}}
 
 \item{overwrite}{Whether to overwrite existing files (default: FALSE)}
 }

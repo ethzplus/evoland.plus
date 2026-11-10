@@ -9,12 +9,12 @@ quota <- data.table::data.table(id_trans = 1:2, quota = c(2L, 1L))
 # cell 1 -> trans 1, cell 2 -> trans 1 (quota 2 full), cell 1 again: claimed, cell 3 -> trans 2
 # (quota 1 full), the rest has no quota left
 expect_identical(
-  evoland:::greedy_fill(candidates, quota),
+  evoland.plus:::greedy_fill(candidates, quota),
   c(TRUE, TRUE, FALSE, TRUE, FALSE, FALSE)
 )
 
 # a zero quota accepts nothing
-expect_false(any(evoland:::greedy_fill(
+expect_false(any(evoland.plus:::greedy_fill(
   data.table::data.table(id_trans = 1L, id_coord = 1:3),
   data.table::data.table(id_trans = 1L, quota = 0L)
 )))
@@ -53,7 +53,7 @@ identical_to_walk <- vapply(
       data.table::setorder(cand, id_trans, -value, id_coord)
     }
     quota <- data.table::data.table(id_trans = 1:n_trans, quota = sample(0:15, n_trans, TRUE))
-    identical(evoland:::greedy_fill(cand, quota), walk(cand, quota))
+    identical(evoland.plus:::greedy_fill(cand, quota), walk(cand, quota))
   },
   logical(1)
 )
@@ -61,7 +61,7 @@ expect_true(all(identical_to_walk))
 
 # a candidate transition missing from quota is an error
 expect_error(
-  evoland:::greedy_fill(
+  evoland.plus:::greedy_fill(
     data.table::data.table(id_trans = 2L, id_coord = 1L),
     data.table::data.table(id_trans = 1L, quota = 1L)
   ),
@@ -69,5 +69,30 @@ expect_error(
 )
 
 # the C++ kernel rejects indices out of range instead of writing past its arrays
-expect_error(evoland:::greedy_fill_cpp(5L, 1L, 1L, 4L), "cell index out of range")
-expect_error(evoland:::greedy_fill_cpp(1L, 2L, 1L, 4L), "transition index out of range")
+expect_error(evoland.plus:::greedy_fill_cpp(5L, 1L, 1L, 4L), "cell index out of range")
+expect_error(evoland.plus:::greedy_fill_cpp(1L, 2L, 1L, 4L), "transition index out of range")
+
+# the greedy allocator on a hand-built allocation context, without a database: four cells of
+# class 1, transition 1 -> 2 with a quota of 2 goes to the two most probable cells
+ctx <- list(
+  anterior = data.table::data.table(id_coord = 1:5, id_lulc = c(1L, 1L, 1L, 1L, 3L)),
+  viable_trans = data.table::data.table(
+    id_trans = 1L,
+    id_lulc_anterior = 1L,
+    id_lulc_posterior = 2L
+  ),
+  quota = data.table::data.table(id_trans = 1L, rate = 0.5, n_anterior = 4L, quota = 2L),
+  potentials = data.table::data.table(id_trans = 1L, id_coord = 1:4, value = c(0.1, 0.4, 0.3, 0.2))
+)
+expect_identical(
+  alloc_greedy_spec()$one_period(ctx)[order(id_coord)],
+  data.table::data.table(id_coord = 1:5, id_lulc = c(1L, 2L, 2L, 1L, 3L))
+)
+# demand beyond the candidates is reported, not exceeded
+ctx$quota[, quota := 5L]
+expect_warning(
+  short <- alloc_greedy_spec()$one_period(ctx),
+  "allocated 4 of 5 cells"
+)
+expect_equal(short[id_coord == 5L, id_lulc], 3L)
+expect_error(alloc_greedy_spec("ordered", order = 9L)$one_period(ctx), "viable id_trans")

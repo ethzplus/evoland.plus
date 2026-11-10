@@ -7,7 +7,7 @@ This file covers what those don't decide, and where this package deliberately di
 
 - `glue` is the one tidyverse-adjacent package in use; it is stable and used throughout.
 - Packages needed by one optional feature go in `Suggests` and are checked with `require_suggested(package, purpose)` (`R/util.R`) at the start of the feature.
-- Call imported functions as `pkg::fun()`. `@importFrom` (in `R/init.R`) is only for operators and data.table specials such as `:=` and `%chin%`.
+- Call imported functions as `pkg::fun()`. Use `@importFrom` (in `R/init.R`) only for operators and NSE symbols, such as data.table specials like `:=` and `%chin%`.
 
 ## Naming
 
@@ -18,7 +18,7 @@ This file covers what those don't decide, and where this package deliberately di
 | Constructor from a specification | `create_<entity>_t(...)`                    | `create_periods_t(period_length_str =)`  |
 | View (computed, not stored)      | `<name>_v`                                  | `trans_v`, `adjusted_trans_pot_v`        |
 | Rcpp export                      | `<name>_cpp`                                | `distance_neighbors_cpp()`               |
-| Function bound as an R6 method   | takes `self` (and `private`, `super`) first | `set_full_trans_preds(self, overwrite)`  |
+| Function bound as an R6 method   | takes `self` (and `private`, `super`) first | `set_full_trans_preds(self, reset)`      |
 | Constant                         | `SCREAMING_SNAKE_CASE`                      | `TRANSIENT_CATALOG_ERRORS`               |
 
 Column names are part of the database schema and therefore of the API; see [Schema names](#schema-names).
@@ -46,7 +46,7 @@ Column names are part of the database schema and therefore of the API; see [Sche
 ## data.table
 
 - Work by reference: `setDT()`, `setorder()`, `setcolorder()`, `setattr()`, `:=`, `set()`. Copy (`data.table::copy()`) only when the caller's object must not change, and say so in a comment.
-- Columns used in non-standard evaluation (`i`, `j`, `by`, `on`) must be declared in `utils::globalVariables()` in `R/init.R`, or R CMD check reports a NOTE. Regenerate the list with `tools:::.check_code_usage_in_package("evoland")`.
+- Columns used in non-standard evaluation (`i`, `j`, `by`, `on`) must be declared in `utils::globalVariables()` in `R/init.R`, or R CMD check reports a NOTE. Regenerate the list with `tools:::.check_code_usage_in_package("evoland.plus")`.
 - As with pipes, chained `data.table[column == "a", column := "b"][,.(column, column2)]` statements should be visually structured like so:
   
   ```r
@@ -65,7 +65,7 @@ Column names are part of the database schema and therefore of the API; see [Sche
 
 ## Errors and messages
 
-These use R's own `message()`, `warning()` and `stop()` for now; a logging tool with levels and timestamps is planned in ethzplus/evoland-plus#75.
+These use R's own `message()`, `warning()` and `stop()` for now; a logging tool with levels and timestamps is planned in ethzplus/evoland.plus#75.
 
 
 - Assertions use the named `stopifnot()` form; the name is the message the user sees:
@@ -101,11 +101,11 @@ Every table follows the shape of `R/periods_t.R`:
   },
   ```
 
-  The implementation is a plain function in the domain file, taking `self` (plus `private` or `super` via `with_private = TRUE` / `with_super = TRUE`) as its first arguments. This is the canonical way to bind methods (ethzplus/evoland-plus#28):
+  The implementation is a plain function in the domain file, taking `self` (plus `private` or `super` via `with_private = TRUE` / `with_super = TRUE`) as its first arguments. This is the canonical way to bind methods (ethzplus/evoland.plus#28):
   - all R6 documentation stays in one file, which roxygen requires;
   - the logic sits next to the table it works on;
   - the implementation is a named function that receives `self` explicitly, so linters see no undefined symbols and language servers can jump to it.
-- Don't add methods with `$set()`. `R/evoland_db_views.R` still does; it predates this rule and is to be migrated (ethzplus/evoland-plus#28).
+- Don't add methods with `$set()`. `R/evoland_db_views.R` still does; it predates this rule and is to be migrated (ethzplus/evoland.plus#28).
 - Group methods with section comments (`## Public Methods ----`), which editors show in their outline.
 - Parameterless views are active bindings; views with parameters are methods. A view longer than a few lines of SQL keeps its query in `inst/<name>.sql`, see [sql.md](sql.md).
 

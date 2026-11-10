@@ -16,7 +16,7 @@ Writes to the catalog can collide when several processes share a database.
 DuckLake retries conflicting commits itself, but not contention on the catalog's own lock, so `ducklake_db` wraps every catalog operation in a retry. The wait before each attempt is drawn uniformly between zero and a ceiling that doubles per attempt up to 64 times `retry_wait` (exponential backoff with full jitter), until `retry_timeout` or `retry_max` is reached.
 Which errors count as transient depends on the catalog backend; they are listed in `TRANSIENT_CATALOG_ERRORS`.
 
-Keeping this layer generic means it can be tested on its own (`test_db_ducklake.R`) and reused outside `evoland-plus`; it might eventually be spun out into a package of its own.
+Keeping this layer generic means it can be tested on its own (`test_db_ducklake.R`) and reused outside `evoland.plus`; it might eventually be spun out into a package of its own.
 
 ### `evoland_db`: the domain database
 
@@ -31,7 +31,7 @@ The aim is for all methods to be declared in the class body in `R/evoland_db.R`,
 Their implementations live as ordinary named functions next to the table they work on (`set_full_trans_preds()` in `R/trans_preds_t.R`) and are bound with `create_method_binding()`.
 This keeps the class definition readable as an index of what the database can do, while the logic stays close to its data.
 Because the implementations are named functions that take `self` explicitly, linters see no undefined symbols and language servers can jump to them.
-Not all methods follow this yet: the views in `R/evoland_db_views.R` are still added with `$set()`; see ethzplus/evoland-plus#28.
+Not all methods follow this yet: the views in `R/evoland_db_views.R` are still added with `$set()`; see ethzplus/evoland.plus#28.
 
 ### Table classes
 
@@ -48,13 +48,16 @@ This also leaves room for ad-hoc adaptations in a specific analysis: a table can
 
 ## Allocation backends
 
-Allocation (placing the projected quantity of change on the map) has three interchangeable backends:
+Allocation (placing the projected quantity of change on the map) runs through one entry point, `allocate()` (`R/allocate.R`).
+For each period it predicts the transition potentials if needed, gathers everything an allocator reads into an allocation context (anterior map, adjusted potentials, viable transitions, quantity of change, allocation parameters, and on demand a raster grid), hands the context to the allocator, and commits the posterior map together with the neighbor predictors derived from it.
+An allocator is a specification (`alloc_*_spec()`) holding its arguments and a function from context to posterior map; it does not touch the database.
+There are three interchangeable allocators:
 
 - A C++ implementation of the CLUMPY allocation methods (`R/alloc_clumpy.R`, `src/alloc_clumpy.cpp`), which runs everywhere R does. It reimplements the stochastic patch allocation of [CLUMPY](https://github.com/mmyrte/clumpy); that repository also documents the reimplementation effort and the comparison against the original.
 - A greedy rank-and-fill allocator (`R/alloc_greedy.R`), which fills each transition's demand with the cells of highest potential. It is deterministic and has no patch geometry, which makes it a useful baseline for the stochastic allocators.
 - [Dinamica EGO](https://dinamicaego.com/) (`R/alloc_dinamica.R`), run as an external process with models in `inst/dinamica_models/`. It is the established reference, but only runs on Linux x86 and is optional.
 
-All three read transition potentials (and, where they use them, allocation parameters) from the database and write the resulting land use map back to `lulc_data_t` under the active run.
+Each allocator changes `round(rate * n_anterior)` cells per transition, the same quantity for all three.
 
 ## Dependencies
 
@@ -70,7 +73,7 @@ Owing to the complexity of this software, there are quite some dependencies. The
 | `qs2`                 | Fast serialization of model objects into blob columns                   |
 | `Rcpp`                | C++ for the neighbor search and allocation loops                        |
 | `glue`                | String and SQL interpolation                                            |
-| `curl`                | Downloading predictor sources; to be replaced by base R (ethzplus/evoland-plus#79) |
+| `curl`                | Downloading predictor sources; to be replaced by base R (ethzplus/evoland.plus#79) |
 
-Learners (`ranger`, and `rpart` for demonstrations, see ethzplus/evoland-plus#80), solvers (`lpSolve`), `processx` (for Dinamica) and the documentation and test tooling are in `Suggests` and checked for when needed.
+Learners (`ranger`, and `rpart` for demonstrations, see ethzplus/evoland.plus#80), solvers (`lpSolve`), `processx` (for Dinamica) and the documentation and test tooling are in `Suggests` and checked for when needed.
 See [../style/r.md](../style/r.md#dependencies) for the rules on adding dependencies.

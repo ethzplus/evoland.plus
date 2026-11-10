@@ -10,6 +10,8 @@ The catalog can also live in PostgreSQL and the data in object storage (S3 and s
 DuckLake was chosen over plain Parquet files because it gives atomic writes and snapshot isolation: several processes can write to one database concurrently, and a reader never sees a half-written table.
 It supports no constraints, keys, or indexes so `ducklake_db$commit()` enforces key uniqueness itself.
 The keys, partitioning and map columns of each table are declared by its `as_*_t()` constructor and stored as table comments.
+An append or upsert that brings columns a table does not have adds them (`alter table ... add column`, which only touches the catalog; existing rows read `NULL`).
+The validators of the large per-coordinate tables (`coords_t`, `lulc_data_t`, `pred_data_t`, `neighbors_t`, `trans_pot_t`) reject columns they do not declare, to keep those tables lean.
 DuckLake also does not support ENUMs, so R factors are stored as strings and cast back by the `as_*_t()` constructors.
 
 Because other tools may read and write the catalog, the schema should be considered to be part of the package's API; see [../style/r.md](../style/r.md#schema-names).
@@ -38,8 +40,6 @@ Grouped by the [workflow](workflow.md) phase that writes them:
   - `runs_t`: the run hierarchy every run-dependent table is keyed on
   - `reporting_t`: key-value report metadata
 
-`intrv_meta_t` and `intrv_masks_t` still appear in the diagram below until ethzplus/evoland-plus#54 removes them.
-
 <!-- BEGIN GENERATED ER DIAGRAM: run `Rscript devdocs/er_diagram.R`, do not edit -->
 ```mermaid
 erDiagram
@@ -52,29 +52,11 @@ erDiagram
         float patch_isometry
         float frac_expander
         float frac_patcher
-        float similarity
     }
     coords_t {
         int id_coord PK
         float lon
         float lat
-    }
-    intrv_masks_t {
-        int id_run PK, FK
-        int id_intrv PK, FK
-        int id_coord PK, FK
-    }
-    intrv_meta_t {
-        int id_intrv PK
-        list id_period_list
-        list id_trans_list
-        bool pre_allocation
-        string name
-        string pretty_name
-        string description
-        list sources
-        map params
-        int id_run PK, FK
     }
     lulc_data_t {
         int id_run PK, FK
@@ -160,6 +142,7 @@ erDiagram
         int id_run PK, FK
         int id_pred PK, FK
         int id_trans PK, FK
+        bool is_selected
     }
     trans_rates_t {
         int id_run PK, FK
@@ -171,10 +154,6 @@ erDiagram
 
     alloc_params_t }o--|| runs_t : "id_run"
     alloc_params_t }o--|| trans_meta_t : "id_trans"
-    intrv_masks_t }o--|| runs_t : "id_run"
-    intrv_masks_t }o--|| intrv_meta_t : "id_intrv"
-    intrv_masks_t }o--|| coords_t : "id_coord"
-    intrv_meta_t }o--|| runs_t : "id_run"
     lulc_data_t }o--|| runs_t : "id_run"
     lulc_data_t }o--|| coords_t : "id_coord"
     lulc_data_t }o--|| lulc_meta_t : "id_lulc"
@@ -212,7 +191,7 @@ A key/value (string) store for report metadata.
 On initialization, `evoland_db` sets `report_name`, `report_name_pretty`, `report_include_date` and `creator_username` if the table is empty, and updates `last_opened` and `last_opened_username` every time the database is opened read-write.
 
 Few functions read this table yet; the plotting of model diagnostics should.
-Which standard outputs (tables, graphs, maps) the package generates, and therefore whether this table earns its place, is open in ethzplus/evoland-plus#76.
+Which standard outputs (tables, graphs, maps) the package generates, and therefore whether this table earns its place, is open in ethzplus/evoland.plus#76.
 
 ### `coords_t`
 
@@ -353,15 +332,22 @@ And a transition may be observed too rarely for statistical inference (`min_card
 ### `trans_preds_t`
 
 An m to n relation listing the predictors each transition's model may use.
-`$set_full_trans_preds()` initializes it with the cartesian product of predictors and viable transitions.
-Feature selection then prunes it: `$get_pred_filter_score()` scores every transition-predictor pair with an [mlr3filters](https://mlr3filters.mlr-org.com) filter, and the table is overwritten with the pairs that pass a threshold.
-Repeating this with different filters prunes the table step by step, e.g. a cheap correlation filter first and an importance-based one on what remains.
+`$set_full_trans_preds()` initializes it with the cartesian product of predictors and viable transitions, all selected.
+Feature selection then prunes it: `$get_pred_filter_score()` scores the selected transition-predictor pairs with an [mlr3filters](https://mlr3filters.mlr-org.com) filter, the caller sets `is_selected` from the score, and the scored table is upserted.
+Repeating this with different filters prunes the selection step by step, e.g. a cheap correlation filter first and an importance-based one on what remains.
 
-| uniqueness | colname  | type | description            |
-| ---------- | -------- | ---- | ---------------------- |
-| \*         | id_run   | int  | FK from `runs_t`       |
-| \*         | id_pred  | int  | FK from `pred_meta_t`  |
-| \*         | id_trans | int  | FK from `trans_meta_t` |
+Pruning flips `is_selected` rather than deleting rows, for two reasons.
+A run inherits each pair from its closest ancestor that holds it, so a child run can only drop an inherited predictor by holding the pair with `is_selected = FALSE`; a missing row would let the ancestor's show through.
+And the scores each filter writes, in a column named after the filter, stay next to the decision they informed.
+These score columns are added to the table as they are first written and are not part of the schema readers rely on; readers use only the selected pairs.
+
+| uniqueness | colname     | type | description                                 |
+| ---------- | ----------- | ---- | ------------------------------------------- |
+| \*         | id_run      | int  | FK from `runs_t`                            |
+| \*         | id_pred     | int  | FK from `pred_meta_t`                       |
+| \*         | id_trans    | int  | FK from `trans_meta_t`                      |
+|            | is_selected | bool | whether the transition's model uses it      |
+|            | _filter id_ | num  | score of that filter, for interpretation    |
 
 ### `trans_rates_t`
 
@@ -404,7 +390,7 @@ The blob columns are the only part of the database that depends on R: they hold 
 Every other table is plain data that any DuckLake client can read and write.
 
 Each model is currently a two-class model of a single transition, so the potentials of a cell's transitions are not constrained to sum to 1.
-Multiclass learners (ethzplus/evoland-plus#58) would fit one model per anterior class; they could be stored here under `id_trans = 0` or `NULL`.
+Multiclass learners (ethzplus/evoland.plus#58) would fit one model per anterior class; they could be stored here under `id_trans = 0` or `NULL`.
 
 ### `alloc_params_t`
 
@@ -418,13 +404,12 @@ Multiclass learners (ethzplus/evoland-plus#58) would fit one model per anterior 
 |            | patch_isometry      | float | Dinamica patcher isometry parameter, derived from `patch_elongation`                          |
 |            | frac_expander       | float | Fraction of transition cells adjacent to existing patches [0, 1]                              |
 |            | frac_patcher        | float | Fraction of transition cells forming new patches [0, 1]                                       |
-|            | similarity          | float | Similarity score from allocation evaluation (see `eval_alloc_params_t()`); `NA` until computed |
 
 Patch statistics measured on the observed transitions, used to parameterize allocation.
 `create_alloc_params_t()` estimates one set per viable transition on the active run; perturbed variants for sensitivity analysis go on child runs.
 
-The CLUMPY allocator reads `mean_patch_size`, `patch_size_variance` and `patch_elongation` (through `alloc_params_clumpy_v`).
-`patch_isometry`, `frac_expander` and `frac_patcher` are only used by the Dinamica allocator; whether CLUMPY should split allocation into expansion and new patches too is open in ethzplus/evoland-plus#78.
+The CLUMPY allocator reads `mean_patch_size`, `patch_size_variance` and `patch_elongation`.
+`patch_isometry`, `frac_expander` and `frac_patcher` are only used by the Dinamica allocator; whether CLUMPY should split allocation into expansion and new patches too is open in ethzplus/evoland.plus#78.
 
 ### `neighbors_t`
 
@@ -442,7 +427,7 @@ On a dense raster this table is unnecessary: neighborhood counts follow from a f
 It is also expensive, with one row per pair of nearby points.
 What it buys is generality: it works for irregular coordinate points, which have no raster to run a window over.
 
-A `bearing` or `bearing_class` column recording the direction in which a neighbor lies would allow directional neighborhood predictors; see ethzplus/evoland-plus#77.
+A `bearing` or `bearing_class` column recording the direction in which a neighbor lies would allow directional neighborhood predictors; see ethzplus/evoland.plus#77.
 
 ### `trans_pot_t`
 
@@ -451,7 +436,7 @@ Raw potentials are not calibrated to the demanded rates, and the potentials of a
 The `adjusted_trans_pot_v` view makes them allocation-ready (see [Views](#views)).
 
 The table is written by `$predict_trans_pot()`.
-It carries `id_run` so that each run can use its own potentials; with `use_parent_trans_pot = TRUE`, sibling runs (e.g. a Monte Carlo ensemble) share the potentials predicted under their parent run.
+It carries `id_run` so that each run can use its own potentials; with `allocate(..., potentials_ancestor = 1)`, sibling runs (e.g. a Monte Carlo ensemble) share the potentials predicted under their parent run.
 Potentials can also be computed outside the package and written to the table directly.
 It is partitioned by `id_run`.
 
@@ -476,8 +461,6 @@ They are exposed on `evoland_db` as active bindings, or as methods if they take 
 | `pred_wide_train_v(id_trans, id_pred)`                 | The design matrix for fitting one transition's model: `id_coord`, `id_period_anterior`, `did_transition`, and one `id_pred_<n>` column per predictor.                            |
 | `pred_wide_predict_v(id_trans, id_period_anterior)`    | The same predictors in wide format for one period, as input to prediction.                                                                                                      |
 | `adjusted_trans_pot_v(id_period_post)`                 | Allocation-ready potentials: each transition's raw potentials scaled so their mean matches the demanded rate, then divided by the cell's total wherever that exceeds 1.          |
-| `trans_rates_dinamica_v(id_period)`                    | Rates of the viable transitions in the format Dinamica EGO reads.                                                                                                               |
-| `alloc_params_clumpy_v`                                | `alloc_params_t` mapped to the CLUMPY patcher's parameters (`area_mean`, `area_var`, `elongation`).                                                                             |
 | `figure_of_merit_v(...)`                               | Pontius' figure of merit of simulated against observed change, per run and optionally per transition.                                                                            |
 | `coords_minimal`, `extent`                             | `coords_t` reduced to `id_coord`, `lon`, `lat` with grid metadata, and its extent as a `terra::SpatExtent`.                                                                     |
 

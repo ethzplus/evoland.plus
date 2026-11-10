@@ -1,6 +1,6 @@
-#' evoland utility functions
+#' evoland.plus utility functions
 #'
-#' These are mostly used to validate evoland S3 objects.
+#' These are mostly used to validate evoland.plus S3 objects.
 #'
 #' @name util
 NULL
@@ -91,7 +91,7 @@ ensure_dir <- function(dir) {
   invisible(dir)
 }
 
-#' @describeIn util Require a package that evoland only suggests, failing with an
+#' @describeIn util Require a package that evoland.plus only suggests, failing with an
 #' actionable message rather than with the one R gives for a missing namespace
 #' @param package Name of the suggested package
 #' @param purpose What the package is needed for, completing "is required to ..."
@@ -103,7 +103,7 @@ require_suggested <- function(package, purpose) {
   stop(
     glue::glue(
       "Package '{package}' is required to {purpose}. ",
-      "It is a suggested dependency of evoland; ",
+      "It is a suggested dependency of evoland.plus; ",
       "install it with: install.packages('{package}')"
     ),
     call. = FALSE
@@ -157,6 +157,18 @@ is_scalar_character <- function(x) {
 #' @rdname arg_predicates
 is_scalar_logical <- function(x) {
   is.logical(x) && length(x) == 1L && !is.na(x)
+}
+
+# ducklake_db$commit() adds the columns a table does not have yet; the validators of the
+# large per-coordinate tables reject undeclared columns instead, to keep those tables lean
+stop_on_extra_cols <- function(x, cols) {
+  extra_cols <- setdiff(names(x), cols)
+  if (length(extra_cols) > 0L) {
+    stop(glue::glue(
+      "{class(x)[1]} holds only {toString(cols)}; drop {toString(extra_cols)}"
+    ))
+  }
+  invisible(x)
 }
 
 #' @describeIn util Print a dataframe in a row-wise yaml style

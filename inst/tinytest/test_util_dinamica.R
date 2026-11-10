@@ -36,9 +36,9 @@ Script {{
 '
 # nolint end
 
-# Test: evoland:::process_dinamica_script encodes correctly
+# Test: evoland.plus:::process_dinamica_script encodes correctly
 expect_error(
-  evoland:::process_dinamica_script(
+  evoland.plus:::process_dinamica_script(
     I(sample_dinamica_script_encoded),
     mode = "encode"
   ),
@@ -46,16 +46,16 @@ expect_error(
 )
 
 expect_match(
-  evoland:::process_dinamica_script(
+  evoland.plus:::process_dinamica_script(
     I(sample_dinamica_script_encoded),
     mode = "decode"
   ),
   'output <- v1\\*2\\noutputDouble\\("output_number", output\\)'
 )
 
-# Test: evoland:::process_dinamica_script decodes correctly
+# Test: evoland.plus:::process_dinamica_script decodes correctly
 expect_error(
-  evoland:::process_dinamica_script(
+  evoland.plus:::process_dinamica_script(
     I(sample_dinamica_script_decoded),
     mode = "decode"
   ),
@@ -63,21 +63,21 @@ expect_error(
 )
 
 expect_match(
-  evoland:::process_dinamica_script(
+  evoland.plus:::process_dinamica_script(
     I(sample_dinamica_script_decoded),
     mode = "encode"
   ),
   "c3RvcCgicnVuY2libGUgc3Bvb24iKQ=="
 )
 
-# Test: evoland:::process_dinamica_script is idempotent
+# Test: evoland.plus:::process_dinamica_script is idempotent
 expect_equal(
   {
     sample_dinamica_script_encoded |>
       I() |>
-      evoland:::process_dinamica_script(mode = "decode") |>
+      evoland.plus:::process_dinamica_script(mode = "decode") |>
       I() |>
-      evoland:::process_dinamica_script(mode = "encode")
+      evoland.plus:::process_dinamica_script(mode = "encode")
   },
   sample_dinamica_script_encoded
 )
@@ -86,9 +86,9 @@ expect_equal(
   {
     sample_dinamica_script_decoded |>
       I() |>
-      evoland:::process_dinamica_script(mode = "encode") |>
+      evoland.plus:::process_dinamica_script(mode = "encode") |>
       I() |>
-      evoland:::process_dinamica_script(mode = "decode")
+      evoland.plus:::process_dinamica_script(mode = "decode")
   },
   sample_dinamica_script_decoded
 )
@@ -98,9 +98,6 @@ if (Sys.which("DinamicaConsole") != "") {
     !is.na(Sys.getenv("DINAMICA_EGO_8_INSTALLATION_DIRECTORY", unset = NA)),
     !is.na(Sys.getenv("DINAMICA_EGO_CLI", unset = NA)),
     !is.na(Sys.getenv("DINAMICA_EGO_8_HOME", unset = NA))
-  )
-  Sys.setenv(
-    "DINAMICA_EGO_8_TEMP_DIR" = tempdir()
   )
   # Test: exec_dinamica works
   tmpfile_ego <- tempfile(fileext = ".ego")
@@ -133,7 +130,7 @@ if (Sys.which("DinamicaConsole") != "") {
 
   # Test: exec_dinamica fails
   tmpfile_ego <- tempfile(fileext = ".ego")
-  evoland:::process_dinamica_script(I(sample_dinamica_script_decoded), tmpfile_ego)
+  evoland.plus:::process_dinamica_script(I(sample_dinamica_script_decoded), tmpfile_ego)
 
   # capture the R error for the Dinamica CalculateRExpression (via stdout)
   expect_stdout(
@@ -149,3 +146,19 @@ if (Sys.which("DinamicaConsole") != "") {
   )
   unlink(tmpfile_ego)
 }
+
+# check_dinamica: an unset installation directory is a required problem, and the entry
+# points stop on it with the list of problems unless the test fallback is enabled
+# tinytest resets the environment variable and the option after this file
+Sys.setenv(DINAMICA_EGO_8_HOME = file.path(tempdir(), "no-dinamica-here"))
+problems <- evoland.plus::check_dinamica(quiet = TRUE)
+expect_true(
+  "`DINAMICA_EGO_8_HOME` is not set to an existing directory" %in% problems[["required"]]
+)
+expect_message(evoland.plus::check_dinamica(), "Dinamica EGO setup is incomplete")
+
+options(evoland.plus.dinamica_fallback = FALSE)
+expect_error(evoland.plus:::require_dinamica(), "DINAMICA_EGO_8_HOME")
+options(evoland.plus.dinamica_fallback = TRUE)
+expect_silent(evoland.plus:::require_dinamica())
+expect_error(evoland.plus:::require_dinamica(allow_fallback = FALSE), "DINAMICA_EGO_8_HOME")

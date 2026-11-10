@@ -45,6 +45,7 @@ validate.neighbors_t <- function(x, ...) {
   required_cols <- c("id_coord_origin", "id_coord_neighbor", "distance")
 
   data.table::setcolorder(x, required_cols)
+  stop_on_extra_cols(x, c(required_cols, "distance_class"))
 
   stopifnot(
     is.integer(x[["id_coord_origin"]]),
@@ -128,7 +129,7 @@ set_neighbors <- function(
 
   # chunks hold disjoint sets of complete neighbourhoods of a table that is unique by
   # construction
-  previous_warning_option <- options(evoland.ducklake_db_append_warning = FALSE)
+  previous_warning_option <- options(evoland.plus.ducklake_db_append_warning = FALSE)
   on.exit(options(previous_warning_option), add = TRUE)
 
   n_chunks <- 0L
@@ -321,9 +322,11 @@ generate_neighbor_predictors <- function(self) {
 #' [generate_neighbor_predictors()]
 #' @param id_period Integer period ID for which to generate predictors; if
 #' missing, only use non-extrapolated periods
-upsert_new_neighbors <- function(self, id_period) {
+#' @param id_run Integer, the run whose map is counted and under which the predictors are
+#' written
+upsert_new_neighbors <- function(self, id_period, id_run = self$id_run) {
   stopifnot(
-    "id_run must be set" = !is.null(self$id_run),
+    "id_run must be a single integer" = is_scalar_integerish(id_run),
     "id_period must be a single integer" = is_scalar_integerish(id_period)
   )
 
@@ -348,14 +351,14 @@ upsert_new_neighbors <- function(self, id_period) {
     r"{
     create temp table pred_neighbors_t as
     select
-      {self$id_run} as id_run,
+      {id_run} as id_run,
       p.id_pred,
       n.id_coord_origin as id_coord,
       t.id_period,
       count(n.id_coord_neighbor) as value
     from
       {self$get_read_expr("neighbors_t")} n,
-      {self$get_read_expr("lulc_data_t")} t,
+      {self$get_read_expr("lulc_data_t", id_run = id_run)} t,
       pred_meta_neighbors_t p
     where
       n.id_coord_neighbor = t.id_coord

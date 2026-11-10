@@ -10,8 +10,7 @@ alloc_params_t <- as_alloc_params_t(list(
   patch_elongation = 0.15,
   patch_isometry = 0.2,
   frac_expander = 0.8,
-  frac_patcher = 0.2,
-  similarity = NA_real_
+  frac_patcher = 0.2
 ))
 
 expect_silent(alloc_params_t)
@@ -62,7 +61,7 @@ terra::values(lulc_post) <- c(
 )
 
 # Test transition from class 1 to class 2
-params <- evoland:::compute_alloc_params_single(
+params <- evoland.plus:::compute_alloc_params_single(
   lulc_ant = lulc_ant,
   lulc_post = lulc_post,
   id_lulc_ant = 1L,
@@ -96,7 +95,7 @@ expect_equal(
 expect_equal(params$frac_expander + params$frac_patcher, 1, tolerance = 0.01)
 
 # Test with no transitions
-params_empty <- evoland:::compute_alloc_params_single(
+params_empty <- evoland.plus:::compute_alloc_params_single(
   lulc_ant = lulc_ant,
   lulc_post = lulc_ant, # Same raster, no transitions
   id_lulc_ant = 1L,
@@ -113,7 +112,7 @@ expect_true(is.na(params_empty$patch_elongation))
 lulc_ant_noisy <- lulc_ant
 terra::ext(lulc_ant_noisy) <- terra::ext(lulc_ant) + c(0, 1e-12, 0, 0)
 expect_false(terra::res(lulc_ant_noisy)[1] == terra::res(lulc_ant_noisy)[2])
-expect_silent(evoland:::compute_alloc_params_single(
+expect_silent(evoland.plus:::compute_alloc_params_single(
   lulc_ant = lulc_ant_noisy,
   lulc_post = lulc_ant_noisy,
   id_lulc_ant = 1L,

@@ -8,11 +8,11 @@
     ) |>
     path.expand()
 
-  options("evoland.cachedir" = cache_path)
+  options("evoland.plus.cachedir" = cache_path)
 }
 
 .onUnload <- function(libpath) {
-  .Options$evoland.cachedir <- NULL
+  .Options$evoland.plus.cachedir <- NULL
 }
 
 #' @importFrom data.table :=
@@ -21,7 +21,7 @@
 
 # rcpp imports
 #' @importFrom Rcpp sourceCpp
-#' @useDynLib evoland, .registration = TRUE
+#' @useDynLib evoland.plus, .registration = TRUE
 NULL
 
 # silence R CMD check complaints - it doesn't see :: namespace imports inside/around R6 constructors
@@ -36,7 +36,7 @@ NULL
 # reports each of them as "no visible binding for global variable" in a NOTE; declaring
 # them here silences the false positive
 # Regenerate after adding NSE expressions with:
-#   tools:::.check_code_usage_in_package("evoland")
+#   tools:::.check_code_usage_in_package("evoland.plus")
 utils::globalVariables(c(
   ".",
   ".I",
@@ -44,6 +44,7 @@ utils::globalVariables(c(
   ".SD",
   "area",
   "cardinality",
+  "cell",
   "cells",
   "did_transition",
   "distance",
@@ -54,10 +55,13 @@ utils::globalVariables(c(
   "frac_expander",
   "frac_patcher",
   "frequency_rel",
-  "From*",
   "i.area",
+  "i.cell",
   "i.gain",
+  "i.id_lulc",
+  "i.id_lulc_posterior",
   "i.loss",
+  "i.value",
   "id_coord",
   "id_lulc",
   "id_lulc_anterior",
@@ -69,6 +73,8 @@ utils::globalVariables(c(
   "id_trans",
   "is_extrapolated",
   "is_persistence",
+  "ids",
+  "is_selected",
   "is_viable",
   "lat",
   "local_filename",
@@ -78,6 +84,8 @@ utils::globalVariables(c(
   "md5sum_actual",
   "mean_date",
   "mean_patch_size",
+  "N",
+  "n_anterior",
   "no_found_files",
   "parent_id_run",
   "patch_elongation",
@@ -85,12 +93,13 @@ utils::globalVariables(c(
   "patch_size_variance",
   "period_length_d",
   "period_length_y",
+  "quota",
+  "rank_trans",
   "rate",
   "rate_annual",
   "shape",
   "sources",
   "start_date",
-  "To*",
   "to_download",
   "V1",
   "value"

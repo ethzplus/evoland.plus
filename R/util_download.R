@@ -9,9 +9,9 @@ NULL
 #' @describeIn util_download Download a set of files and check their integrity against
 #'    their md5 checksum
 #' @param df_in Data frame with 'url' and 'md5sum' columns. This can be
-#' retrieved from [pred_meta_t] or [intrv_meta_t].
+#' retrieved from the `sources` column of [pred_meta_t].
 #' @param target_dir Target directory for downloads, defaults to option
-#'    `evoland.cachedir`
+#'    `evoland.plus.cachedir`
 #' @param overwrite Whether to overwrite existing files (default: FALSE)
 #'
 #' @return df_out, Same as df_in but with added column "local_filename", the full path
@@ -20,7 +20,7 @@ NULL
 
 download_and_verify <- function(
   df_in,
-  target_dir = getOption("evoland.cachedir"),
+  target_dir = getOption("evoland.plus.cachedir"),
   overwrite = FALSE
 ) {
   stopifnot(

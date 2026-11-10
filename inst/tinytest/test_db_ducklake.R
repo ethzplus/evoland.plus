@@ -113,6 +113,15 @@ expect_equal(retrieved[id_key == 3]$value, 33.3)
 expect_equal(retrieved[id_key == 4]$name, "d")
 expect_equal(retrieved[id_key == 1]$name, "a") # unchanged
 
+# upsert into a table whose columns are all keys: inserts new rows, leaves matched ones
+key_only <- data.table::data.table(id_a = c(1L, 1L), id_b = c(1L, 2L))
+data.table::setattr(key_only, "key_cols", c("id_a", "id_b"))
+db$commit(key_only, "key_only_table", method = "upsert")
+key_only_more <- data.table::data.table(id_a = c(1L, 2L), id_b = c(2L, 1L))
+data.table::setattr(key_only_more, "key_cols", c("id_a", "id_b"))
+expect_silent(db$commit(key_only_more, "key_only_table", method = "upsert"))
+expect_equal(db$row_count("key_only_table"), 3L)
+
 # Test 12: Fetch with WHERE clause
 result <- db$fetch("test_table_3", where = "id_key >= 3")
 expect_equal(nrow(result), 2L)
@@ -555,7 +564,7 @@ expect_equal(
 # Test 51: catalog and data files can be pointed somewhere other than `path`
 split_dir <- tempfile("ducklake_db_split_")
 alt_catalog <- tempfile("ducklake_db_catalog_", fileext = ".sqlite")
-alt_data <- paste0(evoland:::ensure_dir(tempfile("ducklake_db_data_")), "/")
+alt_data <- paste0(evoland.plus:::ensure_dir(tempfile("ducklake_db_data_")), "/")
 
 db_split <- ducklake_db$new(
   split_dir,
@@ -699,29 +708,33 @@ expect_equal(statement_attempts, 5L)
 db$retry_max <- retry_defaults[["retry_max"]]
 db$retry_wait <- retry_defaults[["retry_wait"]]
 
-# Test 54: a table's schema is fixed once created. Emptying it no longer drops
-# it, so "delete, then insert with an extra column" has to go through overwrite.
+# Test 54: append and upsert add the columns a table does not have yet
 narrow <- data.table::data.table(id_run = 1:2, descr = c("a", "b"))
 data.table::setattr(narrow, "key_cols", "id_run")
 db$commit(narrow, "schema_t", method = "overwrite")
 
-wider <- data.table::data.table(id_run = 1:3, descr = c("a", "b", "c"), extra = 9)
+wider <- data.table::data.table(id_run = 2:3, descr = c("B", "c"), extra = 9)
 data.table::setattr(wider, "key_cols", "id_run")
-
-db$delete_from("schema_t")
-expect_equal(db$row_count("schema_t"), 0L)
-expect_error(
+expect_message(
   db$commit(wider, "schema_t", method = "upsert"),
-  "Cannot commit columns that `schema_t` does not have: extra"
+  "Added column\\(s\\) to `schema_t`: extra \\(DOUBLE\\)"
 )
-expect_error(
-  db$commit(wider, "schema_t", method = "append"),
-  'use method = "overwrite"'
+expect_equal(
+  db$fetch("schema_t")[order(id_run)],
+  data.table::data.table(id_run = 1:3, descr = c("a", "B", "c"), extra = c(NA, 9, 9)),
+  check.attributes = FALSE
 )
+
+# a write that fails leaves the schema as it was: the column comes with the data or not
+duplicated_keys <- data.table::data.table(id_run = c(5L, 5L), other = 1:2)
+data.table::setattr(duplicated_keys, "key_cols", "id_run")
+expect_error(db$commit(duplicated_keys, "schema_t", method = "upsert"), "Duplicate key")
+expect_false("other" %in% names(db$fetch("schema_t", limit = 0L)))
 
 # overwrite replaces the schema along with the data, in one step
-expect_equal(db$commit(wider, "schema_t", method = "overwrite"), 3L)
-expect_equal(sort(names(db$fetch("schema_t"))), c("descr", "extra", "id_run"))
+expect_equal(db$commit(narrow, "schema_t", method = "overwrite"), 2L)
+expect_equal(sort(names(db$fetch("schema_t"))), c("descr", "id_run"))
+suppressMessages(db$commit(wider, "schema_t", method = "upsert"))
 
 # a source missing one of the table's columns is still fine; it comes back NULL
 db$commit(
@@ -821,7 +834,7 @@ expect_equal(
 
 # a remote data path keeps the // that makes it a URI
 expect_equal(
-  evoland:::collapse_path_separators("s3://bucket//lake//"),
+  evoland.plus:::collapse_path_separators("s3://bucket//lake//"),
   "s3://bucket/lake/"
 )
 

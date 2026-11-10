@@ -1,9 +1,10 @@
 # Test distance_neighbors_chunked_cpp(), the neighbour search behind set_neighbors()
+library(tinytest)
 
 # collects all chunks; returns the chunks and the bound table
 neighbors <- function(coords, max_distance, breaks = numeric(0), chunk_rows = 1e7, quiet = TRUE) {
   chunks <- list()
-  total <- evoland:::distance_neighbors_chunked_cpp(
+  total <- evoland.plus:::distance_neighbors_chunked_cpp(
     coords,
     max_distance = max_distance,
     breaks = breaks,
