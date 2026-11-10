@@ -125,12 +125,15 @@ Two mutually exclusive modes are supported:
 \item \strong{Direct-learner mode} (\code{learner} provided, \code{select_score} omitted): a fresh clone of
 \code{learner} is trained on the full data for each transition. \code{crossval_predictions}
 will be \code{NULL} in the result, and \code{crossval_score} holds the sentinel
-\code{no.crossval = 1} so that the model stays selectable by \code{\link[=predict_trans_pot]{predict_trans_pot()}}.
+\code{no.crossval = 1} so that the model stays selectable by \code{\link[=predict_trans_pot]{predict_trans_pot()}}. The run
+records \code{no.crossval} as its model selection criterion in \link{runs_t} if it records none,
+so that prediction and allocation need no \code{select_score}.
 Does not require a prior call to \code{\link[=fit_partial_models]{fit_partial_models()}}.
-\item \strong{Score-select mode} (\code{select_score} provided, \code{learner} omitted): selects the best
-partial model per transition by \code{select_score}, reconstructs its learner from
-\code{learner_spec}, and retrains on the full data. Requires \code{\link[=fit_partial_models]{fit_partial_models()}} to
-have been run first.
+\item \strong{Score-select mode} (\code{learner} omitted): selects the best partial model per
+transition by \code{select_score}, reconstructs its learner from \code{learner_spec}, and retrains
+on the full data. Without \code{select_score}, it uses the criterion the run records in
+\link{runs_t}; a given one is recorded on the run if the run records none. Requires
+\code{\link[=fit_partial_models]{fit_partial_models()}} to have been run first.
 }
 
 \item \code{get_crossval_plots()}: Deserialize cross-validation predictions and return

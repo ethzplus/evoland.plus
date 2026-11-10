@@ -71,8 +71,10 @@ alloc_clumpy_spec <- function(
 
   new_allocator_spec(
     name = "CLUMPY",
+    id = "clumpy",
     args = args,
-    one_period = function(ctx) alloc_clumpy_one_period(ctx, args)
+    one_period = function(ctx) alloc_clumpy_one_period(ctx, args),
+    seeded = TRUE
   )
 }
 

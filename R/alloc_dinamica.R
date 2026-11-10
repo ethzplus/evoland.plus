@@ -30,6 +30,7 @@ alloc_dinamica_spec <- function(work_dir = NULL, keep_intermediate = FALSE) {
 
   new_allocator_spec(
     name = "Dinamica EGO",
+    id = "dinamica",
     args = args,
     one_period = function(ctx) alloc_dinamica_one_period(ctx, args),
     check = function() require_dinamica()

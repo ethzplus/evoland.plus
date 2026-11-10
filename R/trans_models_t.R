@@ -368,12 +368,15 @@ fit_partial_models <- function(
 #' - **Direct-learner mode** (`learner` provided, `select_score` omitted): a fresh clone of
 #'   `learner` is trained on the full data for each transition. `crossval_predictions`
 #'   will be `NULL` in the result, and `crossval_score` holds the sentinel
-#'   `no.crossval = 1` so that the model stays selectable by [predict_trans_pot()].
+#'   `no.crossval = 1` so that the model stays selectable by [predict_trans_pot()]. The run
+#'   records `no.crossval` as its model selection criterion in [runs_t] if it records none,
+#'   so that prediction and allocation need no `select_score`.
 #'   Does not require a prior call to [fit_partial_models()].
-#' - **Score-select mode** (`select_score` provided, `learner` omitted): selects the best
-#'   partial model per transition by `select_score`, reconstructs its learner from
-#'   `learner_spec`, and retrains on the full data. Requires [fit_partial_models()] to
-#'   have been run first.
+#' - **Score-select mode** (`learner` omitted): selects the best partial model per
+#'   transition by `select_score`, reconstructs its learner from `learner_spec`, and retrains
+#'   on the full data. Without `select_score`, it uses the criterion the run records in
+#'   [runs_t]; a given one is recorded on the run if the run records none. Requires
+#'   [fit_partial_models()] to have been run first.
 #' @param self [evoland_db] instance to query for transitions and predictor data
 #' @param learner An mlr3 `Learner` or `AutoTuner` object for direct-learner mode that
 #'   supports twoclass classification. Its `predict_type` is coerced to `"prob"` if not
@@ -407,11 +410,13 @@ fit_full_models <- function(
   has_score <- !is.null(select_score)
 
   stopifnot(
-    "Provide exactly one of 'learner' or 'select_score'" = xor(has_learner, has_score)
+    "Provide at most one of 'learner' or 'select_score'" = !(has_learner && has_score)
   )
 
   if (has_learner) {
     coerce_learner_for_classif(learner)
+    # direct-mode models carry only the no.crossval sentinel to be selected by
+    resolve_model_selection(self, id_run, "no.crossval", TRUE)
 
     # Direct mode: get viable transitions with their predictor lists
     viable_trans <-
@@ -441,6 +446,9 @@ fit_full_models <- function(
       as_trans_models_t()
   } else {
     # Score-select mode
+    criterion <- resolve_model_selection(self, id_run, select_score, select_maximize)
+    select_score <- criterion$select_score
+    select_maximize <- criterion$select_maximize
     stopifnot(
       "select_score must be a character string" = is_scalar_character(select_score),
       "select_maximize must be TRUE or FALSE" = is_scalar_logical(select_maximize),

@@ -14,8 +14,8 @@ as_trans_pot_t(x)
 predict_trans_pot(
   self,
   id_period_post,
-  select_score,
-  select_maximize,
+  select_score = NULL,
+  select_maximize = NULL,
   force = FALSE,
   id_run = 0L
 )
@@ -31,7 +31,9 @@ predict_trans_pot(
 
 \item{id_period_post}{scalar integerish, passed to \code{\link[=pred_wide_predict_v]{pred_wide_predict_v()}}}
 
-\item{select_score}{character scalar, name of score/measure to identify best fitting model}
+\item{select_score}{character scalar, name of score/measure to identify best fitting model.
+\code{NULL} (default) uses the criterion \code{id_run} records in \link{runs_t}, inherited from its
+ancestors; a given one is recorded on the run if the run's own row holds none.}
 
 \item{select_maximize}{logical scalar, whether to maximize or minimize \code{select_score}}
 

@@ -62,6 +62,7 @@ alloc_greedy_spec <- function(arbitration = c("joint", "ordered"), order = NULL)
 
   new_allocator_spec(
     name = glue::glue("greedy ({arbitration})"),
+    id = "greedy",
     args = list(arbitration = arbitration, order = order),
     one_period = function(ctx) alloc_greedy_one_period(ctx, arbitration, order)
   )
