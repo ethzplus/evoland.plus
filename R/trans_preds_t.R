@@ -225,13 +225,14 @@ pred_filter_worker <- function(item, db, filter) {
 #' `pred_meta_t` table to <https://mlr3filters.mlr-org.com> for filter compatibility.
 #' @param id_trans Optional integer vector of transition IDs; only these transitions are
 #' scored. `NULL` (default) scores every transition with selected predictors.
-#' @param cluster An optional cluster object, see [run_parallel_evoland]
+#' @param compute Optional name of a mirai compute profile to run on, see
+#'   [run_parallel_evoland()]; `NULL` (default) runs serially.
 #' @param ... Additional arguments passed to `flt` if `filter` is a character string
 get_pred_filter_score <- function(
   self,
   filter = "correlation",
   id_trans = NULL,
-  cluster = NULL,
+  compute = NULL,
   id_run = self$id_run,
   ...
 ) {
@@ -268,7 +269,7 @@ get_pred_filter_score <- function(
     items = items,
     worker_fun = pred_filter_worker,
     parent_db = self,
-    cluster = cluster,
+    compute = compute,
     filter = filter
   ) |>
     data.table::rbindlist(use.names = TRUE) |>

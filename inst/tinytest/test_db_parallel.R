@@ -19,12 +19,15 @@ expect_silent(
 expect_equal(res, as.list(paste(FALSE, c(2, 4, 6))))
 
 # 2. Test Parallel Execution (Requires installed package for workers)
-# In development (pkgload load_all()), workers can't load the package via library()
-# so we check if we can run a minimal task before proceeding. tinytest::exit_file()
-# does not stop the file when it is run by run_test_file() or run_test_dir(), so
-# everything that needs workers hangs off can_run_parallel instead.
+# In development (pkgload load_all()), daemons can't load the package, so we check if we
+# can run a minimal task before proceeding. tinytest::exit_file() does not stop the file
+# when it is run by run_test_file() or run_test_dir(), so everything that needs daemons
+# hangs off can_run_parallel instead.
 can_run_parallel <- FALSE
-cluster <- NULL
+compute <- "evoland_test"
+
+# the address of the connection a worker was given
+connection_of <- function(item, db) format(environment(db$fetch))
 
 if (!at_home() || !requireNamespace("evoland.plus", quietly = TRUE)) {
   message(
@@ -33,17 +36,18 @@ if (!at_home() || !requireNamespace("evoland.plus", quietly = TRUE)) {
 } else {
   tryCatch(
     {
-      cluster <- parallel::makeCluster(2)
-
-      worker_db_check <- function(item, db) {
-        db$reporting_t
-      }
+      # one daemon, so that both calls below land on the same one
+      mirai::daemons(1, .compute = compute)
 
       res_parallel <- run_parallel_evoland(
         items = list(1, 2),
-        worker_fun = worker_db_check,
+        worker_fun = function(item, db) db$reporting_t,
         parent_db = db,
-        cluster = cluster
+        compute = compute
+      )
+      connections <- c(
+        run_parallel_evoland(list(1), connection_of, parent_db = db, compute = compute),
+        run_parallel_evoland(list(2), connection_of, parent_db = db, compute = compute)
       )
       can_run_parallel <- TRUE
     },
@@ -54,21 +58,21 @@ if (!at_home() || !requireNamespace("evoland.plus", quietly = TRUE)) {
         ")"
       )
     },
-    warning = function(w) {
-      message(
-        "\n  Warning during parallel tests: ",
-        conditionMessage(w)
-      )
-    },
-    finally = if (!is.null(cluster)) parallel::stopCluster(cluster)
+    finally = mirai::daemons(0, .compute = compute)
   )
 }
 
+expect_error(
+  run_parallel_evoland(list(1), connection_of, parent_db = db, compute = "no_daemons_here"),
+  "no mirai daemons are set for this compute profile"
+)
 
 if (can_run_parallel) {
   # should be exactly the same
   expect_equal(db$reporting_t, res_parallel[[1]])
   expect_equal(db$reporting_t, res_parallel[[2]])
+  # the daemon opened one connection and reused it for the second call
+  expect_equal(connections[[1]], connections[[2]])
 
   # 3. Uncoordinated concurrent upserts into a single table.
   # Each worker is its own process with its own connection and no knowledge of the
@@ -82,14 +86,12 @@ if (can_run_parallel) {
   ducklake_db$new(conc_dir)$commit(conc_seed, "conc_t", method = "overwrite")
 
   n_workers <- 4L
-  conc_cluster <- parallel::makeCluster(n_workers)
+  mirai::daemons(n_workers, .compute = compute)
 
-  conc_results <- parallel::parLapply(
-    cl = conc_cluster,
-    X = seq_len(n_workers),
-    fun = function(id_worker, path) {
-      library(evoland.plus)
-      db <- ducklake_db$new(path = path)
+  conc_results <- mirai::mirai_map(
+    seq_len(n_workers),
+    function(id_worker, path) {
+      db <- evoland.plus::ducklake_db$new(path = path)
       row <- data.table::data.table(id_worker = as.integer(id_worker), value = id_worker * 1.0)
       data.table::setattr(row, "key_cols", "id_worker")
       tryCatch(
@@ -100,10 +102,11 @@ if (can_run_parallel) {
         error = function(e) conditionMessage(e)
       )
     },
-    path = conc_dir
-  )
+    .args = list(path = conc_dir),
+    .compute = compute
+  )[]
 
-  parallel::stopCluster(conc_cluster)
+  mirai::daemons(0, .compute = compute)
 
   expect_equal(unique(unlist(conc_results)), "ok")
 

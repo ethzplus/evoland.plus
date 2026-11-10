@@ -157,19 +157,22 @@ get_evoland_db_read_expr <- function(self, super, table_name, id_run = self$id_r
   )
 }
 
-#' @describeIn evoland_db_util Run a worker function in parallel with an `evoland_db`
-#' instance; takes an (optional) worker cluster, a worker function, a set of
-#' items, and a parent `evoland_db` instance. If **no** cluster is passed, apply the
-#' worker serially. **If** a cluster is passed, each worker gets its own database
-#' instance derived from the parent database.
+#' @describeIn evoland_db_util Apply a worker function to each item, serially or on mirai
+#' daemons. Without `compute`, the worker gets `parent_db` itself. With `compute`, each daemon
+#' of that compute profile opens one connection to the same catalog and data files as
+#' `parent_db` and reuses it for every item it is given. Workers must therefore not rely on
+#' the connection's active run: an item carries the run it is for.
+#'
+#' Set the daemons up beforehand, e.g. `mirai::daemons(4, .compute = "evoland")`, and pass
+#' `compute = "evoland"`; evoland.plus must be installed where the daemons run.
 #'
 #' @param worker_fun A function to apply to each item, with signature `worker_fun(item,
-#' db, ...)`. The `db` argument will be a new `evoland_db` instance for each worker.
+#' db, ...)`.
 #' @param items A list of items to iterate over
-#' @param parent_db An [evoland_db] instance; used for its `path` and `id_run`; or
-#' passed directly to the worker for serial case.
-#' @param cluster An optional cluster object created by [parallel::makeCluster()] or
-#' [mirai::make_cluster()].
+#' @param parent_db An [evoland_db] instance: passed to the worker in the serial case, and
+#' giving the catalog and data path the daemons connect to otherwise.
+#' @param compute `NULL` (default) to run serially, or the name of a mirai compute profile
+#' whose daemons are set, see [mirai::daemons()].
 #' @param ... Additional arguments passed to `worker_fun`.
 #'
 #' @return A list of results
@@ -178,48 +181,49 @@ run_parallel_evoland <- function(
   items,
   worker_fun,
   parent_db,
-  cluster = NULL,
+  compute = NULL,
   ...
 ) {
-  if (is.null(cluster)) {
-    return(
-      lapply(
-        X = items,
-        FUN = worker_fun,
-        db = parent_db,
-        ...
-      )
-    )
+  if (is.null(compute)) {
+    return(lapply(X = items, FUN = worker_fun, db = parent_db, ...))
   }
 
-  # Wrapper function to manage DB connection inside the worker
-  wrapper <- function(item, worker_fun_inner, id_run, catalog, data_path, ...) {
-    if (!exists("evoland_db")) {
-      stop("evoland_db class not found on worker. Ensure package is installed.")
+  stopifnot(
+    "compute must be NULL or the name of a mirai compute profile" = is_scalar_character(compute),
+    "no mirai daemons are set for this compute profile; see ?mirai::daemons" = {
+      mirai::daemons_set(.compute = compute)
     }
+  )
 
-    worker_db <- evoland_db$new(
-      id_run = id_run,
-      read_only = TRUE,
-      catalog = catalog,
-      data_path = data_path
-    )
-    worker_db$execute("set threads to 1")
-
-    # Call the actual worker function
-    worker_fun_inner(item = item, db = worker_db, ...)
-  }
-
-  # Run parallel lapply
-  parallel::parLapply(
-    cl = cluster,
-    X = items,
-    fun = wrapper,
-    worker_fun_inner = worker_fun,
-    id_run = parent_db$id_run,
-    # workers must reach the same catalog and data files as the parent
+  # one connection per daemon, opened once and reused for every item; a daemon already
+  # connected to this database from an earlier call keeps its connection
+  mirai::everywhere(
+    {
+      connected <- exists(".evoland_worker_db", envir = globalenv()) &&
+        identical(.evoland_worker_db$catalog, catalog)
+      if (!connected) {
+        assign(
+          ".evoland_worker_db",
+          evoland.plus::evoland_db$new(catalog = catalog, data_path = data_path),
+          envir = globalenv()
+        )
+        .evoland_worker_db$execute("set threads to 1")
+      }
+    },
     catalog = parent_db$catalog,
     data_path = parent_db$data_path,
-    ...
+    .compute = compute
   )
+
+  mirai::mirai_map(
+    items,
+    function(item, worker_fun, args) {
+      do.call(
+        worker_fun,
+        c(list(item = item, db = get(".evoland_worker_db", envir = globalenv())), args)
+      )
+    },
+    .args = list(worker_fun = worker_fun, args = list(...)),
+    .compute = compute
+  )[.stop]
 }

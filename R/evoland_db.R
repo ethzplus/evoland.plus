@@ -248,7 +248,7 @@ evoland_db <- R6::R6Class(
     #' @param select_score Measure ID string for score-select mode, e.g. `"classif.auc"`
     #'   (`NULL` when `learner` is used).
     #' @param select_maximize Logical; maximize (`TRUE`) or minimize (`FALSE`) the score.
-    #' @param cluster Optional cluster object for parallel processing
+    #' @param compute Optional mirai compute profile name, see [run_parallel_evoland()]
     #' @param id_trans Optional integer vector; fit only these transitions.
     #' @param id_period_anterior Optional integer vector; train only on transitions
     #'   observed from these anterior periods. `NULL` (default) uses all observed periods.
@@ -258,7 +258,7 @@ evoland_db <- R6::R6Class(
       learner = NULL,
       select_score = NULL,
       select_maximize = TRUE,
-      cluster = NULL,
+      compute = NULL,
       id_trans = NULL,
       id_period_anterior = NULL,
       id_run = self$id_run
@@ -274,7 +274,7 @@ evoland_db <- R6::R6Class(
     #' `Measure` objects for scoring the held-out split.
     #' @param sample_frac Fraction in \(0, 1\) for stratified sampling.
     #' @param seed Random seed for reproducible sampling
-    #' @param cluster Optional cluster object for parallel processing
+    #' @param compute Optional mirai compute profile name, see [run_parallel_evoland()]
     #' @param id_trans Optional integer vector; fit only these transitions.
     #' @param id_period_anterior Optional integer vector; train and score only on
     #'   transitions observed from these anterior periods. `NULL` (default) uses all
@@ -286,7 +286,7 @@ evoland_db <- R6::R6Class(
       measures,
       sample_frac = 0.7,
       seed = NULL,
-      cluster = NULL,
+      compute = NULL,
       id_trans = NULL,
       id_period_anterior = NULL,
       id_run = self$id_run
@@ -319,14 +319,14 @@ evoland_db <- R6::R6Class(
     #' [mlr3filters::Filter] object specifying the filter method to use for
     #' feature selection.
     #' @param id_trans Optional integer vector; score only these transitions.
-    #' @param cluster Optional cluster object for parallel processing
+    #' @param compute Optional mirai compute profile name, see [run_parallel_evoland()]
     #' @param id_run Integer; the run whose selected predictors are scored, and whose
     #'   `id_run` the scores carry
     #' @param ... Additional arguments passed to `flt`.
     get_pred_filter_score = function(
       filter = "correlation",
       id_trans = NULL,
-      cluster = NULL,
+      compute = NULL,
       id_run = self$id_run,
       ...
     ) {
