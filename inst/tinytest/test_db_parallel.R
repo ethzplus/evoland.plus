@@ -8,7 +8,7 @@ db <- evoland_db$new(
 
 # 1. Test Serial Execution
 expect_silent(
-  res <- run_parallel_evoland(
+  res <- evoland.plus:::run_parallel_evoland(
     items = list(1, 2, 3),
     worker_fun = function(item, db) {
       paste(db$read_only, item * 2)
@@ -39,7 +39,7 @@ if (!at_home() || !requireNamespace("evoland.plus", quietly = TRUE)) {
         db$reporting_t
       }
 
-      res_parallel <- run_parallel_evoland(
+      res_parallel <- evoland.plus:::run_parallel_evoland(
         items = list(1, 2),
         worker_fun = worker_db_check,
         parent_db = db,

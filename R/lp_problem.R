@@ -27,7 +27,7 @@
 #' programs. It has to be installed before a program can be constructed.
 #'
 #' @seealso [trans_rate_lp]
-#' @export
+#' @keywords internal
 lp_problem <- R6::R6Class(
   classname = "lp_problem",
 
