@@ -268,14 +268,17 @@ count_snapshots <- function() {
   db$get_query("select count(*) from ducklake_snapshots(dl_db)", as_atomic = TRUE)
 }
 db$execute("call dl_db.set_option('expire_older_than', '0 seconds')")
+# allocating one period commits once
 snapshots_before <- count_snapshots()
 expect_message(alloc_run_5(update_neighbors = FALSE), "Allocating with greedy")
-expect_true(count_snapshots() > snapshots_before)
+expect_equal(count_snapshots(), snapshots_before + 1)
+# the allocation commits once more, then the checkpoint expires every snapshot before its own
+# two: one flushes the inlined rows to files, one merges adjacent files
 expect_message(
   alloc_run_5(update_neighbors = FALSE, checkpoint = TRUE),
   "Allocating with greedy"
 )
-expect_true(count_snapshots() < snapshots_before)
+expect_equal(count_snapshots(), 2)
 
 # --------------------------------------------------------------------------
 # Argument checks
