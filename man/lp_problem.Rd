@@ -32,6 +32,7 @@ programs. It has to be installed before a program can be constructed.
 \seealso{
 \link{trans_rate_lp}
 }
+\keyword{internal}
 \section{Active bindings}{
   \if{html}{\out{<div class="r6-active-bindings">}}
   \describe{

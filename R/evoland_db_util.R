@@ -173,7 +173,6 @@ get_evoland_db_read_expr <- function(self, super, table_name, id_run = self$id_r
 #' @param ... Additional arguments passed to `worker_fun`.
 #'
 #' @return A list of results
-#' @export
 run_parallel_evoland <- function(
   items,
   worker_fun,
