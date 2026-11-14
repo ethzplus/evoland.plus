@@ -19,7 +19,8 @@ fit_partial_models(
   seed = NULL,
   cluster = NULL,
   id_trans = NULL,
-  id_period_anterior = NULL
+  id_period_anterior = NULL,
+  id_run = 0L
 )
 
 fit_full_models(
@@ -29,7 +30,8 @@ fit_full_models(
   select_maximize = TRUE,
   cluster = NULL,
   id_trans = NULL,
-  id_period_anterior = NULL
+  id_period_anterior = NULL,
+  id_run = 0L
 )
 
 \method{print}{trans_models_t}(x, ...)
@@ -67,6 +69,8 @@ transitions observed from these periods are used for training. In score-select m
 this should match what was passed to \code{\link[=fit_partial_models]{fit_partial_models()}}. \code{NULL} (default) uses
 every observed period.}
 
+\item{id_run}{Optional integer; filter by run ID.}
+
 \item{select_score}{Character string; mlr3 measure ID (e.g. \code{"classif.auc"}) used to
 rank partial models in score-select mode. Must be \code{NULL} when \code{learner} is provided.}
 
@@ -74,8 +78,6 @@ rank partial models in score-select mode. Must be \code{NULL} when \code{learner
 \code{select_score} is selected; if \code{FALSE}, the lowest. Only used in score-select mode.}
 
 \item{...}{Passed to \code{\link[mlr3viz:autoplot.PredictionClassif]{mlr3viz::autoplot.PredictionClassif()}}}
-
-\item{id_run}{Optional integer; filter by run ID.}
 }
 \value{
 A data.table of class "trans_models_t" with columns:

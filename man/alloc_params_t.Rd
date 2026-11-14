@@ -22,7 +22,7 @@ isometry_from_elongation(
 
 compute_alloc_params_single(lulc_ant, lulc_post, id_lulc_ant, id_lulc_post)
 
-create_alloc_params_t(self, id_period_post = NULL)
+create_alloc_params_t(self, id_period_post = NULL, id_run = 0L)
 }
 \arguments{
 \item{x}{A list or data.frame coercible to a data.table}
@@ -50,6 +50,9 @@ create_alloc_params_t(self, id_period_post = NULL)
 \item{id_period_post}{Optional integer vector of posterior period IDs; only the period
 pairs ending in these periods are estimated from, e.g. to hold out the last observed
 transition for a backcast. \code{NULL} (default) uses every observed pair.}
+
+\item{id_run}{Integer; the run whose land use the parameters are estimated from, through
+its lineage, and whose \code{id_run} they carry.}
 }
 \value{
 A data.table of class "alloc_params_t" with columns:
@@ -95,7 +98,7 @@ parameter, c.f. fig. 3.10 in Mazy, 2022 https://theses.hal.science/tel-04382012v
 This is an internal function used by \code{create_alloc_params_t}.
 
 \item \code{create_alloc_params_t()}: Estimate allocation parameters for each viable transition from
-the observed periods, averaged across period pairs, and return them for the active \code{id_run}.
+the observed periods, averaged across period pairs, and return them for \code{id_run}.
 Only the best estimate is returned: how to perturb it, e.g. to probe the sensitivity of an
 allocation to patch geometry, is left to the caller, who writes the perturbed sets onto
 runs of their own.

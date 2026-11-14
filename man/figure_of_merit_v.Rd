@@ -9,7 +9,7 @@ figure_of_merit_v(
   id_period_anterior,
   id_period_post,
   id_run_reference,
-  id_run_simulated = self$id_run,
+  id_run_simulated = 0L,
   by_transition = FALSE,
   exclude_id_lulc = integer(0)
 )
@@ -24,7 +24,7 @@ figure_of_merit_v(
 \item{id_run_reference}{Integer, run holding the initial and observed maps}
 
 \item{id_run_simulated}{Integer vector, runs holding the simulated maps; defaults to the
-active run}
+root run, 0}
 
 \item{by_transition}{Logical; if \code{TRUE}, report per transition instead of overall.}
 

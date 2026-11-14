@@ -293,13 +293,15 @@ ducklake_db <- R6::R6Class(
     #' @param where Character string. Optional WHERE clause for the SQL query (e.g.
     #' `id_pred in (0,4,5)`)
     #' @param limit Integer. Optional limit on number of rows to return.
+    #' @param ... Passed to `$get_read_expr()`, e.g. a subclass's own filters.
     #'
     #' @return A data.table
     fetch = function(
       table_name,
       cols = NULL,
       where = NULL,
-      limit = NULL
+      limit = NULL,
+      ...
     ) {
       if (!table_name %in% self$list_tables()) {
         stop("Table `", table_name, "` does not exist in `", self$catalog, "`")
@@ -310,7 +312,7 @@ ducklake_db <- R6::R6Class(
       if (!is.null(cols)) {
         map_cols <- intersect(cols, map_cols)
       }
-      read_expr <- self$get_read_expr(table_name)
+      read_expr <- self$get_read_expr(table_name, ...)
 
       no_clause <- DBI::SQL("")
 

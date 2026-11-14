@@ -54,11 +54,12 @@ as_trans_rates_t <- function(x) {
 #' For each period and transition type, calculates the rate as the proportion of
 #' id_lulc_anterior cells that transitioned to id_lulc_posterior.
 #' @param self a DB instance
+#' @param id_run Integer; the run whose land use is read, through its lineage, and whose
+#'   `id_run` the rates carry
 #' @keywords internal
-get_obs_trans_rates <- function(self) {
-  # subsets to active id_run, but could also just group by id_run
-  stopifnot("id_run must be set" = !is.null(self$id_run))
-  lulc_expr <- self$get_read_expr("lulc_data_t")
+get_obs_trans_rates <- function(self, id_run = 0L) {
+  stopifnot("id_run must be a single integer" = is_scalar_integerish(id_run))
+  lulc_expr <- self$get_read_expr("lulc_data_t", id_run = id_run)
   meta_expr <- self$get_read_expr("trans_meta_t")
 
   result <- self$get_query(
@@ -98,7 +99,7 @@ get_obs_trans_rates <- function(self) {
         id_period, id_lulc_anterior
     )
     select
-      {self$id_run} as id_run,
+      {id_run} as id_run,
       c.id_period,
       m.id_trans,
       c.n as count,

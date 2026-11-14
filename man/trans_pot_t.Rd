@@ -17,7 +17,7 @@ predict_trans_pot(
   select_score,
   select_maximize,
   force = FALSE,
-  id_run = self$id_run
+  id_run = 0L
 )
 }
 \arguments{

@@ -11,7 +11,7 @@ as_lulc_data_t(x)
 
 \method{print}{lulc_data_t}(x, nrow = 10, ...)
 
-lulc_data_as_rast(self, private, id_period = NULL)
+lulc_data_as_rast(self, private, id_period = NULL, id_run = 0L)
 }
 \arguments{
 \item{x}{An object that can be passed to \code{\link[data.table:setDT]{data.table::setDT()}}}
@@ -22,6 +22,8 @@ lulc_data_as_rast(self, private, id_period = NULL)
 
 \item{id_period}{Integer or vector of integers specifying which periods to
 retrieve; returned as layers.}
+
+\item{id_run}{Integer; the run whose land use is read, through its lineage}
 }
 \value{
 A data.table of class "lulc_data_t" with columns:
