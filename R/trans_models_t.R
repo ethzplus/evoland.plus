@@ -314,7 +314,7 @@ fit_partial_models <- function(
   compute = NULL,
   id_trans = NULL,
   id_period_anterior = NULL,
-  id_run = self$id_run
+  id_run = 0L
 ) {
   stopifnot("id_run must be a single integer" = is_scalar_integerish(id_run))
   # Accept either a character vector of measure IDs or a list of Measure objects
@@ -400,7 +400,7 @@ fit_full_models <- function(
   compute = NULL,
   id_trans = NULL,
   id_period_anterior = NULL,
-  id_run = self$id_run
+  id_run = 0L
 ) {
   stopifnot("id_run must be a single integer" = is_scalar_integerish(id_run))
   has_learner <- !is.null(learner)

@@ -402,11 +402,11 @@ expect_equal(
   )
 )
 
-db$id_run <- 1 # ensure fallthrough works
-# the mean potential must scale to the overall prescribed transition rate
+# the mean potential must scale to the overall prescribed transition rate; run 1 holds no
+# potentials or rates of its own, so both fall through to run 0
 expect_equal(
   data.table::as.data.table(
-    db$adjusted_trans_pot_v(4)[
+    db$adjusted_trans_pot_v(4, id_run = 1L)[
       order(id_trans),
       .(rate = mean(value)),
       by = id_trans
@@ -437,48 +437,27 @@ if (
 
 # under a child run, fitting and filtering inherit the base run's predictor sets but label
 # their results with the child run, so they cannot overwrite the base run's
-db$id_run <- 2L
-expect_equal(db$run_lineage, c(2L, 0L))
-expect_equal(unique(db$trans_preds_t[["id_run"]]), 0L)
+expect_equal(evoland.plus:::get_lineage(db$runs_t, 2L), c(2L, 0L))
+expect_equal(unique(db$fetch("trans_preds_t", id_run = 2L)[["id_run"]]), 0L)
 child_partial <- suppressMessages(db$fit_partial_models(
-  learner = test_learner,
-  measures = test_measures,
-  seed = 1L
-))
-expect_equal(unique(child_partial[["id_run"]]), 2L)
-db$trans_models_t <- child_partial
-child_full <- suppressMessages(db$fit_full_models(
-  select_score = "classif.auc",
-  select_maximize = TRUE
-))
-expect_equal(unique(child_full[["id_run"]]), 2L)
-expect_true(all(!vapply(child_full[["learner_full"]], is.null, logical(1L))))
-child_scores <- suppressMessages(db$get_pred_filter_score(filter = "correlation"))
-expect_equal(unique(child_scores[["id_run"]]), 2L)
-db$id_run <- 0L
-
-# the run can be passed instead of switched to: the same fits and scores for run 2, with run 0
-# still active
-expect_equal(db$id_run, 0L)
-explicit_partial <- suppressMessages(db$fit_partial_models(
   learner = test_learner,
   measures = test_measures,
   seed = 1L,
   id_run = 2L
 ))
-expect_equal(explicit_partial[["crossval_score"]], child_partial[["crossval_score"]])
-explicit_full <- suppressMessages(db$fit_full_models(
+expect_equal(unique(child_partial[["id_run"]]), 2L)
+db$trans_models_t <- child_partial
+child_full <- suppressMessages(db$fit_full_models(
   select_score = "classif.auc",
   select_maximize = TRUE,
   id_run = 2L
 ))
-expect_equal(unique(explicit_full[["id_run"]]), 2L)
-explicit_scores <- suppressMessages(db$get_pred_filter_score(filter = "correlation", id_run = 2L))
-expect_equal(explicit_scores, child_scores)
-expect_equal(db$id_run, 0L)
+expect_equal(unique(child_full[["id_run"]]), 2L)
+expect_true(all(!vapply(child_full[["learner_full"]], is.null, logical(1L))))
+child_scores <- suppressMessages(db$get_pred_filter_score(filter = "correlation", id_run = 2L))
+expect_equal(unique(child_scores[["id_run"]]), 2L)
 
-# on mirai daemons, each daemon's connection is opened on whatever run is active; the items
-# carry the run they are for, so the fits match the serial ones
+# on mirai daemons, the items carry the run they are for, so the fits match the serial ones
 if (requireNamespace("evoland.plus", quietly = TRUE)) {
   mirai::daemons(2, .compute = "evoland_fit")
   parallel_partial <- suppressMessages(db$fit_partial_models(
@@ -489,6 +468,6 @@ if (requireNamespace("evoland.plus", quietly = TRUE)) {
     compute = "evoland_fit"
   ))
   mirai::daemons(0, .compute = "evoland_fit")
-  expect_equal(parallel_partial[["id_run"]], explicit_partial[["id_run"]])
-  expect_equal(parallel_partial[["crossval_score"]], explicit_partial[["crossval_score"]])
+  expect_equal(parallel_partial[["id_run"]], child_partial[["id_run"]])
+  expect_equal(parallel_partial[["crossval_score"]], child_partial[["crossval_score"]])
 }

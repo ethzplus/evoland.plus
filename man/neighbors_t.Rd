@@ -25,9 +25,9 @@ set_neighbors(
   chunksize = 1e+07
 )
 
-generate_neighbor_predictors(self, id_run = self$id_run)
+generate_neighbor_predictors(self, id_run = 0L)
 
-upsert_new_neighbors(self, id_period, id_run = self$id_run)
+upsert_new_neighbors(self, id_period, id_run = 0L)
 }
 \arguments{
 \item{x}{An object that can be passed to \code{\link[data.table:setDT]{data.table::setDT()}}}

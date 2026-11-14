@@ -312,9 +312,7 @@ ducklake_db <- R6::R6Class(
       if (!is.null(cols)) {
         map_cols <- intersect(cols, map_cols)
       }
-      # do.call, so that a subclass's get_read_expr() built with create_method_binding()
-      # receives values rather than a `...` it cannot match
-      read_expr <- do.call(self$get_read_expr, c(list(table_name), list(...)))
+      read_expr <- self$get_read_expr(table_name, ...)
 
       no_clause <- DBI::SQL("")
 

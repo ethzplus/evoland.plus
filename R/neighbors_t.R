@@ -180,7 +180,7 @@ set_neighbors <- function(
 #' generated predictors are stored in `pred_data_t` and metadata in
 #' `pred_meta_t`.
 #' @param self An evoland_db object
-generate_neighbor_predictors <- function(self, id_run = self$id_run) {
+generate_neighbor_predictors <- function(self, id_run = 0L) {
   tables_present <- self$list_tables()
   stopifnot(
     "id_run must be a single integer" = is_scalar_integerish(id_run),
@@ -324,7 +324,7 @@ generate_neighbor_predictors <- function(self, id_run = self$id_run) {
 #' missing, only use non-extrapolated periods
 #' @param id_run Integer, the run whose map is counted and under which the predictors are
 #' written
-upsert_new_neighbors <- function(self, id_period, id_run = self$id_run) {
+upsert_new_neighbors <- function(self, id_period, id_run = 0L) {
   stopifnot(
     "id_run must be a single integer" = is_scalar_integerish(id_run),
     "id_period must be a single integer" = is_scalar_integerish(id_period)

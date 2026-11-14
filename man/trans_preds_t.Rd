@@ -12,14 +12,14 @@ as_trans_preds_t(x)
 
 \method{print}{trans_preds_t}(x, nrow = 10, ...)
 
-set_full_trans_preds(self, reset = FALSE, id_run = self$id_run)
+set_full_trans_preds(self, reset = FALSE, id_run = 0L)
 
 get_pred_filter_score(
   self,
   filter = "correlation",
   id_trans = NULL,
   compute = NULL,
-  id_run = self$id_run,
+  id_run = 0L,
   ...
 )
 }
