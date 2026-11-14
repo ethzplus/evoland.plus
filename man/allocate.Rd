@@ -14,7 +14,8 @@ allocate(
   id_run = db$id_run,
   potentials_ancestor = 0L,
   force_predict = FALSE,
-  update_neighbors = TRUE
+  update_neighbors = TRUE,
+  checkpoint = FALSE
 )
 
 allocate_one_period(
@@ -61,6 +62,15 @@ allocation, which its ancestors cannot see.}
 period (default \code{TRUE}). Intermediate periods are always updated, since the next period's
 prediction reads them. Set \code{FALSE} when nothing is allocated onwards from the last period,
 e.g. for single-period ensembles.}
+
+\item{checkpoint}{Logical; if \code{TRUE}, run the database's \verb{$checkpoint()} once, after the
+last period (default \code{FALSE}). Every allocated period adds a snapshot to the catalog,
+and DuckLake neither expires snapshots nor merges small files on its own, so a study
+that runs many realisations grows until it is checkpointed. Set it on the last call of
+a batch, or call \code{db$checkpoint()} once the batch is done. Leave it off when other
+processes allocate into the same database at the same time: a checkpoint rewrites files
+they may be reading. How many snapshots it expires depends on the retention set on the
+database, see \link{ducklake_db}.}
 
 \item{id_period_post}{Integer posterior period ID.}
 }

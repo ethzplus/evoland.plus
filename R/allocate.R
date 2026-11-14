@@ -65,6 +65,14 @@
 #'   period (default `TRUE`). Intermediate periods are always updated, since the next period's
 #'   prediction reads them. Set `FALSE` when nothing is allocated onwards from the last period,
 #'   e.g. for single-period ensembles.
+#' @param checkpoint Logical; if `TRUE`, run the database's `$checkpoint()` once, after the
+#'   last period (default `FALSE`). Every allocated period adds a snapshot to the catalog,
+#'   and DuckLake neither expires snapshots nor merges small files on its own, so a study
+#'   that runs many realisations grows until it is checkpointed. Set it on the last call of
+#'   a batch, or call `db$checkpoint()` once the batch is done. Leave it off when other
+#'   processes allocate into the same database at the same time: a checkpoint rewrites files
+#'   they may be reading. How many snapshots it expires depends on the retention set on the
+#'   database, see [ducklake_db].
 #'
 #' @return `allocate()`: called for its side effects on `lulc_data_t` and `pred_data_t`;
 #'   returns `NULL` invisibly. `allocate_one_period()`: an [lulc_data_t] with the posterior
@@ -85,11 +93,13 @@ allocate <- function(
   id_run = db$id_run,
   potentials_ancestor = 0L,
   force_predict = FALSE,
-  update_neighbors = TRUE
+  update_neighbors = TRUE,
+  checkpoint = FALSE
 ) {
   allocator <- resolve_allocator(db, id_run, allocator)
   check_allocation_args(allocator, id_run, potentials_ancestor)
   stopifnot(
+    "checkpoint must be TRUE or FALSE" = is_scalar_logical(checkpoint),
     "id_periods must be integers" = is_integerish(id_periods),
     "id_periods must be contiguous" = all(diff(id_periods) == 1L),
     "id_periods must be in periods_t" = all(id_periods %in% db$periods_t[["id_period"]]),
@@ -170,6 +180,10 @@ allocate_periods <- function(
         db$upsert_new_neighbors(id_period_post, id_run = id_run)
       }
     })
+  }
+
+  if (checkpoint) {
+    db$checkpoint()
   }
 
   invisible(NULL)

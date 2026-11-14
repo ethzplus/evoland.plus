@@ -13,7 +13,7 @@ as_trans_rates_t(x)
 
 get_obs_trans_rates(self, id_run = self$id_run)
 
-extrapolate_trans_rates(obs_rates, periods, coord_count = NA_integer_)
+extrapolate_trans_rates(obs_rates, periods)
 
 \method{print}{trans_rates_t}(x, nrow = 10, ...)
 
@@ -30,9 +30,6 @@ trans_rate_areas(lulc_data, rates, trans_meta)
 \item{obs_rates}{A trans_rates_t table of observed transition rates for historical periods}
 
 \item{periods}{A periods_t table with is_extrapolated = TRUE for future periods}
-
-\item{coord_count}{Optional integer specifying the number of coordinates
-(cells) for normalization}
 
 \item{nrow}{see \link[data.table:print.data.table]{data.table::print.data.table}}
 
@@ -51,7 +48,8 @@ A data.table of class "trans_rates_t" with columns:
 \item \code{id_run}: Foreign key to runs_t
 \item \code{id_period}: Foreign key to periods_t
 \item \code{id_trans}: Foreign key to trans_meta_t
-\item \code{count}: Absolute number of transitioning cells for (id_trans, id_period)
+\item \code{count}: Number of transitioning cells for (id_trans, id_period), for reporting; see
+Description
 \item \code{rate}: Transition rate: count of transitions in (id_trans, id_period)
 over count of cells of id_lulc_anterior in id_period
 }
@@ -67,6 +65,13 @@ extrapolated periods, they prescribe the change allocation has to produce. Futur
 can be extrapolated with a linear regression (\code{\link[=extrapolate_trans_rates]{extrapolate_trans_rates()}}) or derived from
 target class shares or areas with a linear program (\code{\link[=solve_trans_rates]{solve_trans_rates()}}).
 }
+\details{
+\code{rate} is the quantity of change: \code{\link[=allocate]{allocate()}} changes \code{round(rate * n_anterior)} cells of
+each transition, with \code{n_anterior} taken from the anterior map it allocates from. \code{count}
+is for reporting only: the observed number of transitioning cells for observed periods, the
+planned number for rates solved by \code{\link[=solve_trans_rates]{solve_trans_rates()}}, and \code{NA} for rates extrapolated
+by regression, whose count depends on the map they will be applied to.
+}
 \section{Methods (by generic)}{
 \itemize{
 \item \code{print(trans_rates_t)}: Print a trans_rates_t object, passing params to data.table print
@@ -80,7 +85,8 @@ id_lulc_anterior cells that transitioned to id_lulc_posterior.
 
 \item \code{extrapolate_trans_rates()}: Return future transition rates using linear regression. For
 each id_run + id_trans, fits a linear model of rate vs period number and extrapolates
-to future periods. Negative predicted rates are set to 0.
+to future periods. Negative predicted rates are set to 0. The extrapolated rows have no
+\code{count}: it depends on the anterior map the rate will be applied to.
 
 \item \code{trans_rate_areas()}: Replay a rate table forward from an observed state to recover
 the class areas it implies. Transitions not recorded in \code{rates} are implied to be zero,

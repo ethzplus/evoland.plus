@@ -1,131 +1,24 @@
-# Creates canonical test fixture data for use in tests, examples, and vignettes.
+# Stores the test fixtures in R/sysdata.rda, for use in tests, examples, and vignettes.
 #
-# This script is not run during checks. Each fixture below is replicated in the
-# corresponding inst/tinytest/test_*.R file, which compares the freshly built object
-# against the one stored in R/sysdata.rda. Changing a fixture here therefore requires
+# The fixtures are built by inst/tinytest/helper_fixtures.R, from one synthetic landscape.
+# This script is not run during checks; the constructor tests rebuild each fixture with the
+# same helpers and compare it against the stored one. Changing a fixture therefore requires
 # rerunning this script, so that the stored data cannot go stale relative to the
 # constructors it is built from.
 library("evoland.plus")
 library("data.table")
 
-# Coordinates: 30×30 grid in Swiss LV95
-test_coords_t <- create_coords_t_square(
-  epsg = 2056,
-  extent = terra::ext(c(xmin = 2697000, xmax = 2700000, ymin = 1252000, ymax = 1255000)),
-  resolution = 100
-)
+source("inst/tinytest/helper_fixtures.R")
 
-# Time periods
-test_periods_t <- create_periods_t(
-  period_length_str = "P10Y",
-  start_observed = "1985-01-01",
-  end_observed = "2005-01-01",
-  end_extrapolated = "2015-01-01"
-)
+landscape <- fixture_landscape()
+test_coords_t <- fixture_coords_t(landscape)
+test_periods_t <- fixture_periods_t()
+test_lulc_meta_t <- fixture_lulc_meta_t()
+test_lulc_data_t <- fixture_lulc_data_t(landscape, test_coords_t)
+test_pred_spec <- fixture_pred_spec()
+test_pred_meta_t <- fixture_pred_meta_t()
+test_pred_data_t <- fixture_pred_data_t(landscape, test_coords_t)
 
-# LULC classes
-test_lulc_meta_t <- create_lulc_meta_t(list(
-  forest = list(pretty_name = "Forest", src_classes = 1:3),
-  urban = list(pretty_name = "Urban", src_classes = 4L),
-  agriculture = list(pretty_name = "Agriculture", src_classes = 5:6)
-))
-
-# Synthetic LULC observations with known transition signal
-set.seed(42)
-n_coords <- nrow(test_coords_t)
-test_lulc_data_t <- as_lulc_data_t(rbindlist(list(
-  data.table(
-    id_run = 0L,
-    id_coord = 1:n_coords,
-    id_lulc = sample(1:2, n_coords, TRUE, c(0.7, 0.3)),
-    id_period = 1L
-  ),
-  data.table(
-    id_run = 0L,
-    id_coord = 1:n_coords,
-    id_lulc = sample(1:2, n_coords, TRUE, c(0.5, 0.5)),
-    id_period = 2L
-  ),
-  data.table(
-    id_run = 0L,
-    id_coord = 1:n_coords,
-    id_lulc = sample(1:2, n_coords, TRUE, c(0.4, 0.6)),
-    id_period = 3L
-  )
-)))
-
-# Predictor metadata (one for each data type)
-test_pred_spec <- list(
-  elevation = list(
-    unit = "m",
-    pretty_name = "Elevation",
-    description = "Elevation above sea level",
-    data_type = "float",
-    sources = list(list(url = "https://example.com/elevation.tif", md5sum = "abc123"))
-  ),
-  population = list(
-    unit = "count",
-    pretty_name = "Population",
-    description = "Population count",
-    data_type = "int",
-    sources = list(list(url = "https://example.com/pop.tif", md5sum = "def456"))
-  ),
-  is_protected = list(
-    unit = "boolean",
-    pretty_name = "Protected Area",
-    description = "Is the area protected",
-    data_type = "bool",
-    sources = list(list(url = "https://example.com/protected.gpkg", md5sum = "ghi789"))
-  ),
-  soil_type = list(
-    unit = "category",
-    pretty_name = "Soil Type",
-    description = "Type of soil",
-    data_type = "factor",
-    factor_levels = c("Sandy", "Loamy", "Clay", "Peaty", "Chalky"),
-    sources = list(list(url = "https://example.com/soil.tif", md5sum = "jkl012"))
-  )
-)
-test_pred_meta_t <- create_pred_meta_t(test_pred_spec)
-
-# Predictor data (static + time-varying)
-set.seed(43)
-test_pred_data_t <- as_pred_data_t(
-  rbind(
-    # TODO add some time-varying predictors
-    # Static predictors (period 0)
-    data.table(
-      id_run = 0L,
-      id_pred = 1L,
-      id_coord = 1:n_coords,
-      id_period = 0L,
-      value = runif(n_coords, 400, 800)
-    ),
-    data.table(
-      id_run = 0L,
-      id_pred = 2L,
-      id_coord = 1:n_coords,
-      id_period = 0L,
-      value = sample(0:1000, n_coords, replace = TRUE)
-    ),
-    data.table(
-      id_run = 0L,
-      id_pred = 3L,
-      id_coord = 1:n_coords,
-      id_period = 0L,
-      value = sample(c(0, 1), n_coords, replace = TRUE)
-    ),
-    data.table(
-      id_run = 0L,
-      id_pred = 4L,
-      id_coord = 1:n_coords,
-      id_period = 0L,
-      value = sample(1:5, n_coords, replace = TRUE)
-    )
-  )
-)
-
-# Save all fixtures
 usethis::use_data(
   test_coords_t,
   test_periods_t,
