@@ -146,6 +146,10 @@ allocate <- function(
     )
   )
 
+  if (checkpoint) {
+    db$checkpoint()
+  }
+
   invisible(NULL)
 }
 
@@ -180,10 +184,6 @@ allocate_periods <- function(
         db$upsert_new_neighbors(id_period_post, id_run = id_run)
       }
     })
-  }
-
-  if (checkpoint) {
-    db$checkpoint()
   }
 
   invisible(NULL)
