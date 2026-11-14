@@ -380,6 +380,56 @@ fom_excl <- db$figure_of_merit_v(
 )
 expect_equal(fom_excl, fom[id_run == 11L])
 
+# brier_score_v on the same six cells. Run 11 alone is one map with three wrong cells (2, 3,
+# 5), each scoring 2: Brier 1. Run 12 is exact: 0. Together (m = 2), cells 2, 3 and 5 are split
+# between their observed class and another, (0.5^2 + 0.5^2) - 2 * 0.5 + 1 = 0.5 each, the rest
+# 0: Brier 0.25; the fair score removes exactly that split's finite-size penalty, 0.5 each.
+# The uniform reference forecasts 1 -> 2 and 1 -> 1 at 0.5 each (2 of 4 cells each), and
+# 2 -> 1, 2 -> 2 at 0.5 each: 0.5 on every cell.
+brier <- db$brier_score_v(
+  1L,
+  2L,
+  id_run_reference = 10L,
+  ensembles = list(run_11 = 11L, run_12 = 12L, both = 11:12),
+  changeable_only = FALSE
+)
+expect_equal(brier$ensemble, c("run_11", "run_12", "both"))
+expect_equal(brier$n_members, c(1L, 1L, 2L))
+expect_equal(brier$n_cells, c(6L, 6L, 6L))
+expect_equal(brier$brier, c(1, 0, 0.25))
+expect_equal(brier$brier_fair, c(1, 0, 0))
+expect_equal(brier$brier_reference, rep(0.5, 3L))
+expect_equal(brier$skill, c(-1, 1, 0.5))
+expect_equal(brier$skill_fair, c(-1, 1, 1))
+
+# per anterior class: class 1 (cells 1-4) and class 2 (cells 5, 6) of the joint ensemble
+brier_by_class <- db$brier_score_v(
+  1L,
+  2L,
+  id_run_reference = 10L,
+  ensembles = 11:12,
+  by_anterior = TRUE,
+  changeable_only = FALSE
+)
+expect_equal(brier_by_class$ensemble, c("1", "1"))
+expect_equal(brier_by_class$id_lulc_anterior, 1:2)
+expect_equal(brier_by_class$n_cells, c(4L, 2L))
+expect_equal(brier_by_class$brier, c(0.25, 0.25))
+
+# leaving out class 2, as anterior or observed class, leaves cells 3 and 4: run 11 gets one
+# of the two wrong
+expect_equal(
+  db$brier_score_v(
+    1L,
+    2L,
+    id_run_reference = 10L,
+    ensembles = 11L,
+    changeable_only = FALSE,
+    exclude_id_lulc = 2L
+  )$brier,
+  1
+)
+
 # lulc_crosstab_v: observed change within run 10, simulated change of run 11 from the initial map
 # it inherits, and observed against simulated at period 2
 expect_equal(
