@@ -11,7 +11,7 @@ allocate(
   allocator = NULL,
   select_score = NULL,
   select_maximize = NULL,
-  id_run = db$id_run,
+  id_run = 0L,
   potentials_ancestor = 0L,
   force_predict = FALSE,
   update_neighbors = TRUE,
@@ -24,7 +24,7 @@ allocate_one_period(
   allocator = NULL,
   select_score = NULL,
   select_maximize = NULL,
-  id_run = db$id_run,
+  id_run = 0L,
   potentials_ancestor = 0L,
   force_predict = FALSE
 )

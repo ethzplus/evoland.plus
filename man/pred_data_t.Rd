@@ -22,16 +22,10 @@ pred_wide_train_v(
   id_trans,
   id_pred,
   id_period_anterior = NULL,
-  id_run = self$id_run
+  id_run = 0L
 )
 
-pred_wide_predict_v(
-  self,
-  private,
-  id_trans,
-  id_period_anterior,
-  id_run = self$id_run
-)
+pred_wide_predict_v(self, private, id_trans, id_period_anterior, id_run = 0L)
 
 set_pred_coltypes(result, pred_meta_t)
 
@@ -46,7 +40,7 @@ add_predictor(
   orig_format = NA_character_,
   sources = list(),
   unit = NA_character_,
-  id_run = self$id_run
+  id_run = 0L
 )
 }
 \arguments{

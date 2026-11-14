@@ -120,7 +120,7 @@ pred_wide_train_v <- function(
   id_trans,
   id_pred,
   id_period_anterior = NULL,
-  id_run = self$id_run
+  id_run = 0L
 ) {
   stopifnot(
     "id_trans must be a single integer" = is_scalar_integerish(id_trans),
@@ -178,7 +178,7 @@ pred_wide_predict_v <- function(
   private,
   id_trans,
   id_period_anterior,
-  id_run = self$id_run
+  id_run = 0L
 ) {
   stopifnot(
     "id_trans must be a single integer or NA" = is.na(id_trans) || is_scalar_integerish(id_trans),
@@ -299,7 +299,7 @@ add_predictor <- function(
   orig_format = NA_character_,
   sources = list(),
   unit = NA_character_,
-  id_run = self$id_run
+  id_run = 0L
 ) {
   stopifnot("id_run must be a single integer" = is_scalar_integerish(id_run))
   # one transaction: the id_pred is looked up or allocated against what pred_meta_t holds,

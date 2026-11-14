@@ -244,7 +244,7 @@ compute_alloc_params_single <- function(
 }
 
 #' @describeIn alloc_params_t Estimate allocation parameters for each viable transition from
-#' the observed periods, averaged across period pairs, and return them for the active `id_run`.
+#' the observed periods, averaged across period pairs, and return them for `id_run`.
 #' Only the best estimate is returned: how to perturb it, e.g. to probe the sensitivity of an
 #' allocation to patch geometry, is left to the caller, who writes the perturbed sets onto
 #' runs of their own.
@@ -254,7 +254,7 @@ compute_alloc_params_single <- function(
 #'   transition for a backcast. `NULL` (default) uses every observed pair.
 #' @param id_run Integer; the run whose land use the parameters are estimated from, through
 #'   its lineage, and whose `id_run` they carry.
-create_alloc_params_t <- function(self, id_period_post = NULL, id_run = self$id_run) {
+create_alloc_params_t <- function(self, id_period_post = NULL, id_run = 0L) {
   stopifnot(
     "id_run must be a single integer" = is_scalar_integerish(id_run),
     "id_period_post must be integerish or NULL" = {

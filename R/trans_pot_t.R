@@ -121,7 +121,7 @@ predict_trans_pot <- function(
   select_score = NULL,
   select_maximize = NULL,
   force = FALSE,
-  id_run = self$id_run
+  id_run = 0L
 ) {
   stopifnot("id_run must be a single integer" = is_scalar_integerish(id_run))
   viable_trans <- viable_trans_meta(self)
@@ -223,7 +223,7 @@ predict_trans_pot <- function(
 
 # called for side effect: error if a viable transition does either not have a full model available
 # OR it does not have the required crossvalidation score
-.check_viable_trans_models <- function(self, select_score, id_run = self$id_run) {
+.check_viable_trans_models <- function(self, select_score, id_run = 0L) {
   viable_trans <- viable_trans_meta(self)
 
   modeled_ids <- self$get_query(

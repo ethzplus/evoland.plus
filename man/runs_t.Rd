@@ -4,14 +4,11 @@
 \alias{runs_t}
 \alias{as_runs_t}
 \alias{print.runs_t}
-\alias{db_active_id_run}
 \title{Create Runs Table}
 \usage{
 as_runs_t(x)
 
 \method{print}{runs_t}(x, nrow = 10, ...)
-
-db_active_id_run(self, private, y)
 }
 \arguments{
 \item{x}{A list or data.frame coercible to a data.table}
@@ -19,12 +16,6 @@ db_active_id_run(self, private, y)
 \item{nrow}{see \link[data.table:print.data.table]{data.table::print.data.table}}
 
 \item{...}{passed to \link[data.table:print.data.table]{data.table::print.data.table}}
-
-\item{self}{an evoland_db instance}
-
-\item{private}{an evoland_db private environment}
-
-\item{y}{(optional) scalar integerish or NULL; if provided, sets the active run ID and lineage}
 }
 \value{
 A data.table of class "runs_t" with columns:
@@ -69,10 +60,5 @@ argument is recorded on the run when the run's own row holds none.
 \section{Methods (by generic)}{
 \itemize{
 \item \code{print(runs_t)}: Print a runs_t object, passing params to data.table print
-
-}}
-\section{Functions}{
-\itemize{
-\item \code{db_active_id_run()}: Get or set the active run ID; error if no lineage is found
 
 }}

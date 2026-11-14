@@ -11,7 +11,7 @@
 \usage{
 as_trans_rates_t(x)
 
-get_obs_trans_rates(self, id_run = self$id_run)
+get_obs_trans_rates(self, id_run = 0L)
 
 extrapolate_trans_rates(obs_rates, periods)
 
