@@ -128,7 +128,7 @@ evoland_db$set(
   "public",
   "adjusted_trans_pot_v",
   overwrite = TRUE,
-  function(id_period_post, id_run = self$id_run, id_run_trans_pot = id_run) {
+  function(id_period_post, id_run = 0L, id_run_trans_pot = id_run) {
     stopifnot(
       "id_period_post must be a single integer" = is_scalar_integerish(id_period_post),
       "id_run must be a single integer" = is_scalar_integerish(id_run),

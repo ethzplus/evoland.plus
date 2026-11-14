@@ -323,15 +323,15 @@ A convenient first summary is binary: for each cell we ask whether its simulated
 
 ```{r}
 #| label: summarize-change-frequency
-db$id_run <- NULL # setting to NULL to access all records
+# id_run = NULL reads the rows of every run as stored, without following any run's lineage
 
 # 2500 locations x 1 observation = 2500 rows
-observed_last <- db$fetch("lulc_data_t", where = "id_run = 0 and id_period = 3")[,
+observed_last <- db$fetch("lulc_data_t", id_run = NULL, where = "id_run = 0 and id_period = 3")[,
   .(id_coord, id_lulc_observed = id_lulc)
 ]
 
 # 2500 locations * 30 runs = 75000 rows
-simulated_extrap <- db$fetch("lulc_data_t", where = "id_run > 0 and id_period = 4")[,
+simulated_extrap <- db$fetch("lulc_data_t", id_run = NULL, where = "id_run > 0 and id_period = 4")[,
   .(id_run, id_coord, id_lulc_simulated = id_lulc)
 ]
 

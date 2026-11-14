@@ -20,7 +20,7 @@ fit_partial_models(
   cluster = NULL,
   id_trans = NULL,
   id_period_anterior = NULL,
-  id_run = self$id_run
+  id_run = 0L
 )
 
 fit_full_models(
@@ -31,7 +31,7 @@ fit_full_models(
   cluster = NULL,
   id_trans = NULL,
   id_period_anterior = NULL,
-  id_run = self$id_run
+  id_run = 0L
 )
 
 \method{print}{trans_models_t}(x, ...)

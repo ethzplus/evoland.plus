@@ -118,7 +118,7 @@ print.trans_preds_t <- function(x, nrow = 10, ...) {
 #' @param reset Bool, start the run's selection over? This removes the run's rows, including
 #' their score columns' values, before writing the full set.
 #' @param id_run Integer, the run to write the predictor sets for, or to score.
-set_full_trans_preds <- function(self, reset = FALSE, id_run = self$id_run) {
+set_full_trans_preds <- function(self, reset = FALSE, id_run = 0L) {
   stopifnot("id_run must be a single integer" = is_scalar_integerish(id_run))
   exists <- self$row_count("trans_preds_t", where = glue::glue("id_run = {id_run}")) > 0L
   if (exists && !reset) {
@@ -232,7 +232,7 @@ get_pred_filter_score <- function(
   filter = "correlation",
   id_trans = NULL,
   cluster = NULL,
-  id_run = self$id_run,
+  id_run = 0L,
   ...
 ) {
   # Accept either a character vector of measure IDs or a list of Measure objects

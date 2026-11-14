@@ -22,7 +22,7 @@ isometry_from_elongation(
 
 compute_alloc_params_single(lulc_ant, lulc_post, id_lulc_ant, id_lulc_post)
 
-create_alloc_params_t(self, id_period_post = NULL, id_run = self$id_run)
+create_alloc_params_t(self, id_period_post = NULL, id_run = 0L)
 }
 \arguments{
 \item{x}{A list or data.frame coercible to a data.table}
@@ -98,7 +98,7 @@ parameter, c.f. fig. 3.10 in Mazy, 2022 https://theses.hal.science/tel-04382012v
 This is an internal function used by \code{create_alloc_params_t}.
 
 \item \code{create_alloc_params_t()}: Estimate allocation parameters for each viable transition from
-the observed periods, averaged across period pairs, and return them for the active \code{id_run}.
+the observed periods, averaged across period pairs, and return them for \code{id_run}.
 Only the best estimate is returned: how to perturb it, e.g. to probe the sensitivity of an
 allocation to patch geometry, is left to the caller, who writes the perturbed sets onto
 runs of their own.

@@ -57,7 +57,7 @@ as_trans_rates_t <- function(x) {
 #' @param id_run Integer; the run whose land use is read, through its lineage, and whose
 #'   `id_run` the rates carry
 #' @keywords internal
-get_obs_trans_rates <- function(self, id_run = self$id_run) {
+get_obs_trans_rates <- function(self, id_run = 0L) {
   stopifnot("id_run must be a single integer" = is_scalar_integerish(id_run))
   lulc_expr <- self$get_read_expr("lulc_data_t", id_run = id_run)
   meta_expr <- self$get_read_expr("trans_meta_t")
