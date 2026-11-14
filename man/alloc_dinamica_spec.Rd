@@ -4,7 +4,11 @@
 \alias{alloc_dinamica_spec}
 \title{Dinamica EGO allocator}
 \usage{
-alloc_dinamica_spec(work_dir = NULL, keep_intermediate = FALSE)
+alloc_dinamica_spec(
+  work_dir = NULL,
+  keep_intermediate = FALSE,
+  replayable = FALSE
+)
 }
 \arguments{
 \item{work_dir}{Character or \code{NULL}; directory under which each period gets its own working
@@ -13,6 +17,10 @@ directory.}
 
 \item{keep_intermediate}{Logical; keep the working directories after each period (default
 \code{FALSE}, remove them).}
+
+\item{replayable}{Logical; run Dinamica with its predefined seed and single-threaded, so that
+the same inputs give the same allocation (default \code{FALSE}, a time-derived seed). See
+"Replaying a realisation".}
 }
 \value{
 An allocator specification for \code{\link[=allocate]{allocate()}}.
@@ -25,6 +33,16 @@ map per viable transition (the adjusted potentials), the transition rates, and t
 expansion and patcher tables from \code{alloc_params_t} (\code{frac_expander}, \code{mean_patch_size},
 \code{patch_size_variance}, \code{patch_isometry}).
 
-\code{\link[=check_dinamica]{check_dinamica()}} runs before anything is predicted or written. Dinamica draws its own
-random seed, so its realisations cannot be replayed (see ethzplus/evoland.plus#104).
+\code{\link[=check_dinamica]{check_dinamica()}} runs before anything is predicted or written.
 }
+\section{Replaying a realisation}{
+
+DinamicaConsole cannot be given a seed value. By default it seeds its random number
+generators from the current time, so no two realisations are alike and none can be replayed.
+Its only seed option, \code{-predefined-seed}, takes no value: every run then uses the same
+built-in seed. \code{replayable = TRUE} passes that option and runs Dinamica single-threaded
+(\code{-processors=1 -disable-parallel-functors -disable-parallel-map-load}), because parallel
+execution has made other Dinamica functors non-deterministic. A replayable run reproduces one
+realisation; it cannot produce an ensemble of distinct ones, since all runs share the seed.
+}
+
