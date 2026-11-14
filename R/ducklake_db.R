@@ -974,6 +974,7 @@ ducklake_db <- R6::R6Class(
         # temp, because a transaction that has written to the catalog may not
         # also write to `memory`, and a plain view would land there
         self$execute("create or replace temp view new_data_v as from {`x`}")
+        private$new_data_v_kind <- "view"
         return(self$get_query("select column_name from (describe {`x`})", as_atomic = TRUE))
       }
 
@@ -990,6 +991,7 @@ ducklake_db <- R6::R6Class(
 
       if (length(map_cols) == 0) {
         duckdb::duckdb_register(self$connection, "new_data_v", x)
+        private$new_data_v_kind <- "registered"
         return(names(x))
       }
 
@@ -1009,19 +1011,34 @@ ducklake_db <- R6::R6Class(
       self$execute(
         "create or replace temp table new_data_v as select {select_expr} from new_data_raw"
       )
+      private$new_data_v_kind <- "table"
 
       names(x)
     },
 
     # cleanup new_data_v and related tables
+    # Only the statement that matches how new_data_v was made: inside a transaction, a failing
+    # one (e.g. unregistering a temp table) aborts the whole transaction, even though the
+    # error itself is caught here
     cleanup_new_data_v = function() {
-      try(duckdb::duckdb_unregister(self$connection, "new_data_v"), silent = TRUE)
-      try(duckdb::duckdb_unregister(self$connection, "new_data_raw"), silent = TRUE)
-      try(self$execute("drop table if exists new_data_v"), silent = TRUE)
-      try(self$execute("drop view if exists new_data_v"), silent = TRUE)
+      kind <- private$new_data_v_kind
+      private$new_data_v_kind <- NULL
+      switch(
+        kind %||% "none",
+        registered = duckdb::duckdb_unregister(self$connection, "new_data_v"),
+        view = self$execute("drop view if exists new_data_v"),
+        table = {
+          self$execute("drop table if exists new_data_v")
+          duckdb::duckdb_unregister(self$connection, "new_data_raw")
+        },
+        none = NULL
+      )
 
       invisible(NULL)
     },
+
+    # how register_new_data_v() made new_data_v: "registered", "view" or "table"
+    new_data_v_kind = NULL,
 
     ### Column and Metadata Resolution ----
 

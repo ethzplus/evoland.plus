@@ -512,7 +512,8 @@ directly, or pass \code{select_score} to pick the best partial model by score.
       \item{\code{learner}}{An mlr3 \code{Learner} or \code{AutoTuner} for direct-learner mode (\code{NULL}
 when \code{select_score} is used).}
       \item{\code{select_score}}{Measure ID string for score-select mode, e.g. \code{"classif.auc"}
-(\code{NULL} when \code{learner} is used).}
+(\code{NULL} when \code{learner} is used). Without \code{learner} and \code{select_score}, the criterion
+the run records in \link{runs_t} is used.}
       \item{\code{select_maximize}}{Logical; maximize (\code{TRUE}) or minimize (\code{FALSE}) the score.}
       \item{\code{compute}}{Optional mirai compute profile name, see \code{\link[=run_parallel_evoland]{run_parallel_evoland()}}}
       \item{\code{id_trans}}{Optional integer vector; fit only these transitions.}
@@ -654,8 +655,8 @@ to obtain column-scaled, row-closed values.
     \if{html}{\out{<div class="r">}}
     \preformatted{evoland_db$predict_trans_pot(
   id_period_post,
-  select_score,
-  select_maximize,
+  select_score = NULL,
+  select_maximize = NULL,
   force = FALSE,
   id_run = 0L
 )}
@@ -666,7 +667,8 @@ to obtain column-scaled, row-closed values.
     \describe{
       \item{\code{id_period_post}}{Integerish, posterior period of the transition potential interval}
       \item{\code{select_score}}{Character string; mlr3 measure ID (e.g. \code{"classif.auc"}) used
-to select model for extrapolation}
+to select model for extrapolation. \code{NULL} (default) uses the criterion the run records
+in \link{runs_t}.}
       \item{\code{select_maximize}}{Logical; maximize (\code{TRUE}) or minimize (\code{FALSE}) the score.}
       \item{\code{force}}{Logical; predict even if \code{trans_pot_t} already holds potentials for
 \code{id_run} and the period.}

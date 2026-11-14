@@ -58,7 +58,7 @@ evoland_db <- R6::R6Class(
         # tables or neither -- and costs one snapshot rather than two
         self$transaction({
           self$set_report(...)
-          self$commit(as_runs_t(), "runs_t", method = "upsert")
+          ensure_runs_t(self)
         })
       }
       invisible(self)
@@ -237,7 +237,8 @@ evoland_db <- R6::R6Class(
     #' @param learner An mlr3 `Learner` or `AutoTuner` for direct-learner mode (`NULL`
     #'   when `select_score` is used).
     #' @param select_score Measure ID string for score-select mode, e.g. `"classif.auc"`
-    #'   (`NULL` when `learner` is used).
+    #'   (`NULL` when `learner` is used). Without `learner` and `select_score`, the criterion
+    #'   the run records in [runs_t] is used.
     #' @param select_maximize Logical; maximize (`TRUE`) or minimize (`FALSE`) the score.
     #' @param compute Optional mirai compute profile name, see [run_parallel_evoland()]
     #' @param id_trans Optional integer vector; fit only these transitions.
@@ -331,15 +332,16 @@ evoland_db <- R6::R6Class(
     #' to obtain column-scaled, row-closed values.
     #' @param id_period_post Integerish, posterior period of the transition potential interval
     #' @param select_score Character string; mlr3 measure ID (e.g. `"classif.auc"`) used
-    #' to select model for extrapolation
+    #' to select model for extrapolation. `NULL` (default) uses the criterion the run records
+    #' in [runs_t].
     #' @param select_maximize Logical; maximize (`TRUE`) or minimize (`FALSE`) the score.
     #' @param force Logical; predict even if `trans_pot_t` already holds potentials for
     #' `id_run` and the period.
     #' @param id_run Integer; the run to predict for, and to write the potentials under.
     predict_trans_pot = function(
       id_period_post,
-      select_score,
-      select_maximize,
+      select_score = NULL,
+      select_maximize = NULL,
       force = FALSE,
       id_run = 0L
     ) {

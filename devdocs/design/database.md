@@ -111,6 +111,10 @@ erDiagram
         int id_run PK
         int parent_id_run FK
         string description
+        int rng_seed
+        map alloc_args
+        map model_selection_criterion
+        int id_period_eval_start
     }
     trans_meta_t {
         int id_trans UK
@@ -232,16 +236,28 @@ They can then be stored and joined like time-varying predictors.
 
 ### `runs_t`
 
-| uniqueness | colname       | type          | description                                   |
-| ---------- | ------------- | ------------- | --------------------------------------------- |
-| \*         | id_run        | int           | Unique ID for each run (0 = base)             |
-|            | parent_id_run | int, nullable | The run this run inherits from                |
-|            | description   | str           | Human-readable description of the run         |
+| uniqueness | colname                   | type          | description                                        |
+| ---------- | ------------------------- | ------------- | -------------------------------------------------- |
+| \*         | id_run                    | int           | Unique ID for each run (0 = base)                  |
+|            | parent_id_run             | int, nullable | The run this run inherits from                     |
+|            | description               | str           | Human-readable description of the run              |
+|            | rng_seed                  | int, nullable | Seed of R's random number generator for allocation |
+|            | alloc_args                | map, nullable | Allocator and its arguments                        |
+|            | model_selection_criterion | map, nullable | `select_score` and `select_maximize`               |
+|            | id_period_eval_start      | int, nullable | First period the run allocates itself              |
 
 Runs label data that either overrides base data (e.g. predictors for a scenario) or is produced by a specific experiment (e.g. one allocation in an ensemble).
 Run 0 is the base run.
 A child run inherits every slice of data it does not override: reading a run-dependent table under a run returns, for each slice, the data of the closest run in its lineage that has it.
 For instance, a run that only overrides one predictor reads all other predictors from its parent, and so on up to the base run.
+
+A run also records how its results were made, so that they can be traced and replayed from the database rather than from the script that made them.
+`allocate()` seeds R's random number generator with `rng_seed` for the whole sequence of periods and restores the previous state afterwards; a run without a seed draws one and records it.
+The seed belongs to its run alone; Dinamica cannot be seeded (#104), so its runs record none.
+`alloc_args` and `model_selection_criterion` are inherited through the lineage, like data: a run without them uses those of its closest ancestor that has them.
+`allocate()`, `predict_trans_pot()` and `fit_full_models()` use them when called without an allocator or `select_score`, and record what they used on a run whose own row holds none.
+`id_period_eval_start` marks where a run's maps branch off its parent's, which an evaluation over a set of runs needs (#131).
+The map columns hold one string per argument, vectors joined by `,`.
 
 ### `lulc_meta_t` + `lulc_data_t`
 

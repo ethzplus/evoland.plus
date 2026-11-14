@@ -417,7 +417,8 @@ child_trans <- base_preds[["id_trans"]][1L]
 expect_equal(nrow(base_preds), 48L)
 db$runs_t <- as_runs_t(rbind(
   db$runs_t,
-  list(id_run = 13L, parent_id_run = 10L, description = "fewer predictors")
+  list(id_run = 13L, parent_id_run = 10L, description = "fewer predictors"),
+  fill = TRUE
 ))
 expect_message(
   db$trans_preds_t <- base_preds[id_trans == child_trans][-(1:2)][,
