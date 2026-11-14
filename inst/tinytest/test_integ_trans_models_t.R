@@ -456,3 +456,18 @@ expect_equal(unique(child_full[["id_run"]]), 2L)
 expect_true(all(!vapply(child_full[["learner_full"]], is.null, logical(1L))))
 child_scores <- suppressMessages(db$get_pred_filter_score(filter = "correlation", id_run = 2L))
 expect_equal(unique(child_scores[["id_run"]]), 2L)
+
+# on mirai daemons, the items carry the run they are for, so the fits match the serial ones
+if (requireNamespace("evoland.plus", quietly = TRUE)) {
+  mirai::daemons(2, .compute = "evoland_fit")
+  parallel_partial <- suppressMessages(db$fit_partial_models(
+    learner = test_learner,
+    measures = test_measures,
+    seed = 1L,
+    id_run = 2L,
+    compute = "evoland_fit"
+  ))
+  mirai::daemons(0, .compute = "evoland_fit")
+  expect_equal(parallel_partial[["id_run"]], child_partial[["id_run"]])
+  expect_equal(parallel_partial[["crossval_score"]], child_partial[["crossval_score"]])
+}

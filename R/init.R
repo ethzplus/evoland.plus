@@ -39,13 +39,17 @@ NULL
 #   tools:::.check_code_usage_in_package("evoland.plus")
 utils::globalVariables(c(
   ".",
+  ".evoland_worker_db", # set on mirai daemons by run_parallel_evoland()
   ".I",
   ".N",
   ".SD",
+  ".stop", # mirai_map() collection option
   "area",
   "cardinality",
+  "catalog", # set on mirai daemons by run_parallel_evoland()
   "cell",
   "cells",
+  "data_path", # set on mirai daemons by run_parallel_evoland()
   "did_transition",
   "distance",
   "distance_class",

@@ -8,7 +8,7 @@
 \usage{
 get_evoland_db_read_expr(self, super, table_name, id_run)
 
-run_parallel_evoland(items, worker_fun, parent_db, cluster = NULL, ...)
+run_parallel_evoland(items, worker_fun, parent_db, compute = NULL, ...)
 }
 \arguments{
 \item{self}{The \code{evoland_db} instance}
@@ -21,13 +21,13 @@ run_parallel_evoland(items, worker_fun, parent_db, cluster = NULL, ...)
 
 \item{items}{A list of items to iterate over}
 
-\item{worker_fun}{A function to apply to each item, with signature \code{worker_fun(item, db, ...)}. The \code{db} argument will be a new \code{evoland_db} instance for each worker.}
+\item{worker_fun}{A function to apply to each item, with signature \code{worker_fun(item, db, ...)}.}
 
-\item{parent_db}{An \link{evoland_db} instance; used for its \code{path} and \code{id_run}; or
-passed directly to the worker for serial case.}
+\item{parent_db}{An \link{evoland_db} instance: passed to the worker in the serial case, and
+giving the catalog and data path the daemons connect to otherwise.}
 
-\item{cluster}{An optional cluster object created by \code{\link[parallel:makeCluster]{parallel::makeCluster()}} or
-\code{\link[mirai:make_cluster]{mirai::make_cluster()}}.}
+\item{compute}{\code{NULL} (default) to run serially, or the name of a mirai compute profile
+whose daemons are set, see \code{\link[mirai:daemons]{mirai::daemons()}}.}
 
 \item{...}{Additional arguments passed to \code{worker_fun}.}
 }
@@ -48,10 +48,13 @@ or is the \code{runs_t} table itself, falls back to the default read expression.
 Otherwise, constructs a read expression that filters for \code{id_run} and its lineage,
 using the distinctness columns to determine which slices of data to include.
 
-\item \code{run_parallel_evoland()}: Run a worker function in parallel with an \code{evoland_db}
-instance; takes an (optional) worker cluster, a worker function, a set of
-items, and a parent \code{evoland_db} instance. If \strong{no} cluster is passed, apply the
-worker serially. \strong{If} a cluster is passed, each worker gets its own database
-instance derived from the parent database.
+\item \code{run_parallel_evoland()}: Apply a worker function to each item, serially or on mirai
+daemons. Without \code{compute}, the worker gets \code{parent_db} itself. With \code{compute}, each daemon
+of that compute profile opens one connection to the same catalog and data files as
+\code{parent_db} and reuses it for every item it is given. Workers must therefore not rely on
+the connection's active run: an item carries the run it is for.
+
+Set the daemons up beforehand, e.g. \code{mirai::daemons(4, .compute = "evoland")}, and pass
+\code{compute = "evoland"}; evoland.plus must be installed where the daemons run.
 
 }}

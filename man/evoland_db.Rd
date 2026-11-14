@@ -499,7 +499,7 @@ directly, or pass \code{select_score} to pick the best partial model by score.
   learner = NULL,
   select_score = NULL,
   select_maximize = TRUE,
-  cluster = NULL,
+  compute = NULL,
   id_trans = NULL,
   id_period_anterior = NULL,
   id_run = 0L
@@ -514,7 +514,7 @@ when \code{select_score} is used).}
       \item{\code{select_score}}{Measure ID string for score-select mode, e.g. \code{"classif.auc"}
 (\code{NULL} when \code{learner} is used).}
       \item{\code{select_maximize}}{Logical; maximize (\code{TRUE}) or minimize (\code{FALSE}) the score.}
-      \item{\code{cluster}}{Optional cluster object for parallel processing}
+      \item{\code{compute}}{Optional mirai compute profile name, see \code{\link[=run_parallel_evoland]{run_parallel_evoland()}}}
       \item{\code{id_trans}}{Optional integer vector; fit only these transitions.}
       \item{\code{id_period_anterior}}{Optional integer vector; train only on transitions
 observed from these anterior periods. \code{NULL} (default) uses all observed periods.}
@@ -539,7 +539,7 @@ sampling. Models are trained on a subsample and evaluated on held-out data, see
   measures,
   sample_frac = 0.7,
   seed = NULL,
-  cluster = NULL,
+  compute = NULL,
   id_trans = NULL,
   id_period_anterior = NULL,
   id_run = 0L
@@ -554,7 +554,7 @@ sampling. Models are trained on a subsample and evaluated on held-out data, see
 \code{Measure} objects for scoring the held-out split.}
       \item{\code{sample_frac}}{Fraction in \(0, 1\) for stratified sampling.}
       \item{\code{seed}}{Random seed for reproducible sampling}
-      \item{\code{cluster}}{Optional cluster object for parallel processing}
+      \item{\code{compute}}{Optional mirai compute profile name, see \code{\link[=run_parallel_evoland]{run_parallel_evoland()}}}
       \item{\code{id_trans}}{Optional integer vector; fit only these transitions.}
       \item{\code{id_period_anterior}}{Optional integer vector; train and score only on
 transitions observed from these anterior periods. \code{NULL} (default) uses all
@@ -620,7 +620,7 @@ See \code{\link[=get_pred_filter_score]{get_pred_filter_score()}}.
     \preformatted{evoland_db$get_pred_filter_score(
   filter = "correlation",
   id_trans = NULL,
-  cluster = NULL,
+  compute = NULL,
   id_run = 0L,
   ...
 )}
@@ -633,7 +633,7 @@ See \code{\link[=get_pred_filter_score]{get_pred_filter_score()}}.
 \link[mlr3filters:Filter]{mlr3filters::Filter} object specifying the filter method to use for
 feature selection.}
       \item{\code{id_trans}}{Optional integer vector; score only these transitions.}
-      \item{\code{cluster}}{Optional cluster object for parallel processing}
+      \item{\code{compute}}{Optional mirai compute profile name, see \code{\link[=run_parallel_evoland]{run_parallel_evoland()}}}
       \item{\code{id_run}}{Integer; the run whose selected predictors are scored, and whose
 \code{id_run} the scores carry}
       \item{\code{...}}{Additional arguments passed to \code{flt}.}

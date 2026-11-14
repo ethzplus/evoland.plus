@@ -23,6 +23,7 @@ Imports:
     glue,
     mlr3,
     methods,
+    mirai (>= 2.3.0),
     mlr3filters,
     paradox,
     qs2,
