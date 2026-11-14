@@ -303,6 +303,16 @@ for (i in seq_len(nrow(runs_out))) {
 }
 ```
 
+Each realization adds a snapshot to the DuckLake catalog, and DuckLake neither expires snapshots nor merges the small files they leave on its own.
+After a batch, checkpoint the database once; `allocate(checkpoint = TRUE)` does the same at the end of a call, which suits the last call of a batch.
+How much a checkpoint discards depends on the retention set when opening the database (`expire_older_than`, `delete_older_than`, see `?evoland_db`): left unset, it keeps every snapshot and only compacts the files.
+Don't checkpoint while other processes still allocate into the same database.
+
+```{r}
+#| label: checkpoint
+db$checkpoint()
+```
+
 ## Summarizing stochastic sensitivity
 
 A convenient first summary is binary: for each cell we ask whether its simulated class differs from the last observed class. Averaging that binary indicator over 30 realizations gives a **change frequency** between 0 and 1.

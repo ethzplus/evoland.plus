@@ -145,7 +145,7 @@ db$add_predictor(
 expect_equivalent(
   as.list(db$pred_meta_t[name == "somethingelse"]),
   list(
-    id_pred = 11L,
+    id_pred = 13L,
     name = "somethingelse",
     pretty_name = "somethingelse",
     description = NA_character_,
@@ -158,7 +158,7 @@ expect_equivalent(
   )
 )
 
-somethingelse_data_roundtrip <- db$pred_data_t[id_pred == 11L]
+somethingelse_data_roundtrip <- db$pred_data_t[id_pred == 13L]
 expect_equal(nrow(somethingelse_data_roundtrip), 900L)
 expect_inherits(somethingelse_data_roundtrip$value, "numeric")
 expect_length(unique(somethingelse_data_roundtrip$value), 5L)
@@ -170,10 +170,10 @@ db$add_predictor(
   fill_value = "a",
   unit = "letters, updated"
 )
-expect_equal(db$pred_meta_t[name == "somethingelse", id_pred], 11L)
+expect_equal(db$pred_meta_t[name == "somethingelse", id_pred], 13L)
 expect_equal(db$pred_meta_t[name == "somethingelse", unit], "letters, updated")
-expect_equal(db$pred_data_t[id_pred == 11L, unique(value)], 5) # "e", the fifth level
-expect_false(12L %in% db$pred_data_t[["id_pred"]])
+expect_equal(db$pred_data_t[id_pred == 13L, unique(value)], 5) # "e", the fifth level
+expect_false(14L %in% db$pred_data_t[["id_pred"]])
 
 # try adding predictor to DB without pred_meta_t
 empty_db <- evoland_db$new(tempfile("empty_evolanddb_"))
@@ -240,7 +240,9 @@ n_lulc_ant <-
   ][
     precedence_db$trans_meta_t,
     .(id_trans, id_lulc),
-    on = c(id_lulc = "id_lulc_anterior")
+    on = c(id_lulc = "id_lulc_anterior"),
+    # an anterior class has several transitions
+    allow.cartesian = TRUE
   ][,
     .N,
     by = "id_trans"
@@ -279,26 +281,26 @@ expect_equal(
   n_lulc_ant[id_trans == 1L, N] - 1L # all rows but 1 should be NA
 )
 
-# get predictor data for the transition starting at id_lulc=2
+# get predictor data for a transition starting at id_lulc=2 (3: arable -> forest)
 expect_equal(
   precedence_db$pred_wide_predict_v(
-    id_trans = 2L,
+    id_trans = 3L,
     id_period_anterior = 1L
   )[
     is.na(id_pred_1),
     .N
   ],
-  n_lulc_ant[id_trans == 2L, N] # all rows should be NA
+  n_lulc_ant[id_trans == 3L, N] # all rows should be NA
 )
 expect_equal(
   precedence_db$pred_wide_train_v(
-    id_trans = 2L,
+    id_trans = 3L,
     id_pred = 1L
   )[
     is.na(id_pred_1),
     .N
   ],
-  n_lulc_ant[id_trans == 2L, N] # all rows should be NA
+  n_lulc_ant[id_trans == 3L, N] # all rows should be NA
 )
 
 # figure_of_merit_v: run 10 holds the initial (period 1) and observed (period 2) maps, runs 11
@@ -420,7 +422,7 @@ expect_message(
 # readers skip it, and the transition's other pairs are still inherited
 base_preds <- db$trans_preds_t
 child_trans <- base_preds[["id_trans"]][1L]
-expect_equal(nrow(base_preds), 20L)
+expect_equal(nrow(base_preds), 48L)
 db$runs_t <- as_runs_t(rbind(
   db$runs_t,
   list(id_run = 13L, parent_id_run = 10L, description = "fewer predictors")
@@ -433,7 +435,7 @@ expect_message(
   "Added column\\(s\\) to `trans_preds_t`: score"
 )
 child_preds <- db$trans_preds_t
-expect_equal(nrow(child_preds), 20L)
+expect_equal(nrow(child_preds), 48L)
 expect_equal(child_preds[id_trans == child_trans & is_selected == TRUE, .N], 2L)
 expect_equal(
   child_preds[id_trans != child_trans, .(id_run, id_pred, id_trans, is_selected)],
@@ -451,5 +453,5 @@ db$set_full_trans_preds(reset = TRUE)
 run_13 <- db$fetch("trans_preds_t", where = "id_run = 13")
 expect_true(all(run_13[["is_selected"]]))
 expect_true(all(is.na(run_13[["score"]])))
-expect_equal(db$row_count("trans_preds_t", where = "id_run = 0"), 20L)
+expect_equal(db$row_count("trans_preds_t", where = "id_run = 0"), 48L)
 db$id_run <- 0L

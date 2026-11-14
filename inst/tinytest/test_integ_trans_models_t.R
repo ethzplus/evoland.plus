@@ -58,13 +58,15 @@ expect_message(
     sample_frac = 0.7,
     seed = 123
   ),
-  "Fitting partial models for 2 transitions..."
+  "Fitting partial models for 4 transitions..."
 )
 expect_equal(
   partial_models[["crossval_score"]],
   list(
-    list(classif.auc = 0.5, classif.acc = 0.5358255),
-    list(classif.auc = 0.5, classif.acc = 0.55)
+    list(classif.auc = 0.5, classif.acc = 0.8809524),
+    list(classif.auc = 0.5, classif.acc = 0.9761905),
+    list(classif.auc = 0.5, classif.acc = 0.9796748),
+    list(classif.auc = 0.5, classif.acc = 0.9634146)
   ),
   tolerance = 1e-7
 )
@@ -94,7 +96,7 @@ expect_message(
 )
 
 # Test DB round trip
-expect_equal(nrow(full_models), 2L)
+expect_equal(nrow(full_models), 4L)
 full_mods_roundtrip <- db$trans_models_t[id_trans == 2L & learner_id == "classif.featureless"]
 data.table::setattr(full_mods_roundtrip, "ducklake_db_t_class", NULL)
 expect_identical(
@@ -141,7 +143,7 @@ expect_message(
 expect_equal(partial_t1$id_trans, 1L)
 
 # fit_partial_models: id_period_anterior = 1 holds out the transitions from period 2. With
-# the seed fixed, 30% of the 1067 training rows (636 from period 1) are scored
+# the seed fixed, 30% of the 700 training rows (374 from period 1) are scored
 expect_message(
   partial_t1_held_out <- db$fit_partial_models(
     learner = test_learner,
@@ -154,8 +156,8 @@ expect_message(
   "Fitting partial models for 1 transitions"
 )
 n_scored <- function(models) length(qs2::qs_deserialize(models$crossval_predictions[[1L]])$row_ids)
-expect_equal(n_scored(partial_t1), 321L)
-expect_equal(n_scored(partial_t1_held_out), 190L)
+expect_equal(n_scored(partial_t1), 210L)
+expect_equal(n_scored(partial_t1_held_out), 113L)
 
 # fit_partial_models: id_trans must be integers
 expect_error(
@@ -186,8 +188,8 @@ expect_equal(nrow(full_direct_t1), 1L)
 expect_equal(full_direct_t1$id_trans, 1L)
 expect_true(is.raw(full_direct_t1$learner_full[[1]]))
 
-# fit_full_models (direct mode): id_period_anterior = 1 trains on the 636 rows from period 1
-# instead of all 1067; a featureless learner's class counts add up to its training rows
+# fit_full_models (direct mode): id_period_anterior = 1 trains on the 374 rows from period 1
+# instead of all 700; a featureless learner's class counts add up to its training rows
 expect_message(
   full_direct_t1_held_out <- db$fit_full_models(
     learner = test_learner,
@@ -197,8 +199,8 @@ expect_message(
   "Fitting full models for 1 transitions"
 )
 n_trained <- function(models) sum(qs2::qs_deserialize(models$learner_full[[1L]])$model$tab)
-expect_equal(n_trained(full_direct_t1), 1067L)
-expect_equal(n_trained(full_direct_t1_held_out), 636L)
+expect_equal(n_trained(full_direct_t1), 700L)
+expect_equal(n_trained(full_direct_t1_held_out), 374L)
 
 # Test error handling - missing learner parameter
 expect_error(
@@ -329,23 +331,23 @@ expect_true(inherits(plot_trans, "gg"))
 expect_equal(
   plot_trans$data$variable,
   factor(
-    c(rep("truth", 220), rep("response", 220)),
+    c(rep("truth", 210), rep("response", 210)),
     levels = c("truth", "response")
   )
 )
 expect_equal(
   plot_trans$data$value |> as.character(),
   c(
-    rep("FALSE", 121),
-    rep("TRUE", 99),
-    rep("FALSE", 220)
+    rep("FALSE", 205),
+    rep("TRUE", 5),
+    rep("FALSE", 210)
   )
 )
 
 # test prediction and trans rate based potential adjustment
 expect_error(
   db$predict_trans_pot(id_period_post = 4, select_score = "classif.auc", select_maximize = TRUE),
-  "No fitted model for viable transition(s): 1, 2.",
+  "No fitted model for viable transition(s): 1, 2, 3, 4.",
   fixed = TRUE
 )
 db$trans_models_t <- err_model_t1 # insert faulty models
@@ -360,7 +362,7 @@ expect_message(
 options("evoland.plus.use_prefetch_predict" = FALSE)
 expect_message(
   db$predict_trans_pot(id_period_post = 4, select_score = "no.crossval", select_maximize = TRUE),
-  "Predicting transition 2/2 (id_trans=2)",
+  "Predicting transition 4/4 (id_trans=4)",
   fixed = TRUE
 )
 # potentials already in trans_pot_t are reused without a word
@@ -380,16 +382,24 @@ expect_message(
     select_maximize = TRUE,
     force = TRUE
   ),
-  "Predicting transition 2/2 (id_trans=2)",
+  "Predicting transition 4/4 (id_trans=4)",
   fixed = TRUE
 )
 db$trans_rates_t <-
   db$get_obs_trans_rates() |>
   extrapolate_trans_rates(db$periods_t)
-expect_equal(db$row_count("trans_rates_t"), 2L)
+expect_equal(db$row_count("trans_rates_t"), 4L)
+# one potential per viable transition and cell of its anterior class in period 3
 expect_equal(
   db$row_count("trans_pot_t"),
-  900L
+  nrow(
+    db$lulc_data_t[id_period == 3L][
+      db$trans_meta_t[is_viable == TRUE],
+      on = .(id_lulc = id_lulc_anterior),
+      nomatch = NULL,
+      allow.cartesian = TRUE
+    ]
+  )
 )
 
 db$id_run <- 1 # ensure fallthrough works
