@@ -79,9 +79,10 @@ ducklake_db <- R6::R6Class(
     #' faster than `retry_timeout` can measure.
     retry_max = 2000L,
 
-    #' @field read_timeout Numeric or `NULL`, how long in seconds `$fetch()` may take before
-    #' it is interrupted with an error; `NULL` never interrupts. See `initialize()`.
-    read_timeout = NULL,
+    #' @field binding_timeout Numeric or `NULL`, how long in seconds a read through a table
+    #' binding may take before it is interrupted with an error; `NULL` never interrupts. See
+    #' `initialize()`.
+    binding_timeout = NULL,
 
     #' @description
     #' Initialize a new ducklake_db object
@@ -108,11 +109,11 @@ ducklake_db <- R6::R6Class(
     #' expired, and how old an unreferenced file must be before it is deleted. Stored in
     #' the catalog but can be overwritten by passing. Default to NULL, discarding
     #' nothing.
-    #' @param read_timeout Numeric or `NULL`, how long in seconds a `$fetch()` (and so a
-    #' table binding) may take before it is interrupted with an error; default 60. It
-    #' guards against reading a large table whole by accident. `NULL` never interrupts.
-    #' DuckDB's `max_execution_time` is set for the read only, so writes and other queries
-    #' are never cut off.
+    #' @param binding_timeout Numeric or `NULL`, how long in seconds a read through a table
+    #' binding (`db$<table>`) may take before it is interrupted with an error; default 2.
+    #' Table bindings are an interactive view into the database, so a read that takes longer
+    #' is most likely a large table read whole by accident. `$fetch()` has no limit. `NULL`
+    #' never interrupts.
     #'
     #' @return A new `ducklake_db` object
     initialize = function(
@@ -124,7 +125,7 @@ ducklake_db <- R6::R6Class(
       sqlite_journal_mode = "wal",
       expire_older_than = NULL,
       delete_older_than = NULL,
-      read_timeout = 60
+      binding_timeout = 2
     ) {
       # `path` is only the place the defaults are derived from, so naming both
       # halves leaves nothing for it to do
@@ -132,10 +133,10 @@ ducklake_db <- R6::R6Class(
       stopifnot(
         "`path` is required unless both `catalog` and `data_path` are given" = !derives_from_path ||
           is_scalar_character(path),
-        "read_timeout must be NULL or a positive number" = is.null(read_timeout) ||
-          (is_scalar_numeric(read_timeout) && read_timeout > 0)
+        "binding_timeout must be NULL or a positive number" = is.null(binding_timeout) ||
+          (is_scalar_numeric(binding_timeout) && binding_timeout > 0)
       )
-      self$read_timeout <- read_timeout
+      self$binding_timeout <- binding_timeout
 
       if (derives_from_path) {
         ensure_dir(path)
@@ -329,32 +330,12 @@ ducklake_db <- R6::R6Class(
 
       no_clause <- DBI::SQL("")
 
-      if (!is.null(self$read_timeout)) {
-        self$execute("set max_execution_time = {round(self$read_timeout * 1000)}")
-        on.exit(self$execute("reset max_execution_time"), add = TRUE)
-      }
-      res <- tryCatch(
-        self$get_query(
-          "{select_clause} from {read_expr} {where_clause} {limit_clause}",
-          select_clause = if (is.null(cols)) no_clause else private$sql("select {`cols`*}"),
-          # `where` is a fragment the caller wrote, so it is inserted, not quoted
-          where_clause = if (is.null(where)) no_clause else private$sql("where {DBI::SQL(where)}"),
-          limit_clause = if (is.null(limit)) no_clause else private$sql("limit {limit}")
-        ),
-        error = function(e) {
-          if (!grepl("exceeded maximum execution time", conditionMessage(e), fixed = TRUE)) {
-            stop(e)
-          }
-          stop(
-            "Reading `",
-            table_name,
-            "` took longer than the read timeout of ",
-            self$read_timeout,
-            " seconds. Narrow the read with `where` or `id_run`, or raise ",
-            "the database's `read_timeout` (NULL disables it).",
-            call. = FALSE
-          )
-        }
+      res <- self$get_query(
+        "{select_clause} from {read_expr} {where_clause} {limit_clause}",
+        select_clause = if (is.null(cols)) no_clause else private$sql("select {`cols`*}"),
+        # `where` is a fragment the caller wrote, so it is inserted, not quoted
+        where_clause = if (is.null(where)) no_clause else private$sql("where {DBI::SQL(where)}"),
+        limit_clause = if (is.null(limit)) no_clause else private$sql("limit {limit}")
       )
 
       # convert MAP columns back to list-columns if needed
