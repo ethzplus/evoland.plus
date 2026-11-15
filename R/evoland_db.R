@@ -31,6 +31,7 @@ evoland_db <- R6::R6Class(
     #' @param data_path Character. DuckLake data files location, see [ducklake_db].
     #' @param sqlite_journal_mode Character. Journal mode for a SQLite catalog, see [ducklake_db].
     #' @param expire_older_than,delete_older_than Retention for `$checkpoint()`, see [ducklake_db].
+    #' @param read_timeout Seconds a `$fetch()` or table binding may take, see [ducklake_db].
     #' @param ... passed on to `set_report`
     #'
     #' @return A new `evoland_db` object
@@ -42,6 +43,7 @@ evoland_db <- R6::R6Class(
       sqlite_journal_mode = "wal",
       expire_older_than = NULL,
       delete_older_than = NULL,
+      read_timeout = 60,
       ...
     ) {
       super$initialize(
@@ -51,7 +53,8 @@ evoland_db <- R6::R6Class(
         data_path = data_path,
         sqlite_journal_mode = sqlite_journal_mode,
         expire_older_than = expire_older_than,
-        delete_older_than = delete_older_than
+        delete_older_than = delete_older_than,
+        read_timeout = read_timeout
       )
       if (!read_only) {
         # one transaction, so that opening a database either bootstraps both
@@ -68,10 +71,10 @@ evoland_db <- R6::R6Class(
     #' Get SQL expression to read a table, respecting the run hierarchy. For each
     #' data slice, returns data from the closest ancestor run that has it.
     #' @param table_name Character string table name
-    #' @param id_run Integer, the run whose lineage is read; defaults to the root run, 0.
-    #' `NULL` reads the rows of every run as stored.
+    #' @param id_run Integer, the run whose lineage is read. `NULL` (default) reads the rows
+    #' of every run as stored, which is what the table bindings and `$fetch()` return.
     #' @return Character string SQL expression (a composable subquery)
-    get_read_expr = function(table_name, id_run = 0L) {
+    get_read_expr = function(table_name, id_run = NULL) {
       get_evoland_db_read_expr(self, super, table_name, id_run)
     },
 
@@ -355,6 +358,14 @@ evoland_db <- R6::R6Class(
 
     # TODO the following pattern is different from the create_method_binding used elsewhere.
     # should be fixed together with the other evoland_db$set calls in evoland_db_views.R
+
+    #' @description
+    #' Land use transitions between consecutive periods, derived from `lulc_data_t`: one row
+    #' per cell and period, with its anterior and posterior class. See [evoland_db_views].
+    #' @param id_run Integer; the run whose land use is read, through its lineage.
+    trans_v = function(id_run = 0L) {
+      stop("implemented by evoland_db_views.R via $set()")
+    },
 
     #' @description
     #' Return allocation-ready transition potentials for a given posterior period.

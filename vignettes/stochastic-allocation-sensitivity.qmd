@@ -178,7 +178,7 @@ These will then be used to train models.
 #| label: transitions-and-predictors
 #| seed: 666
 db$trans_meta_t <- create_trans_meta_t(
-  db$trans_v,
+  db$trans_v(),
   min_cardinality_abs = 20,
   exclude_anterior = 4 # exclude immutable class
 )

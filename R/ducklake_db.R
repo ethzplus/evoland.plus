@@ -79,6 +79,10 @@ ducklake_db <- R6::R6Class(
     #' faster than `retry_timeout` can measure.
     retry_max = 2000L,
 
+    #' @field read_timeout Numeric or `NULL`, how long in seconds `$fetch()` may take before
+    #' it is interrupted with an error; `NULL` never interrupts. See `initialize()`.
+    read_timeout = NULL,
+
     #' @description
     #' Initialize a new ducklake_db object
     #' @param path Character string. Path to the data folder. Only needed for
@@ -104,6 +108,11 @@ ducklake_db <- R6::R6Class(
     #' expired, and how old an unreferenced file must be before it is deleted. Stored in
     #' the catalog but can be overwritten by passing. Default to NULL, discarding
     #' nothing.
+    #' @param read_timeout Numeric or `NULL`, how long in seconds a `$fetch()` (and so a
+    #' table binding) may take before it is interrupted with an error; default 60. It
+    #' guards against reading a large table whole by accident. `NULL` never interrupts.
+    #' The interrupt is a SIGINT sent by a short-lived `sh` process, so it needs a
+    #' Unix-like system; on Windows, reads are not interrupted.
     #'
     #' @return A new `ducklake_db` object
     initialize = function(
@@ -114,15 +123,19 @@ ducklake_db <- R6::R6Class(
       data_path = NULL,
       sqlite_journal_mode = "wal",
       expire_older_than = NULL,
-      delete_older_than = NULL
+      delete_older_than = NULL,
+      read_timeout = 60
     ) {
       # `path` is only the place the defaults are derived from, so naming both
       # halves leaves nothing for it to do
       derives_from_path <- is.null(catalog) || is.null(data_path)
       stopifnot(
         "`path` is required unless both `catalog` and `data_path` are given" = !derives_from_path ||
-          is_scalar_character(path)
+          is_scalar_character(path),
+        "read_timeout must be NULL or a positive number" = is.null(read_timeout) ||
+          (is_scalar_numeric(read_timeout) && read_timeout > 0)
       )
+      self$read_timeout <- read_timeout
 
       if (derives_from_path) {
         ensure_dir(path)
@@ -316,12 +329,16 @@ ducklake_db <- R6::R6Class(
 
       no_clause <- DBI::SQL("")
 
-      res <- self$get_query(
-        "{select_clause} from {read_expr} {where_clause} {limit_clause}",
-        select_clause = if (is.null(cols)) no_clause else private$sql("select {`cols`*}"),
-        # `where` is a fragment the caller wrote, so it is inserted, not quoted
-        where_clause = if (is.null(where)) no_clause else private$sql("where {DBI::SQL(where)}"),
-        limit_clause = if (is.null(limit)) no_clause else private$sql("limit {limit}")
+      res <- with_read_timeout(
+        self$read_timeout,
+        what = glue::glue("Reading `{table_name}`"),
+        self$get_query(
+          "{select_clause} from {read_expr} {where_clause} {limit_clause}",
+          select_clause = if (is.null(cols)) no_clause else private$sql("select {`cols`*}"),
+          # `where` is a fragment the caller wrote, so it is inserted, not quoted
+          where_clause = if (is.null(where)) no_clause else private$sql("where {DBI::SQL(where)}"),
+          limit_clause = if (is.null(limit)) no_clause else private$sql("limit {limit}")
+        )
       )
 
       # convert MAP columns back to list-columns if needed

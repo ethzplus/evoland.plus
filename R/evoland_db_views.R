@@ -8,12 +8,13 @@
 #'
 #' - `lulc_meta_long_v` - Unrolled LULC metadata with one row per source class
 #' - `pred_sources_v` - Distinct predictor URLs and their MD5 checksums
-#' - `trans_v` - Land use transitions derived from lulc_data_t
 #' - `extent` - Spatial extent of coords_t as terra::SpatExtent
 #' - `coords_minimal` - Minimal coordinate representation (id_coord, lon, lat)
 #'
 #' @section Methods Added:
 #'
+#' - `trans_v(id_run = 0L)` - Land use transitions derived from lulc_data_t, through the lineage
+#'   of `id_run`; a parametrized view, because it joins every period of the land use with itself.
 #' - `pred_wide_train_v(id_trans)` - Returns wide table of transition results and predictor data for
 #'   a specific transition. Used as input to covariance filtering.
 #' - `adjusted_trans_pot_v(id_period_post)` - Returns allocation-ready transition potentials:
@@ -50,8 +51,11 @@ evoland_db$set("active", "pred_sources_v", function() {
   )
 })
 
-evoland_db$set("active", "trans_v", function() {
-  lulc_read_expr <- self$get_read_expr("lulc_data_t")
+# a self-join of lulc_data_t over every period, so it reads one run's lineage rather than
+# every run at once
+evoland_db$set("public", "trans_v", overwrite = TRUE, function(id_run = 0L) {
+  stopifnot("id_run must be a single integer" = is_scalar_integerish(id_run))
+  lulc_read_expr <- self$get_read_expr("lulc_data_t", id_run = id_run)
   self$get_query(
     r"{
     select

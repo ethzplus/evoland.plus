@@ -76,6 +76,8 @@ expect_equal(
   db$row_count("pred_data_t")
 )
 expect_equal(nrow(pred_run_0), nrow(pred_run_2))
+# the table binding reads every run's rows as stored
+expect_equal(nrow(db$pred_data_t), db$row_count("pred_data_t"))
 
 # cannot check equality because of weird class/attribute changes due to
 # data.table operations, but we can check that the added rows in run 2 are
@@ -313,6 +315,17 @@ db$lulc_data_t <- fom_lulc(11L, 2L, c(2L, 1L, 2L, 1L, 3L, 2L))
 db$lulc_data_t <- fom_lulc(12L, 2L, c(2L, 2L, 1L, 1L, 1L, 2L))
 
 fom <- db$figure_of_merit_v(1L, 2L, id_run_reference = 10L, id_run_simulated = 11:12)
+
+# trans_v reads one run's lineage: run 11's period 2 against the period 1 it inherits from run 10
+expect_equal(
+  db$trans_v(id_run = 11L)[id_period == 2L][order(id_coord)],
+  data.table::data.table(
+    id_period = 2L,
+    id_lulc_anterior = c(1L, 1L, 1L, 1L, 2L, 2L),
+    id_lulc_posterior = c(2L, 1L, 2L, 1L, 3L, 2L),
+    id_coord = 1:6
+  )
+)
 # random allocation within class 1 (4 cells, 2 observed and 2 simulated 1 -> 2) expects one
 # hit over a union of 3; class 2 (2 cells, 2 -> 1 observed, 2 -> 3 simulated) no hit over 1.5.
 # Run 12 expects 0.5 hits in class 2 (2 -> 1 observed and simulated once each) over 1.5.
