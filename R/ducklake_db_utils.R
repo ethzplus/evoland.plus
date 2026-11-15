@@ -346,3 +346,59 @@ create_method_binding <- function(fun, with_private = FALSE, with_super = FALSE)
   # Evaluate in original environment. Preserves lazy evaluation of arguments.
   eval(cl, envir = parent.frame(2))
 }
+
+# Evaluate `expr`, interrupting it with an error once it has run for `seconds`. DuckDB stops a
+# running query on SIGINT and keeps the connection usable, but R's own time limits are only
+# checked between R calls, so they cannot stop a query. A background `sh` process sends the
+# SIGINT instead. It only fires while `armed` exists, and it records that it fired, so an
+# interrupt of the user's own (Ctrl-C) still aborts as usual. Not on Windows, which has no
+# SIGINT to send: there, `expr` runs without a limit.
+with_read_timeout <- function(seconds, expr, what = "The query") {
+  if (is.null(seconds) || .Platform$OS.type != "unix") {
+    return(expr)
+  }
+  armed <- tempfile("evoland_timeout_")
+  fired <- paste0(armed, "_fired")
+  file.create(armed)
+  watcher <- system(
+    sprintf(
+      "sh -c 'sleep %s; [ -e %s ] && touch %s && kill -INT %d' >/dev/null 2>&1 & echo $!",
+      format(seconds, scientific = FALSE),
+      shQuote(armed),
+      shQuote(fired),
+      Sys.getpid()
+    ),
+    intern = TRUE
+  )
+  disarm <- function() {
+    unlink(armed)
+    tools::pskill(as.integer(watcher))
+  }
+  on.exit(
+    {
+      disarm()
+      unlink(fired)
+    },
+    add = TRUE
+  )
+
+  tryCatch(
+    {
+      force(expr)
+    },
+    interrupt = function(cnd) {
+      disarm()
+      if (!file.exists(fired)) {
+        invokeRestart("abort")
+      }
+      stop(
+        what,
+        " took longer than the read timeout of ",
+        seconds,
+        " seconds and was interrupted. Narrow the read with `where` or a run, or raise ",
+        "the database's `read_timeout` (NULL disables it).",
+        call. = FALSE
+      )
+    }
+  )
+}

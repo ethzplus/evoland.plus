@@ -34,7 +34,7 @@ make_test_db <- function(
   db$pred_data_t <- evoland.plus:::test_pred_data_t
 
   # derived tables
-  db$trans_meta_t <- create_trans_meta_t(db$trans_v, min_cardinality_abs = 5L)
+  db$trans_meta_t <- create_trans_meta_t(db$trans_v(), min_cardinality_abs = 5L)
 
   if (include_neighbors) {
     suppressMessages(db$set_neighbors(quiet = TRUE))

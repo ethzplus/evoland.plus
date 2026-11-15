@@ -296,7 +296,7 @@ db$lulc_data_t <- as_lulc_data_t(synthetic_joint_meta[, .(
 Now that we have LULC data in our DB, we can derive data from it, e.g. we grab a view where a transition occurred, i.e. the anterior and posterior LULC ID are not the same.
 
 ```{r}
-db$trans_v[id_lulc_anterior != id_lulc_posterior]
+db$trans_v()[id_lulc_anterior != id_lulc_posterior]
 ```
 
 ## Add Predictors and Neighbors
@@ -359,7 +359,7 @@ We filter transitions eligible for modeling based on a minimum number of observe
 ```{r}
 #| label: eligible-transitions-and-predictors
 db$trans_meta_t <- create_trans_meta_t(
-  db$trans_v,
+  db$trans_v(),
   min_cardinality_abs = 20,
   exclude_anterior = 4 # the lake
 )

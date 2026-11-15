@@ -82,6 +82,7 @@ Use \code{\link[=adjusted_trans_pot_v]{adjusted_trans_pot_v()}} for allocation-r
     \item \href{#method-evoland_db-get_pred_filter_score}{\code{evoland_db$get_pred_filter_score()}}
     \item \href{#method-evoland_db-predict_trans_pot}{\code{evoland_db$predict_trans_pot()}}
     \item \href{#method-evoland_db-get_obs_trans_rates}{\code{evoland_db$get_obs_trans_rates()}}
+    \item \href{#method-evoland_db-trans_v}{\code{evoland_db$trans_v()}}
     \item \href{#method-evoland_db-clone}{\code{evoland_db$clone()}}
   }
 }
@@ -130,6 +131,7 @@ Use \code{\link[=adjusted_trans_pot_v]{adjusted_trans_pot_v()}} for allocation-r
   sqlite_journal_mode = "wal",
   expire_older_than = NULL,
   delete_older_than = NULL,
+  read_timeout = 60,
   ...
 )}
     \if{html}{\out{</div>}}
@@ -145,6 +147,7 @@ initialization; if TRUE, the catalog is attached read-only.}
       \item{\code{data_path}}{Character. DuckLake data files location, see \link{ducklake_db}.}
       \item{\code{sqlite_journal_mode}}{Character. Journal mode for a SQLite catalog, see \link{ducklake_db}.}
       \item{\code{expire_older_than, delete_older_than}}{Retention for \verb{$checkpoint()}, see \link{ducklake_db}.}
+      \item{\code{read_timeout}}{Seconds a \verb{$fetch()} or table binding may take, see \link{ducklake_db}.}
       \item{\code{...}}{passed on to \code{set_report}}
     }
     \if{html}{\out{</div>}}
@@ -162,15 +165,15 @@ initialization; if TRUE, the catalog is attached read-only.}
 data slice, returns data from the closest ancestor run that has it.
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
-    \preformatted{evoland_db$get_read_expr(table_name, id_run = 0L)}
+    \preformatted{evoland_db$get_read_expr(table_name, id_run = NULL)}
     \if{html}{\out{</div>}}
   }
   \subsection{Arguments}{
     \if{html}{\out{<div class="arguments">}}
     \describe{
       \item{\code{table_name}}{Character string table name}
-      \item{\code{id_run}}{Integer, the run whose lineage is read; defaults to the root run, 0.
-\code{NULL} reads the rows of every run as stored.}
+      \item{\code{id_run}}{Integer, the run whose lineage is read. \code{NULL} (default) reads the rows
+of every run as stored, which is what the table bindings and \verb{$fetch()} return.}
     }
     \if{html}{\out{</div>}}
   }
@@ -692,6 +695,17 @@ to select model for extrapolation}
       \item{\code{id_run}}{Integer; the run whose land use is read and whose \code{id_run} the rates
 carry}
     }
+    \if{html}{\out{</div>}}
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-evoland_db-trans_v"></a>}}
+\if{latex}{\out{\hypertarget{method-evoland_db-trans_v}{}}}
+\subsection{\code{evoland_db$trans_v()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{evoland_db$trans_v(id_run = 0L)}
     \if{html}{\out{</div>}}
   }
 }

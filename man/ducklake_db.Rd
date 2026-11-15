@@ -44,6 +44,9 @@ which doubles per attempt up to 64 times this}
 
     \item{\code{retry_max}}{Integer, maximum number of attempts in case something retries
 faster than \code{retry_timeout} can measure.}
+
+    \item{\code{read_timeout}}{Numeric or \code{NULL}, how long in seconds \verb{$fetch()} may take before
+it is interrupted with an error; \code{NULL} never interrupts. See \code{initialize()}.}
   }
   \if{html}{\out{</div>}}
 }
@@ -82,7 +85,8 @@ faster than \code{retry_timeout} can measure.}
   data_path = NULL,
   sqlite_journal_mode = "wal",
   expire_older_than = NULL,
-  delete_older_than = NULL
+  delete_older_than = NULL,
+  read_timeout = 60
 )}
     \if{html}{\out{</div>}}
   }
@@ -110,6 +114,11 @@ interval DuckDB reads, e.g. \code{"7 days"}: how old a snapshot must be before i
 expired, and how old an unreferenced file must be before it is deleted. Stored in
 the catalog but can be overwritten by passing. Default to NULL, discarding
 nothing.}
+      \item{\code{read_timeout}}{Numeric or \code{NULL}, how long in seconds a \verb{$fetch()} (and so a
+table binding) may take before it is interrupted with an error; default 60. It
+guards against reading a large table whole by accident. \code{NULL} never interrupts.
+The interrupt is a SIGINT sent by a short-lived \code{sh} process, so it needs a
+Unix-like system; on Windows, reads are not interrupted.}
     }
     \if{html}{\out{</div>}}
   }

@@ -1176,3 +1176,22 @@ expect_error(
   ),
   "Duplicate key found"
 )
+
+# a read that runs past the read timeout is interrupted with an error, and the connection stays
+# usable; a read that finishes in time leaves no interrupt behind
+if (.Platform$OS.type == "unix") {
+  slow_query <- function() {
+    db$get_query(
+      "select count(*) from range(3000000000) a, range(1000) b where a.range * b.range = 7"
+    )
+  }
+  expect_error(
+    evoland.plus:::with_read_timeout(1, slow_query(), what = "The slow query"),
+    "The slow query took longer than the read timeout of 1 seconds"
+  )
+  expect_equal(db$get_query("select 42 as x", as_atomic = TRUE), 42L)
+  expect_equal(evoland.plus:::with_read_timeout(1, 1 + 1), 2)
+  Sys.sleep(1.5)
+  expect_true(TRUE) # reached without a stray interrupt
+}
+expect_error(ducklake_db$new(path = tempfile(), read_timeout = 0), "read_timeout must be NULL")
