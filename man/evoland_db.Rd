@@ -131,7 +131,7 @@ Use \code{\link[=adjusted_trans_pot_v]{adjusted_trans_pot_v()}} for allocation-r
   sqlite_journal_mode = "wal",
   expire_older_than = NULL,
   delete_older_than = NULL,
-  read_timeout = 60,
+  binding_timeout = 2,
   ...
 )}
     \if{html}{\out{</div>}}
@@ -147,7 +147,7 @@ initialization; if TRUE, the catalog is attached read-only.}
       \item{\code{data_path}}{Character. DuckLake data files location, see \link{ducklake_db}.}
       \item{\code{sqlite_journal_mode}}{Character. Journal mode for a SQLite catalog, see \link{ducklake_db}.}
       \item{\code{expire_older_than, delete_older_than}}{Retention for \verb{$checkpoint()}, see \link{ducklake_db}.}
-      \item{\code{read_timeout}}{Seconds a \verb{$fetch()} or table binding may take, see \link{ducklake_db}.}
+      \item{\code{binding_timeout}}{Seconds a read through a table binding may take, see \link{ducklake_db}.}
       \item{\code{...}}{passed on to \code{set_report}}
     }
     \if{html}{\out{</div>}}
