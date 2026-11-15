@@ -117,8 +117,8 @@ nothing.}
       \item{\code{read_timeout}}{Numeric or \code{NULL}, how long in seconds a \verb{$fetch()} (and so a
 table binding) may take before it is interrupted with an error; default 60. It
 guards against reading a large table whole by accident. \code{NULL} never interrupts.
-The interrupt is a SIGINT sent by a short-lived \code{sh} process, so it needs a
-Unix-like system; on Windows, reads are not interrupted.}
+DuckDB's \code{max_execution_time} is set for the read only, so writes and other queries
+are never cut off.}
     }
     \if{html}{\out{</div>}}
   }

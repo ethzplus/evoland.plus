@@ -111,8 +111,8 @@ ducklake_db <- R6::R6Class(
     #' @param read_timeout Numeric or `NULL`, how long in seconds a `$fetch()` (and so a
     #' table binding) may take before it is interrupted with an error; default 60. It
     #' guards against reading a large table whole by accident. `NULL` never interrupts.
-    #' The interrupt is a SIGINT sent by a short-lived `sh` process, so it needs a
-    #' Unix-like system; on Windows, reads are not interrupted.
+    #' DuckDB's `max_execution_time` is set for the read only, so writes and other queries
+    #' are never cut off.
     #'
     #' @return A new `ducklake_db` object
     initialize = function(
@@ -329,16 +329,32 @@ ducklake_db <- R6::R6Class(
 
       no_clause <- DBI::SQL("")
 
-      res <- with_read_timeout(
-        self$read_timeout,
-        what = glue::glue("Reading `{table_name}`"),
+      if (!is.null(self$read_timeout)) {
+        self$execute("set max_execution_time = {round(self$read_timeout * 1000)}")
+        on.exit(self$execute("reset max_execution_time"), add = TRUE)
+      }
+      res <- tryCatch(
         self$get_query(
           "{select_clause} from {read_expr} {where_clause} {limit_clause}",
           select_clause = if (is.null(cols)) no_clause else private$sql("select {`cols`*}"),
           # `where` is a fragment the caller wrote, so it is inserted, not quoted
           where_clause = if (is.null(where)) no_clause else private$sql("where {DBI::SQL(where)}"),
           limit_clause = if (is.null(limit)) no_clause else private$sql("limit {limit}")
-        )
+        ),
+        error = function(e) {
+          if (!grepl("exceeded maximum execution time", conditionMessage(e), fixed = TRUE)) {
+            stop(e)
+          }
+          stop(
+            "Reading `",
+            table_name,
+            "` took longer than the read timeout of ",
+            self$read_timeout,
+            " seconds. Narrow the read with `where` or `id_run`, or raise ",
+            "the database's `read_timeout` (NULL disables it).",
+            call. = FALSE
+          )
+        }
       )
 
       # convert MAP columns back to list-columns if needed
