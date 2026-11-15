@@ -3,12 +3,12 @@
 \name{evoland_db_util}
 \alias{evoland_db_util}
 \alias{get_evoland_db_read_expr}
-\alias{run_parallel_evoland}
+\alias{map_evoland}
 \title{Utility functions and methods for \code{evoland_db}}
 \usage{
 get_evoland_db_read_expr(self, super, table_name, id_run)
 
-run_parallel_evoland(items, worker_fun, parent_db, compute = NULL, ...)
+map_evoland(items, worker_fun, parent_db, compute = "default", ...)
 }
 \arguments{
 \item{self}{The \code{evoland_db} instance}
@@ -26,8 +26,9 @@ run_parallel_evoland(items, worker_fun, parent_db, compute = NULL, ...)
 \item{parent_db}{An \link{evoland_db} instance: passed to the worker in the serial case, and
 giving the catalog and data path the daemons connect to otherwise.}
 
-\item{compute}{\code{NULL} (default) to run serially, or the name of a mirai compute profile
-whose daemons are set, see \code{\link[mirai:daemons]{mirai::daemons()}}.}
+\item{compute}{Name of the mirai compute profile to run on, see \code{\link[mirai:daemons]{mirai::daemons()}}. The
+default profile, \code{"default"}, runs serially while it has no daemons; any other profile
+must have daemons set. \code{NULL} always runs serially.}
 
 \item{...}{Additional arguments passed to \code{worker_fun}.}
 }
@@ -48,13 +49,20 @@ or is the \code{runs_t} table itself, falls back to the default read expression.
 Otherwise, constructs a read expression that filters for \code{id_run} and its lineage,
 using the distinctness columns to determine which slices of data to include.
 
-\item \code{run_parallel_evoland()}: Apply a worker function to each item, serially or on mirai
-daemons. Without \code{compute}, the worker gets \code{parent_db} itself. With \code{compute}, each daemon
-of that compute profile opens one connection to the same catalog and data files as
-\code{parent_db} and reuses it for every item it is given. Workers must therefore not rely on
-the connection's active run: an item carries the run it is for.
+\item \code{map_evoland()}: Apply a worker function to each item, on mirai daemons when
+they are set and serially otherwise, and return the results once all items are done.
 
-Set the daemons up beforehand, e.g. \code{mirai::daemons(4, .compute = "evoland")}, and pass
-\code{compute = "evoland"}; evoland.plus must be installed where the daemons run.
+Turn parallelism on with \code{mirai::daemons()}, e.g. \code{mirai::daemons(4)}, and off with
+\code{mirai::daemons(0)}; nothing else changes. With daemons set for \code{compute}, each daemon opens
+one connection to the same catalog and data files as \code{parent_db} and reuses it for every
+item it is given; evoland.plus must be installed where the daemons run. DuckDB on each
+daemon gets an equal share of its machine's cores, so that the daemons together do not
+oversubscribe it. Without daemons, the worker gets \code{parent_db} itself. Workers must not rely
+on anything but the item and the database: an item carries the run it is for.
+
+Dispatching costs little: on a 4-core machine, fitting partial models on one daemon took
+about as long as serially on a 900-cell domain, and about 15\% longer on a 90,000-cell one,
+for returning the results; four daemons were two to three times faster. A daemon's first
+call takes a few seconds more, to load the package and open its connection.
 
 }}

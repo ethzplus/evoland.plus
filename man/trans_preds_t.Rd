@@ -18,7 +18,7 @@ get_pred_filter_score(
   self,
   filter = "correlation",
   id_trans = NULL,
-  compute = NULL,
+  compute = "default",
   id_run = 0L,
   ...
 )
@@ -46,8 +46,8 @@ filter must be compatible with the feature data types; compare your
 \item{id_trans}{Optional integer vector of transition IDs; only these transitions are
 scored. \code{NULL} (default) scores every transition with selected predictors.}
 
-\item{compute}{Optional name of a mirai compute profile to run on, see
-\code{\link[=run_parallel_evoland]{run_parallel_evoland()}}; \code{NULL} (default) runs serially.}
+\item{compute}{Name of the mirai compute profile to run on, see \code{\link[=map_evoland]{map_evoland()}}: on its
+daemons when they are set, serially otherwise.}
 }
 \value{
 A data.table of class "trans_preds_t" with columns:

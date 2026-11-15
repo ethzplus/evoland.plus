@@ -295,8 +295,8 @@ fit_full_model_worker <- function(item, db, learner = NULL, id_period_anterior =
 #' testing and calculating goodness-of-fit metrics. Default is 0.7 (70% training, 30%
 #' testing).
 #' @param seed Optional integer seed for reproducible subsampling.
-#' @param compute Optional name of a mirai compute profile to run on, see
-#'   [run_parallel_evoland()]; `NULL` (default) runs serially.
+#' @param compute Name of the mirai compute profile to run on, see [map_evoland()]: on its
+#'   daemons when they are set, serially otherwise.
 #' @param id_trans Optional integer vector of transition IDs; only these transitions are
 #'   fitted. `NULL` (default) fits every viable transition.
 #' @param id_period_anterior Optional integer vector of anterior period IDs; only the
@@ -311,7 +311,7 @@ fit_partial_models <- function(
   measures,
   sample_frac = 0.7,
   seed = NULL,
-  compute = NULL,
+  compute = "default",
   id_trans = NULL,
   id_period_anterior = NULL,
   id_run = 0L
@@ -347,7 +347,7 @@ fit_partial_models <- function(
 
   viable_trans |>
     split(by = c("id_run", "id_trans")) |>
-    run_parallel_evoland(
+    map_evoland(
       items = _,
       worker_fun = fit_partial_model_worker,
       parent_db = self,
@@ -382,8 +382,8 @@ fit_partial_models <- function(
 #'   rank partial models in score-select mode. Must be `NULL` when `learner` is provided.
 #' @param select_maximize Logical; if `TRUE` (default) the model with the highest
 #'   `select_score` is selected; if `FALSE`, the lowest. Only used in score-select mode.
-#' @param compute Optional name of a mirai compute profile to run on, see
-#'   [run_parallel_evoland()]; `NULL` (default) runs serially.
+#' @param compute Name of the mirai compute profile to run on, see [map_evoland()]: on its
+#'   daemons when they are set, serially otherwise.
 #' @param id_trans Optional integer vector of transition IDs; only these transitions are
 #'   fitted. `NULL` (default) fits every viable transition.
 #' @param id_period_anterior Optional integer vector of anterior period IDs; only the
@@ -397,7 +397,7 @@ fit_full_models <- function(
   learner = NULL,
   select_score = NULL,
   select_maximize = TRUE,
-  compute = NULL,
+  compute = "default",
   id_trans = NULL,
   id_period_anterior = NULL,
   id_run = 0L
@@ -429,7 +429,7 @@ fit_full_models <- function(
 
     viable_trans |>
       split(by = c("id_run", "id_trans")) |>
-      run_parallel_evoland(
+      map_evoland(
         items = _,
         worker_fun = fit_full_model_worker,
         parent_db = self,
@@ -505,7 +505,7 @@ fit_full_models <- function(
 
     best_models |>
       split(by = c("id_run", "id_trans")) |>
-      run_parallel_evoland(
+      map_evoland(
         items = _,
         worker_fun = fit_full_model_worker,
         parent_db = self,

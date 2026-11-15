@@ -225,14 +225,14 @@ pred_filter_worker <- function(item, db, filter) {
 #' `pred_meta_t` table to <https://mlr3filters.mlr-org.com> for filter compatibility.
 #' @param id_trans Optional integer vector of transition IDs; only these transitions are
 #' scored. `NULL` (default) scores every transition with selected predictors.
-#' @param compute Optional name of a mirai compute profile to run on, see
-#'   [run_parallel_evoland()]; `NULL` (default) runs serially.
+#' @param compute Name of the mirai compute profile to run on, see [map_evoland()]: on its
+#'   daemons when they are set, serially otherwise.
 #' @param ... Additional arguments passed to `flt` if `filter` is a character string
 get_pred_filter_score <- function(
   self,
   filter = "correlation",
   id_trans = NULL,
-  compute = NULL,
+  compute = "default",
   id_run = 0L,
   ...
 ) {
@@ -265,7 +265,7 @@ get_pred_filter_score <- function(
 
   message(glue::glue("Processing {length(items)} transitions..."))
 
-  run_parallel_evoland(
+  map_evoland(
     items = items,
     worker_fun = pred_filter_worker,
     parent_db = self,

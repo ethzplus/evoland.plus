@@ -6,9 +6,10 @@ db <- evoland_db$new(
   reporting_nonce = "vorpal sword"
 )
 
-# 1. Test Serial Execution
+# 1. Test Serial Execution: the default profile has no daemons, so map_evoland() runs serially
+expect_false(mirai::daemons_set())
 expect_silent(
-  res <- run_parallel_evoland(
+  res <- map_evoland(
     items = list(1, 2, 3),
     worker_fun = function(item, db) {
       paste(db$read_only, item * 2)
@@ -39,15 +40,15 @@ if (!at_home() || !requireNamespace("evoland.plus", quietly = TRUE)) {
       # one daemon, so that both calls below land on the same one
       mirai::daemons(1, .compute = compute)
 
-      res_parallel <- run_parallel_evoland(
+      res_parallel <- map_evoland(
         items = list(1, 2),
         worker_fun = function(item, db) db$reporting_t,
         parent_db = db,
         compute = compute
       )
       connections <- c(
-        run_parallel_evoland(list(1), connection_of, parent_db = db, compute = compute),
-        run_parallel_evoland(list(2), connection_of, parent_db = db, compute = compute)
+        map_evoland(list(1), connection_of, parent_db = db, compute = compute),
+        map_evoland(list(2), connection_of, parent_db = db, compute = compute)
       )
       can_run_parallel <- TRUE
     },
@@ -63,7 +64,7 @@ if (!at_home() || !requireNamespace("evoland.plus", quietly = TRUE)) {
 }
 
 expect_error(
-  run_parallel_evoland(list(1), connection_of, parent_db = db, compute = "no_daemons_here"),
+  map_evoland(list(1), connection_of, parent_db = db, compute = "no_daemons_here"),
   "no mirai daemons are set for this compute profile"
 )
 
@@ -73,6 +74,24 @@ if (can_run_parallel) {
   expect_equal(db$reporting_t, res_parallel[[2]])
   # the daemon opened one connection and reused it for the second call
   expect_equal(connections[[1]], connections[[2]])
+
+  # daemons on the default profile are used without passing compute, each with an equal share
+  # of the cores for DuckDB; compute = NULL still runs serially
+  pid_of <- function(item, db) Sys.getpid()
+  threads_of <- function(item, db) {
+    db$get_query("select current_setting('threads')", as_atomic = TRUE)
+  }
+  mirai::daemons(2)
+  default_pids <- unlist(map_evoland(list(1, 2), pid_of, parent_db = db))
+  default_threads <- unlist(map_evoland(list(1, 2), threads_of, parent_db = db))
+  serial_pid <- unlist(map_evoland(list(1), pid_of, parent_db = db, compute = NULL))
+  mirai::daemons(0)
+  expect_true(all(default_pids != Sys.getpid()))
+  expect_equal(
+    unique(default_threads),
+    as.numeric(max(1L, parallel::detectCores() %/% 2L))
+  )
+  expect_equal(serial_pid, Sys.getpid())
 
   # 3. Uncoordinated concurrent upserts into a single table.
   # Each worker is its own process with its own connection and no knowledge of the
