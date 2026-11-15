@@ -19,7 +19,7 @@ Imports:
     Rcpp,
     curl,
     data.table (>= 1.15.0),
-    duckdb (>= 1.5.5),
+    duckdb (>= 2.0.0),
     glue,
     mlr3,
     methods,
