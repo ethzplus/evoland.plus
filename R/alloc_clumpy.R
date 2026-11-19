@@ -12,9 +12,8 @@
 #'   anterior class, each selected pivot allocated as a single cell. Quantity of change is
 #'   enforced in expectation.
 #' * **uPAM** (Unbiased Patch Allocation Method, Mazy sec. 3.4.2, Fig. 3.2) otherwise: iterative
-#'   MuST with a per-transition pixel quota and sampling without replacement. Affordable here
-#'   because evoland.plus's potentials come from a fixed fitted model, so the marginal density does
-#'   not need to be re-estimated between patches.
+#'   MuST with a per-transition pixel quota and sampling without replacement. Each pivot grows
+#'   into a patch (Mazy App. 3.I.3).
 #'
 #' Multi-pixel patches require uPAM; "uSAM with patches larger than one pixel" is not a valid
 #' method, hence the automatic selection rather than a user switch.
@@ -22,6 +21,36 @@
 #' The per-cell pivot probability is divided by the mean patch area (the 1/E(sigma) factor,
 #' Mazy Fig. 3.2) so that the allocated quantity of change matches the target transition rate;
 #' without it allocation over-shoots by roughly the mean patch size.
+#'
+#' **What uPAM is unbiased about.** The pivot cells are drawn from the potentials without bias,
+#' and so are the patch sizes and elongations if same-step patches do not merge (Mazy App. 3.B.2,
+#' 3.D.1.2). The other cells of a patch are not drawn: the grower adds the neighbour with the
+#' best score, potential over distance to the target elongation. The allocated cells as a whole
+#' follow the potentials only where these vary slowly over the extent of a patch (Mazy App.
+#' 3.A.2: patch scale much smaller than the scale of the explanatory variables). Where
+#' potentials vary from cell to cell, uPAM places change where the potentials are high in a
+#' cell's neighbourhood, not cell by cell; with mono-pixel patches, use uSAM.
+#'
+#' **Differences from the reference CLUMPY.** Checked against clumpy's patch grower on 2000
+#' scenarios (evoland-experiments, `2026-09-paper-figures/010-verify-clumpy.r`):
+#' * no connectedness step: clumpy first adds, at random, a cell almost enclosed by the patch
+#'   (Mazy App. 3.I.3.2), to avoid small holes;
+#' * exact elongation: a candidate is scored by the elongation of the patch including it, from
+#'   moments about that patch's own centroid (Mazy eqs. 3.I.6-3.I.8); the thesis (App. 3.I.3.3)
+#'   and clumpy keep the centroid of the patch without the candidate, for speed;
+#' * patch areas are rounded to the nearest cell, where clumpy grows to the next larger one
+#'   (half a cell above the prescribed mean on average);
+#' * without `avoid_aggregation`, a patch that runs out of neighbours of its class is kept as
+#'   grown, where clumpy discards it;
+#' * the potentials stay fixed between passes, while clumpy re-estimates the transition
+#'   probabilities on the remaining pool. Re-drawing from fixed potentials over a shrinking pool
+#'   includes the most probable cells slightly less often than their potential (about 3 % in the
+#'   top decile with several passes, none with one pass, `batch_size < 0`;
+#'   `2026-09-paper-figures/010-verify-upam-bias.r`).
+#'
+#' With the connectedness step and the elongation aligned, both grow the same patch, except where
+#' equally scored candidates are separated by floating-point round-off. uSAM matches clumpy bit
+#' for bit when clumpy's random numbers are supplied through R's user-supplied generator.
 #'
 #' The patch parameters are read from `alloc_params_t`: `mean_patch_size` and
 #' `patch_size_variance` give the patch-area distribution, `patch_elongation` its shape.
@@ -32,9 +61,12 @@
 #'
 #' @param area_dist Character; patch-area distribution, `"lognormal"` (default) or `"normal"`
 #'   (Gaussian with sd = `sqrt(patch_size_variance)`, clamped to >= 1).
-#' @param avoid_aggregation Logical, default `FALSE`; if `TRUE`, uPAM patches that would merge with
-#'   an existing patch fail and allocate nothing (clumpy `GaussianPatcher` semantics). Ignored for
-#'   the mono-pixel uSAM path.
+#' @param avoid_aggregation Logical, default `FALSE`; if `TRUE`, a uPAM patch that would merge with
+#'   another patch allocated in the same period, or cannot reach its drawn area, fails and
+#'   allocates nothing (clumpy `GaussianPatcher` semantics, Mazy App. 3.D.1.2: merging lowers the
+#'   quantity of change and shifts the patch sizes towards larger patches). Land that had the
+#'   target class before the period does not count: patches may grow next to it, so existing
+#'   areas can expand either way. Ignored for the mono-pixel uSAM path.
 #' @param batch_size Integer; uPAM pivots attempted per MuST re-draw. `0` (default) auto-scales
 #'   to ~1% of each class's source pool, bounding the number of MuST passes so large rasters
 #'   stay tractable; `> 0` is an explicit cap (1 = strict uPAM); `< 0` processes all candidates
