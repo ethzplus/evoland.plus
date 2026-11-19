@@ -23,14 +23,12 @@ raster_neighbors_cpp <- function(nrow, ncol) {
 #'   (include the "stay" column).
 #' @param states Integer vector of length `ncol(P)` giving the state id of each
 #'   column.
-#' @param u Optional NumericVector of length `nrow(P)` of uniform draws in
-#'   [0, 1) to replay instead of drawing from R's RNG.  Lets an external uniform
-#'   stream (e.g. numpy's, from the reference `clumpy`) be replayed for an exact
-#'   cross-tool comparison of the pivot test.
 #' @return Integer vector of length `nrow(P)` with the sampled state per cell.
+#'   One uniform is drawn from R's generator per row, so [set.seed()] fixes the
+#'   result.
 #' @keywords internal
-must_cpp <- function(P, states, u = NULL) {
-    .Call(`_evoland_plus_must_cpp`, P, states, u)
+must_cpp <- function(P, states) {
+    .Call(`_evoland_plus_must_cpp`, P, states)
 }
 
 #' Log-normal patch-area sampler (C++)
