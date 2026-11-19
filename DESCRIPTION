@@ -26,7 +26,6 @@ Imports:
     mirai (>= 2.3.0),
     mlr3filters,
     paradox,
-    parallel,
     qs2,
     stats,
     terra (>= 1.8-42),

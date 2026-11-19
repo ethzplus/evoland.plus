@@ -83,12 +83,14 @@ if (can_run_parallel) {
   mirai::daemons(2)
   default_pids <- unlist(map_evoland(list(1, 2), pid_of, parent_db = db))
   default_threads <- unlist(map_evoland(list(1, 2), threads_of, parent_db = db))
+  db$execute("reset threads")
+  n_cores <- db$get_query("select current_setting('threads')", as_atomic = TRUE)
   serial_pid <- unlist(map_evoland(list(1), pid_of, parent_db = db, compute = NULL))
   mirai::daemons(0)
   expect_true(all(default_pids != Sys.getpid()))
   expect_equal(
     unique(default_threads),
-    as.numeric(max(1L, parallel::detectCores() %/% 2L))
+    as.numeric(max(1L, as.integer(n_cores) %/% 2L))
   )
   expect_equal(serial_pid, Sys.getpid())
 

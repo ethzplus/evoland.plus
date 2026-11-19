@@ -211,8 +211,13 @@ map_evoland <- function(
           envir = globalenv()
         )
       }
-      cores <- parallel::detectCores()
-      threads <- if (is.na(cores)) 1L else max(1L, cores %/% n_daemons)
+      # DuckDB's default thread count is the number of cores it can use
+      .evoland_worker_db$execute("reset threads")
+      cores <- .evoland_worker_db$get_query(
+        "select current_setting('threads')",
+        as_atomic = TRUE
+      )
+      threads <- max(1L, as.integer(cores) %/% n_daemons)
       .evoland_worker_db$execute(sprintf("set threads to %d", threads))
     },
     catalog = parent_db$catalog,
