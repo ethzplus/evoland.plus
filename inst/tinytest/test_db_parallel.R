@@ -25,7 +25,6 @@ expect_equal(res, as.list(paste(FALSE, c(2, 4, 6))))
 # when it is run by run_test_file() or run_test_dir(), so everything that needs daemons
 # hangs off can_run_parallel instead.
 can_run_parallel <- FALSE
-compute <- "evoland_test"
 
 # the address of the connection a worker was given
 connection_of <- function(item, db) format(environment(db$fetch))
@@ -38,17 +37,17 @@ if (!at_home() || !requireNamespace("evoland.plus", quietly = TRUE)) {
   tryCatch(
     {
       # one daemon, so that both calls below land on the same one
-      mirai::daemons(1, .compute = compute)
+      mirai::daemons(1, .compute = "evoland_compute")
 
       res_parallel <- map_evoland(
         items = list(1, 2),
         worker_fun = function(item, db) db$reporting_t,
         parent_db = db,
-        compute = compute
+        compute = "evoland_compute"
       )
       connections <- c(
-        map_evoland(list(1), connection_of, parent_db = db, compute = compute),
-        map_evoland(list(2), connection_of, parent_db = db, compute = compute)
+        map_evoland(list(1), connection_of, parent_db = db, compute = "evoland_compute"),
+        map_evoland(list(2), connection_of, parent_db = db, compute = "evoland_compute")
       )
       can_run_parallel <- TRUE
     },
@@ -59,7 +58,7 @@ if (!at_home() || !requireNamespace("evoland.plus", quietly = TRUE)) {
         ")"
       )
     },
-    finally = mirai::daemons(0, .compute = compute)
+    finally = mirai::daemons(0, .compute = "evoland_compute")
   )
 }
 
@@ -105,7 +104,7 @@ if (can_run_parallel) {
   ducklake_db$new(conc_dir)$commit(conc_seed, "conc_t", method = "overwrite")
 
   n_workers <- 4L
-  mirai::daemons(n_workers, .compute = compute)
+  mirai::daemons(n_workers, .compute = "evoland_compute")
 
   conc_results <- mirai::mirai_map(
     seq_len(n_workers),
@@ -122,10 +121,10 @@ if (can_run_parallel) {
       )
     },
     .args = list(path = conc_dir),
-    .compute = compute
+    .compute = "evoland_compute"
   )[]
 
-  mirai::daemons(0, .compute = compute)
+  mirai::daemons(0, .compute = "evoland_compute")
 
   expect_equal(unique(unlist(conc_results)), "ok")
 

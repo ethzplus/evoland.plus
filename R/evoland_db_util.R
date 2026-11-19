@@ -163,11 +163,6 @@ get_evoland_db_read_expr <- function(self, super, table_name, id_run) {
 #' oversubscribe it. Without daemons, the worker gets `parent_db` itself. Workers must not rely
 #' on anything but the item and the database: an item carries the run it is for.
 #'
-#' Dispatching costs little: on a 4-core machine, fitting partial models on one daemon took
-#' about as long as serially on a 900-cell domain, and about 15% longer on a 90,000-cell one,
-#' for returning the results; four daemons were two to three times faster. A daemon's first
-#' call takes a few seconds more, to load the package and open its connection.
-#'
 #' @param worker_fun A function to apply to each item, with signature `worker_fun(item,
 #' db, ...)`.
 #' @param items A list of items to iterate over

@@ -60,9 +60,4 @@ daemon gets an equal share of its machine's cores, so that the daemons together 
 oversubscribe it. Without daemons, the worker gets \code{parent_db} itself. Workers must not rely
 on anything but the item and the database: an item carries the run it is for.
 
-Dispatching costs little: on a 4-core machine, fitting partial models on one daemon took
-about as long as serially on a 900-cell domain, and about 15\% longer on a 90,000-cell one,
-for returning the results; four daemons were two to three times faster. A daemon's first
-call takes a few seconds more, to load the package and open its connection.
-
 }}
