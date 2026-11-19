@@ -6,7 +6,7 @@
 \usage{
 alloc_clumpy_spec(
   area_dist = c("lognormal", "normal"),
-  avoid_aggregation = FALSE,
+  avoid_aggregation = TRUE,
   batch_size = 0L,
   default_elongation = 0.5
 )
@@ -15,12 +15,14 @@ alloc_clumpy_spec(
 \item{area_dist}{Character; patch-area distribution, \code{"lognormal"} (default) or \code{"normal"}
 (Gaussian with sd = \code{sqrt(patch_size_variance)}, clamped to >= 1).}
 
-\item{avoid_aggregation}{Logical, default \code{FALSE}; if \code{TRUE}, a uPAM patch that would merge with
+\item{avoid_aggregation}{Logical; if \code{TRUE} (default), a uPAM patch that would merge with
 another patch allocated in the same period, or cannot reach its drawn area, fails and
 allocates nothing (clumpy \code{GaussianPatcher} semantics, Mazy App. 3.D.1.2: merging lowers the
 quantity of change and shifts the patch sizes towards larger patches). Land that had the
-target class before the period does not count: patches may grow next to it, so existing
-areas can expand either way. Ignored for the mono-pixel uSAM path.}
+target class before the period does not count as a patch: patches may grow next to it, so
+existing areas expand with avoidance on. Failed patches remove their cells from the pool, so
+where patches crowd, the quota can be left slightly unmet. \code{FALSE} lets same-period patches
+merge and keeps patches that run out of neighbours. Ignored for the mono-pixel uSAM path.}
 
 \item{batch_size}{Integer; uPAM pivots attempted per MuST re-draw. \code{0} (default) auto-scales
 to ~1\% of each class's source pool, bounding the number of MuST passes so large rasters
