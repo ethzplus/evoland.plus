@@ -1,32 +1,14 @@
-# Test default constructor: the base run, with no run parameters recorded
+# Test default constructor
 x <- data.table::data.table(
   id_run = 0L,
   parent_id_run = NA_integer_,
-  description = "Base",
-  rng_seed = NA_integer_,
-  alloc_args = list(NULL),
-  model_selection_criterion = list(NULL),
-  id_period_eval_start = NA_integer_
+  description = "Base"
 )
 
 data.table::setattr(x, "class", c("runs_t", "ducklake_db_t", "data.table", "data.frame"))
 data.table::setattr(x, "key_cols", "id_run")
-data.table::setattr(x, "map_cols", c("alloc_args", "model_selection_criterion"))
 data.table::setkeyv(x, "id_run")
 expect_equal(as_runs_t(), x)
-
-# a table without the run parameter columns, e.g. from an older database, gains them empty
-old_runs <- as_runs_t(list(id_run = 0:1, parent_id_run = c(NA, 0L), description = c("a", "b")))
-expect_equal(old_runs[["rng_seed"]], c(NA_integer_, NA_integer_))
-expect_equal(old_runs[["alloc_args"]], list(NULL, NULL))
-
-# run arguments are stored one string per argument, vectors joined by ","
-encoded <- evoland.plus:::encode_run_args(list(arbitration = "ordered", order = 3:1, x = NULL))
-expect_equal(encoded, list(arbitration = "ordered", order = "3,2,1"))
-expect_equal(
-  evoland.plus:::decode_run_args(encoded),
-  list(arbitration = "ordered", order = 3:1)
-)
 
 
 # Test constructor with custom data, which should be coerced and validated
@@ -93,4 +75,22 @@ expect_error(
     description = c("Base", "Orphan")
   )),
   "all parent_id_run must be in id_run or NA"
+)
+
+# the optional columns allocate() reads are cast to integer, and NA where the table lacks them
+with_params <- as_runs_t(list(
+  id_run = 0:1,
+  parent_id_run = c(NA, 0L),
+  description = c("a", "b"),
+  rng_seed = c(NA, 7),
+  id_period_eval_start = c(NA, 4)
+))
+expect_identical(with_params[["rng_seed"]], c(NA, 7L))
+expect_identical(
+  evoland.plus:::get_run_col(with_params, 1:0, "id_period_eval_start"),
+  c(4L, NA)
+)
+expect_identical(
+  evoland.plus:::get_run_col(as_runs_t(), 0L, "rng_seed"),
+  NA_integer_
 )

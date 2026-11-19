@@ -183,8 +183,7 @@ expect_equal(
 # --------------------------------------------------------------------------
 db$runs_t <- as_runs_t(rbind(
   db$runs_t,
-  list(id_run = 4, parent_id_run = 3, description = "stochastic alloc"),
-  fill = TRUE
+  list(id_run = 4, parent_id_run = 3, description = "stochastic alloc")
 ))
 alloc_messages <- character()
 withCallingHandlers(
@@ -240,8 +239,7 @@ expect_equal(
 # --------------------------------------------------------------------------
 db$runs_t <- as_runs_t(rbind(
   db$runs_t,
-  list(id_run = 5, parent_id_run = 3, description = "no neighbour update"),
-  fill = TRUE
+  list(id_run = 5, parent_id_run = 3, description = "no neighbour update")
 ))
 count_run_5_preds <- function() {
   db$get_query(
@@ -286,61 +284,119 @@ expect_message(
 expect_equal(count_snapshots(), 2)
 
 # --------------------------------------------------------------------------
-# runs_t records how a run was allocated, and a run replays from it
+# several runs: run 7 branches off run 6 at period 4, which allocate() reads from runs_t
 # --------------------------------------------------------------------------
-run_1 <- db$runs_t[id_run == 1L]
-expect_equal(run_1$alloc_args[[1L]]$allocator, "greedy")
-expect_equal(run_1$alloc_args[[1L]]$arbitration, "joint")
-expect_equal(run_1$model_selection_criterion[[1L]]$select_score, "classif.auc")
-expect_equal(run_1$id_period_eval_start, 4L)
-# greedy draws no random numbers, so it needs no seed
-expect_true(is.na(run_1$rng_seed))
-
-# a child run inherits the allocator and the model selection criterion
 db$runs_t <- as_runs_t(rbind(
   db$runs_t,
-  list(id_run = 6:8, parent_id_run = 1L, description = c("inherits", "clumpy", "replay")),
+  data.table::data.table(
+    id_run = 6:7,
+    parent_id_run = c(0L, 6L),
+    description = c("trunk", "branch"),
+    id_period_eval_start = c(NA, 4L)
+  ),
   fill = TRUE
 ))
 expect_message(
-  allocate(db, id_periods = 4L, id_run = 6L, potentials_ancestor = 1L),
-  "Allocating with greedy (joint): run 6",
+  allocate(
+    db,
+    id_periods = 3:4,
+    allocator = alloc_greedy_spec(),
+    select_score = "classif.auc",
+    select_maximize = TRUE,
+    id_run = 6:7
+  ),
+  "run 7, periods 4\n",
   fixed = TRUE
 )
-expect_equal(lulc_of(6L, 4L)[["id_lulc"]], lulc_of(1L, 4L)[["id_lulc"]])
+own_periods <- function(id_run) {
+  db$get_query(
+    "select distinct id_period from dl_db.lulc_data_t where id_run = {id_run} order by all",
+    as_atomic = TRUE
+  )
+}
+expect_equal(own_periods(6L), 3:4)
+expect_equal(own_periods(7L), 4L)
+# the branch starts from the trunk's period 3; greedy then allocates the same period 4
+expect_identical(evoland.plus:::allocation_context(db, 4L, 7L, 7L)$anterior, lulc_of(6L, 3L))
+expect_equal(lulc_of(7L, 4L), lulc_of(6L, 4L))
+expect_error(
+  allocate(
+    db,
+    id_periods = 3L,
+    allocator = alloc_greedy_spec(),
+    select_score = "classif.auc",
+    select_maximize = TRUE,
+    id_run = 7L
+  ),
+  "Runs 7 start after the last of id_periods"
+)
 
-# CLUMPY draws a seed for a run without one and records it; a run given that seed replays
-# the same map, whatever state the caller left the generator in
-alloc_clumpy_run <- function(id_run) {
+# --------------------------------------------------------------------------
+# rng_seed: each seeded run has its own stream, whichever runs it is allocated with, and the
+# caller's generator is left alone
+# --------------------------------------------------------------------------
+db$runs_t <- as_runs_t(rbind(
+  db$runs_t,
+  data.table::data.table(
+    id_run = 8:11,
+    parent_id_run = 3L,
+    description = "clumpy realisation",
+    rng_seed = c(42L, 42L, 43L, 42L)
+  ),
+  fill = TRUE
+))
+alloc_clumpy <- function(id_run) {
   suppressMessages(allocate(
     db,
     id_periods = 4L,
     allocator = alloc_clumpy_spec(),
+    select_score = "classif.auc",
+    select_maximize = TRUE,
     id_run = id_run,
     potentials_ancestor = 1L,
     update_neighbors = FALSE
   ))
 }
-alloc_clumpy_run(7L)
-seed_7 <- db$runs_t[id_run == 7L, rng_seed]
-expect_false(is.na(seed_7))
-expect_equal(db$runs_t[id_run == 7L, alloc_args][[1L]]$allocator, "clumpy")
-evoland.plus:::set_run_params(db, 8L, rng_seed = seed_7)
 set.seed(1)
-alloc_clumpy_run(8L)
-expect_equal(lulc_of(8L, 4L)[["id_lulc"]], lulc_of(7L, 4L)[["id_lulc"]])
+caller_state <- .Random.seed
+alloc_clumpy(8:10)
+expect_identical(.Random.seed, caller_state)
+# the same seed gives the same map, a different one another map
+expect_equal(lulc_of(9L, 4L), lulc_of(8L, 4L))
+expect_false(isTRUE(all.equal(lulc_of(10L, 4L), lulc_of(8L, 4L))))
+# on its own, a run replays the map it got within the batch
+alloc_clumpy(11L)
+expect_equal(lulc_of(11L, 4L), lulc_of(8L, 4L))
 
 # --------------------------------------------------------------------------
 # Argument checks
 # --------------------------------------------------------------------------
 expect_error(
-  allocate(db, id_periods = c(1L, 3L), select_score = "classif.auc", select_maximize = TRUE),
+  allocate(
+    db,
+    id_periods = c(1L, 3L),
+    allocator = alloc_greedy_spec(),
+    select_score = "classif.auc",
+    select_maximize = TRUE
+  ),
   "id_periods must be contiguous"
 )
 expect_error(
   allocate(
     db,
+    id_periods = 4L,
+    allocator = alloc_greedy_spec(),
+    select_score = "classif.auc",
+    select_maximize = TRUE,
+    id_run = c(1L, 1L)
+  ),
+  "id_run must be distinct integers"
+)
+expect_error(
+  allocate(
+    db,
     id_periods = 3:4,
+    allocator = alloc_greedy_spec(),
     select_score = "classif.auc",
     select_maximize = TRUE,
     id_run = 4L,
@@ -352,6 +408,7 @@ expect_error(
   allocate_one_period(
     db,
     id_period_post = 4L,
+    allocator = alloc_greedy_spec(),
     select_score = "classif.auc",
     select_maximize = TRUE,
     id_run = 4L,
@@ -364,6 +421,6 @@ expect_error(
   "allocator must be an allocator specification"
 )
 expect_error(
-  evoland.plus:::new_allocator_spec("x", "x", list(), one_period = function() NULL),
+  evoland.plus:::new_allocator_spec("x", list(), one_period = function() NULL),
   "one_period must be a function of one argument"
 )

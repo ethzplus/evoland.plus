@@ -8,9 +8,9 @@
 allocate(
   db,
   id_periods,
-  allocator = NULL,
-  select_score = NULL,
-  select_maximize = NULL,
+  allocator,
+  select_score,
+  select_maximize,
   id_run = 0L,
   potentials_ancestor = 0L,
   force_predict = FALSE,
@@ -21,9 +21,9 @@ allocate(
 allocate_one_period(
   db,
   id_period_post,
-  allocator = NULL,
-  select_score = NULL,
-  select_maximize = NULL,
+  allocator,
+  select_score,
+  select_maximize,
   id_run = 0L,
   potentials_ancestor = 0L,
   force_predict = FALSE
@@ -34,32 +34,30 @@ allocate_one_period(
 
 \item{id_periods}{Integer vector of contiguous posterior period IDs to simulate.}
 
-\item{allocator}{An allocator specification, see Description. \code{NULL} (default) uses the
-allocator the run records in \link{runs_t} (inherited from its ancestors), and CLUMPY if none
-does. The allocator used is recorded on the run if it records none itself.}
+\item{allocator}{An allocator specification, e.g. \code{alloc_clumpy_spec()}, see Description.}
 
 \item{select_score}{Character; mlr3 measure ID (e.g. \code{"classif.auc"}) used to select the
-model for prediction, see \code{\link[=predict_trans_pot]{predict_trans_pot()}}. \code{NULL} (default) uses the criterion the
-run of the potentials records in \link{runs_t}.}
+model for prediction, see \code{\link[=predict_trans_pot]{predict_trans_pot()}}.}
 
 \item{select_maximize}{Logical; maximize (\code{TRUE}) or minimize (\code{FALSE}) \code{select_score}.}
 
 \item{id_run}{Integer; the run to allocate. It reads its anterior map, demand and
-allocation parameters through its lineage, and the allocated maps are written under it.}
+allocation parameters through its lineage, and the allocated maps are written under it.
+For \code{allocate()}, a vector of distinct runs, see Several runs.}
 
 \item{potentials_ancestor}{Integer; how many generations up the lineage of \code{id_run} to
 take the transition potentials from: \code{0} (default) the run itself, \code{1} its parent, \code{2} its
 grandparent. They are predicted under that run if missing. Use \code{1} to let sibling runs
 (e.g. a Monte Carlo ensemble of allocations) share their parent's potentials. \code{2} only
 makes sense if the parent's siblings share the same transition potentials too. Above \code{0}
-for a single period only: from the second period on, the anterior map is the run's own
-allocation, which its ancestors cannot see.}
+only for runs that allocate a single period: from their second period on, the anterior
+map is the run's own allocation, which its ancestors cannot see.}
 
 \item{force_predict}{Logical; if \code{TRUE}, predict the transition potentials even if
 \code{trans_pot_t} already holds them for that run and the period.}
 
-\item{update_neighbors}{Logical; whether to recompute the neighbor predictors after the last
-period (default \code{TRUE}). Intermediate periods are always updated, since the next period's
+\item{update_neighbors}{Logical; whether to recompute the neighbor predictors after a run's
+last period (default \code{TRUE}). Intermediate periods are always updated, since the next period's
 prediction reads them. Set \code{FALSE} when nothing is allocated onwards from the last period,
 e.g. for single-period ensembles.}
 
@@ -84,7 +82,8 @@ map.
 the land use at the start of the period (the \emph{anterior} map) into the land use at its end
 (the \emph{posterior} map), given the transition potentials and the demanded transition rates.
 
-\code{allocate()} runs a contiguous sequence of periods. For each period it
+\code{allocate()} runs a contiguous sequence of periods for one or more runs. For each period
+and run it
 \enumerate{
 \item predicts the transition potentials if \code{trans_pot_t} does not hold them yet, see
 \code{\link[=predict_trans_pot]{predict_trans_pot()}};
@@ -103,20 +102,31 @@ allocated map afterwards, or draw an ensemble of single-period realisations. Com
 with \code{db$commit(x, "lulc_data_t", method = "upsert")} and, if a later period follows, run
 \code{db$upsert_new_neighbors(id_period_post)}.
 
-The allocator is one of \code{\link[=alloc_clumpy_spec]{alloc_clumpy_spec()}} (stochastic, unbiased; the default),
+The allocator is one of \code{\link[=alloc_clumpy_spec]{alloc_clumpy_spec()}} (stochastic, unbiased),
 \code{\link[=alloc_greedy_spec]{alloc_greedy_spec()}} (deterministic rank-and-fill) or \code{\link[=alloc_dinamica_spec]{alloc_dinamica_spec()}} (Dinamica
-EGO's expander and patcher).
+EGO's expander and patcher). It is not recorded: to document it, add a column to
+\link{runs_t}.
+}
+\section{Several runs}{
+\code{allocate()} takes a vector of runs, e.g. an ensemble of stochastic realisations, or a tree
+of runs that branch off one another. It reads two optional columns of \link{runs_t}:
+\itemize{
+\item \code{id_period_eval_start}: a run allocates the periods of \code{id_periods} from this one on, and
+reads the earlier ones from its lineage. Periods are allocated one after the other, each
+for every run that has reached it, so a run's branches pick up its maps where they branch
+off: e.g. run 1 allocates periods 4 to 6, and its children 2 and 3, starting at 5, take
+run 1's period 4 as their anterior map. Without it, a run allocates every period.
+\item \code{rng_seed}: R's random number generator is seeded with it on a run's first period, and
+the run continues its own stream on every later period, so its maps do not depend on the
+other runs allocated with it. Runs without a seed draw from the caller's generator, one
+after the other. The caller's generator is left as if only those runs had drawn from it.
+}
 
-\code{allocate()} seeds R's random number generator with the run's \code{rng_seed} in \link{runs_t} for
-the whole sequence of periods, and restores the generator's previous state afterwards, so
-that a run replays from the database. A run without a seed draws one from the generator's
-current state and records it. Only allocators that draw from R's generator are seeded
-(CLUMPY); Dinamica draws its own seed, see ethzplus/evoland.plus#104. The first period a
-run allocates is recorded as its \code{id_period_eval_start}. \code{allocate_one_period()} neither
-seeds nor records these: seed and record them in your own loop.
+\code{allocate_one_period()} reads neither: seed and pick the periods in your own loop.
 
 The quantity of change is the same for every allocator: each viable transition changes
 \code{round(rate * n_anterior)} cells, where \code{rate} is the transition's rate in \code{trans_rates_t}
 for the posterior period and \code{n_anterior} the number of cells of its anterior class in the
 anterior map. Transitions without a rate change no cells.
 }
+

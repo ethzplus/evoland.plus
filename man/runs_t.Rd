@@ -23,11 +23,8 @@ A data.table of class "runs_t" with columns:
 \item \code{id_run}: Unique ID for each run; 0 is the base run
 \item \code{parent_id_run}: The run this run inherits data from; \code{NA} for the base run
 \item \code{description}: Human-readable description of the run
-\item \code{rng_seed}: Seed of R's random number generator for allocation; \code{NA} for none yet
-\item \code{alloc_args}: Allocator and its arguments, as a named list; \code{NULL} for none
-\item \code{model_selection_criterion}: \code{select_score} and \code{select_maximize}, as a named list;
-\code{NULL} for none
-\item \code{id_period_eval_start}: First period the run allocates itself; \code{NA} for none
+\item optionally \code{rng_seed} and \code{id_period_eval_start}, see Description, and any other
+columns the user adds
 }
 }
 \description{
@@ -39,23 +36,17 @@ predictors being used for forecasting) or produced by a specific model experimen
 models and allocation parameters).
 }
 \details{
-A run also records how its results were made, so that they can be traced and replayed
-from the database:
+Like any evoland.plus table, \code{runs_t} takes columns beyond the ones listed below, e.g. to
+document how a run was made: add them to the table you assign or commit. Two optional
+columns are read by \code{\link[=allocate]{allocate()}}:
 \itemize{
-\item \code{rng_seed} seeds R's random number generator for \code{\link[=allocate]{allocate()}}. It belongs to its run
-alone: a run without one draws a seed when it is first allocated, and records it.
-\item \code{alloc_args} holds the allocator and its arguments, as \code{\link[=allocate]{allocate()}} used them;
-\code{allocate()} without an \code{allocator} uses them.
-\item \code{model_selection_criterion} holds \code{select_score} and \code{select_maximize}, as
-\code{\link[=predict_trans_pot]{predict_trans_pot()}} and \code{\link[=fit_full_models]{fit_full_models()}} used them; without \code{select_score}, they
-use it.
-\item \code{id_period_eval_start} is the first period the run allocates itself, i.e. where its
-maps branch off its parent's.
+\item \code{rng_seed} (int): seed of R's random number generator for the run's allocation, so that
+a stochastic allocator (e.g. CLUMPY) replays from the database. \code{NA} or absent: the run
+draws from the caller's generator.
+\item \code{id_period_eval_start} (int): the first period the run allocates itself, i.e. where its
+maps branch off its parent's; earlier periods are read from its lineage. \code{NA} or absent:
+the run allocates every period it is given.
 }
-
-\code{alloc_args} and \code{model_selection_criterion} are inherited through the lineage: a run
-without them uses those of its closest ancestor that has them. A value passed as an
-argument is recorded on the run when the run's own row holds none.
 }
 \section{Methods (by generic)}{
 \itemize{
