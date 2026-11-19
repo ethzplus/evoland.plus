@@ -25,15 +25,17 @@
 //                This is the general multi-pixel method (and also covers
 //                mono-pixel patches, with a quota).
 //
-//                The potentials stay fixed while the pool shrinks.  Re-drawing
-//                pivots from them pass after pass is successive sampling: the
-//                most probable cells are included slightly less often than
-//                their potential, the others slightly more (about 3 % in the
-//                top decile; one pass over all candidates, batch_size < 0,
-//                shows no such shift).  The reference clumpy re-estimates the
-//                transition probabilities on the remaining pool before each
-//                pass, which counteracts this; evoland does not.  Measured in
-//                evoland-experiments 2026-09-paper-figures/010-verify-upam-bias.
+//                Not yet implemented: updating the potentials as the pool
+//                shrinks.  The reference clumpy re-estimates the transition
+//                probabilities on the remaining pool before each pass (thesis
+//                sec. 3.4.2), which is currently too expensive to run here, so
+//                the potentials stay fixed.  Re-drawing pivots from them pass
+//                after pass is successive sampling: the most probable cells
+//                are included slightly less often than their potential, the
+//                others slightly more (about 3 % in the top decile; one pass
+//                over all candidates, batch_size < 0, shows no such shift).
+//                Measured in evoland-experiments
+//                2026-09-paper-figures/010-verify-upam-bias.
 //
 // The R layer auto-selects the method from the patch parameters (all mono-pixel
 // => uSAM, otherwise uPAM); the explicit `method` flag here is kept so the

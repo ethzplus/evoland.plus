@@ -42,11 +42,12 @@
 #'   (half a cell above the prescribed mean on average);
 #' * without `avoid_aggregation`, a patch that runs out of neighbours of its class is kept as
 #'   grown, where clumpy discards it;
-#' * the potentials stay fixed between passes, while clumpy re-estimates the transition
-#'   probabilities on the remaining pool. Re-drawing from fixed potentials over a shrinking pool
-#'   includes the most probable cells slightly less often than their potential (about 3 % in the
-#'   top decile with several passes, none with one pass, `batch_size < 0`;
-#'   `2026-09-paper-figures/010-verify-upam-bias.r`).
+#' * updating the potentials between passes is not yet implemented: clumpy re-estimates the
+#'   transition probabilities on the remaining pool before each pass (Mazy sec. 3.4.2), which is
+#'   currently too expensive to run here, so the potentials stay fixed. Re-drawing from fixed
+#'   potentials over a shrinking pool includes the most probable cells slightly less often than
+#'   their potential (about 3 % in the top decile with several passes, none with one pass,
+#'   `batch_size < 0`; `2026-09-paper-figures/010-verify-upam-bias.r`).
 #'
 #' With the connectedness step and the elongation aligned, both grow the same patch, except where
 #' equally scored candidates are separated by floating-point round-off. uSAM matches clumpy bit
