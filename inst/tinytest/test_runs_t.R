@@ -1,8 +1,10 @@
-# Test default constructor
+# Test default constructor: the base run, without a seed or a branching period
 x <- data.table::data.table(
   id_run = 0L,
   parent_id_run = NA_integer_,
-  description = "Base"
+  description = "Base",
+  rng_seed = NA_integer_,
+  id_period_eval_start = NA_integer_
 )
 
 data.table::setattr(x, "class", c("runs_t", "ducklake_db_t", "data.table", "data.frame"))
@@ -76,3 +78,14 @@ expect_error(
   )),
   "all parent_id_run must be in id_run or NA"
 )
+
+# rng_seed and id_period_eval_start are cast to integer
+with_params <- as_runs_t(list(
+  id_run = 0:1,
+  parent_id_run = c(NA, 0L),
+  description = c("a", "b"),
+  rng_seed = c(NA, 7),
+  id_period_eval_start = c(NA, 4)
+))
+expect_identical(with_params[["rng_seed"]], c(NA, 7L))
+expect_identical(with_params[["id_period_eval_start"]], c(NA, 4L))

@@ -111,6 +111,8 @@ erDiagram
         int id_run PK
         int parent_id_run FK
         string description
+        int rng_seed
+        int id_period_eval_start
     }
     trans_meta_t {
         int id_trans UK
@@ -242,6 +244,17 @@ Runs label data that either overrides base data (e.g. predictors for a scenario)
 Run 0 is the base run.
 A child run inherits every slice of data it does not override: reading a run-dependent table under a run returns, for each slice, the data of the closest run in its lineage that has it.
 For instance, a run that only overrides one predictor reads all other predictors from its parent, and so on up to the base run.
+
+Users add columns to `runs_t` to document how a run was made (allocator, model selection, anything else); the package does not record these itself.
+Two more columns, `NA` where unset and not inherited, are read by `allocate()`:
+
+| colname              | type          | description                                                       |
+| -------------------- | ------------- | ----------------------------------------------------------------- |
+| rng_seed             | int, nullable | Seeds R's random number generator, plus the period, for allocation |
+| id_period_eval_start | int, nullable | Period the run branches off its parent; earlier ones are its lineage's |
+
+Given several runs, `allocate()` goes period by period, each for every run that has reached its `id_period_eval_start`, so that a branch finds the maps of the run it branches off.
+At its branching period, a run uses its parent's potentials, and shares its parent's allocation context if it holds no inputs of its own.
 
 ### `lulc_meta_t` + `lulc_data_t`
 

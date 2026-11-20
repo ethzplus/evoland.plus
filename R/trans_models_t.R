@@ -117,6 +117,8 @@ fit_partial_model_worker <- function(
       )
       full_task$set_col_roles("did_transition", add_to = "stratum")
       if (!is.null(seed)) {
+        caller_rng <- get_rng_state()
+        on.exit(set_rng_state(caller_rng), add = TRUE)
         set.seed(seed)
       }
       split <- mlr3::partition(full_task, ratio = sample_frac)

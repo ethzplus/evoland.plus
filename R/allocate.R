@@ -5,19 +5,19 @@
 #' the land use at the start of the period (the *anterior* map) into the land use at its end
 #' (the *posterior* map), given the transition potentials and the demanded transition rates.
 #'
-#' `allocate()` runs a contiguous sequence of periods. For each period it
+#' `allocate()` runs a contiguous sequence of periods for one or more runs. For each period it
 #'
 #' 1. predicts the transition potentials if `trans_pot_t` does not hold them yet, see
 #'    [predict_trans_pot()];
 #' 2. builds the allocation context: the anterior map, the allocation-ready potentials
 #'    ([adjusted_trans_pot_v()]), the viable transitions, the quantity of change per
 #'    transition and the allocation parameters;
-#' 3. hands the context to the allocator, which returns the posterior map;
-#' 4. commits the map to `lulc_data_t`, together with the neighbor predictors the next period
-#'    is predicted from, in one transaction.
+#' 3. hands the context to the allocator, once per run, which returns the posterior map;
+#' 4. commits the maps of all runs to `lulc_data_t`, together with the neighbor predictors the
+#'    next period is predicted from, in one transaction.
 #'
-#' `allocate_one_period()` runs steps 1-3 for one period and returns the map without
-#' committing it. Use it to write your own loop: edit `trans_pot_t` between prediction and
+#' `allocate_one_period()` runs steps 1-3 for one period and returns the maps without
+#' committing them. Use it to write your own loop: edit `trans_pot_t` between prediction and
 #' allocation (e.g. theory-driven shifts in potential due to policy interventions), edit the
 #' allocated map afterwards, or draw an ensemble of single-period realisations. Commit the map
 #' with `db$commit(x, "lulc_data_t", method = "upsert")` and, if a later period follows, run
@@ -25,7 +25,31 @@
 #'
 #' The allocator is one of [alloc_clumpy_spec()] (stochastic, unbiased; the default),
 #' [alloc_greedy_spec()] (deterministic rank-and-fill) or [alloc_dinamica_spec()] (Dinamica
-#' EGO's expander and patcher).
+#' EGO's expander and patcher). It is not recorded: to document it, add a column to
+#' [runs_t].
+#'
+#' # Runs, branches and seeds
+#'
+#' `allocate()` takes a vector of runs, e.g. an ensemble of stochastic realisations, or runs
+#' that branch off one another. It reads two columns of [runs_t]:
+#'
+#' - `id_period_eval_start`: the period a run *branches off* its parent. The run allocates the
+#'   periods of `id_periods` from this one on, and reads the earlier ones from its lineage.
+#'   Without it, the run allocates every period of `id_periods`.
+#' - `rng_seed`: before allocating a period, R's default random number generator is seeded
+#'   with `rng_seed + id_period`, so that a run's maps replay whichever runs it is allocated
+#'   with, and on whichever process.
+#'   Runs without a seed draw from the caller's generator. Seeding does not change the state
+#'   of the caller's generator.
+#'
+#' Periods are allocated one after the other, and each for all runs that have reached it, so
+#' that a branch finds the maps of the run it branches off. In the period it branches off, a
+#' run allocates on its parent's transition potentials, unless it holds its own: predictors
+#' before that period, the anterior map or potentials. Branches that also hold no
+#' rates or allocation parameters of their own share their parent's allocation context: it is
+#' built once, and each of them allocated on it in turn. The runs of a period are spread over
+#' the mirai daemons of `compute`, see [map_evoland()], and their maps committed once all are
+#' done; transition potentials are predicted beforehand, on the calling process.
 #'
 #' The quantity of change is the same for every allocator: each viable transition changes
 #' `round(rate * n_anterior)` cells, where `rate` is the transition's rate in `trans_rates_t`
@@ -39,15 +63,17 @@
 #' @param select_score Character; mlr3 measure ID (e.g. `"classif.auc"`) used to select the
 #'   model for prediction, see [predict_trans_pot()].
 #' @param select_maximize Logical; maximize (`TRUE`) or minimize (`FALSE`) `select_score`.
-#' @param id_run Integer; the run to allocate. It reads its anterior map, demand and
-#'   allocation parameters through its lineage, and the allocated maps are written under it.
+#' @param id_run Integer vector of distinct runs to allocate. Each reads its anterior map,
+#'   demand and allocation parameters through its lineage, and its allocated maps are written
+#'   under it. For `allocate_one_period()`, several runs must share their ancestor
+#'   `potentials_ancestor` generations up, and are all allocated on the context read under that
+#'   ancestor: their own rates and allocation parameters are not read.
 #' @param potentials_ancestor Integer; how many generations up the lineage of `id_run` to
 #'   take the transition potentials from: `0` (default) the run itself, `1` its parent, `2` its
 #'   grandparent. They are predicted under that run if missing. Use `1` to let sibling runs
 #'   (e.g. a Monte Carlo ensemble of allocations) share their parent's potentials. `2` only
-#'   makes sense if the parent's siblings share the same transition potentials too. Above `0`
-#'   for a single period only: from the second period on, the anterior map is the run's own
-#'   allocation, which its ancestors cannot see.
+#'   makes sense if the parent's siblings share the same transition potentials too. `allocate()`
+#'   takes the parent's potentials where a run branches off, see Description.
 #' @param force_predict Logical; if `TRUE`, predict the transition potentials even if
 #'   `trans_pot_t` already holds them for that run and the period.
 #' @param update_neighbors Logical; whether to recompute the neighbor predictors after the last
@@ -62,10 +88,12 @@
 #'   processes allocate into the same database at the same time: a checkpoint rewrites files
 #'   they may be reading. How many snapshots it expires depends on the retention set on the
 #'   database, see [ducklake_db].
+#' @param compute Name of the mirai compute profile to allocate the runs of a period on, see
+#'   [map_evoland()].
 #'
 #' @return `allocate()`: called for its side effects on `lulc_data_t` and `pred_data_t`;
 #'   returns `NULL` invisibly. `allocate_one_period()`: an [lulc_data_t] with the posterior
-#'   map.
+#'   map of each run.
 #'
 #' @name allocate
 #' @include evoland_db.R
@@ -80,44 +108,77 @@ allocate <- function(
   select_score,
   select_maximize,
   id_run = 0L,
-  potentials_ancestor = 0L,
   force_predict = FALSE,
   update_neighbors = TRUE,
-  checkpoint = FALSE
+  checkpoint = FALSE,
+  compute = "default"
 ) {
-  check_allocation_args(allocator, id_run, potentials_ancestor)
   stopifnot(
+    "allocator must be an allocator specification, e.g. alloc_clumpy_spec()" = {
+      inherits(allocator, "allocator_spec")
+    },
     "checkpoint must be TRUE or FALSE" = is_scalar_logical(checkpoint),
     "id_periods must be integers" = is_integerish(id_periods),
     "id_periods must be contiguous" = all(diff(id_periods) == 1L),
     "id_periods must be in periods_t" = all(id_periods %in% db$periods_t[["id_period"]]),
-    "potentials_ancestor above 0 works for a single period only" = {
-      length(id_periods) == 1L || potentials_ancestor == 0L
+    "id_run must be distinct integers" = {
+      length(id_run) > 0L && is_integerish(id_run) && !anyDuplicated(id_run)
     }
   )
+  # e.g. Dinamica's setup, before anything is predicted or written
+  allocator$check()
 
-  message(glue::glue(
-    "Allocating with {allocator$name}: run {id_run}, ",
-    "periods {paste(id_periods, collapse = ' -> ')}"
-  ))
+  schedule <- allocation_schedule(db, as.integer(id_periods), as.integer(id_run))
+  schedule[,
+    .(periods = paste(id_period, collapse = " -> ")),
+    by = id_run
+  ][,
+    message("Allocating with ", allocator$name, ": run ", id_run, ", periods ", periods),
+    by = id_run
+  ]
+  n_workers <- n_evoland_workers(compute)
 
   for (id_period_post in id_periods) {
-    posterior <- allocate_one_period(
-      db = db,
-      id_period_post = id_period_post,
-      allocator = allocator,
-      select_score = select_score,
-      select_maximize = select_maximize,
-      id_run = id_run,
-      potentials_ancestor = potentials_ancestor,
-      force_predict = force_predict
-    )
+    todo <- schedule[id_period == id_period_post]
 
-    # the map and the neighbor counts derived from it land together or not at all
+    # on the calling process, so that runs sharing potentials do not predict them twice
+    for (potentials_run in unique(todo[["potentials_run"]])) {
+      db$predict_trans_pot(
+        id_period_post = id_period_post,
+        select_score = select_score,
+        select_maximize = select_maximize,
+        force = force_predict,
+        id_run = potentials_run
+      )
+    }
+
+    # the runs sharing a context, dealt out to at most as many items as there are workers
+    items <-
+      todo[,
+        chunk := (data.table::rowid(context_run, potentials_run) - 1L) %% n_workers
+      ] |>
+      split(by = c("context_run", "potentials_run", "chunk")) |>
+      unname()
+
+    posterior <-
+      map_evoland(
+        items = items,
+        worker_fun = allocate_on_context,
+        parent_db = db,
+        compute = compute,
+        id_period_post = id_period_post,
+        allocator = allocator
+      ) |>
+      data.table::rbindlist() |>
+      as_lulc_data_t()
+
+    # the maps and the neighbor counts derived from them land together or not at all
     db$transaction({
       db$commit(posterior, "lulc_data_t", method = "upsert")
       if (update_neighbors || id_period_post != max(id_periods)) {
-        db$upsert_new_neighbors(id_period_post, id_run = id_run)
+        for (run in todo[["id_run"]]) {
+          db$upsert_new_neighbors(id_period_post, id_run = run)
+        }
       }
     })
   }
@@ -141,19 +202,43 @@ allocate_one_period <- function(
   potentials_ancestor = 0L,
   force_predict = FALSE
 ) {
-  check_allocation_args(allocator, id_run, potentials_ancestor)
   stopifnot(
-    "id_period_post must be a single integer" = is_scalar_integerish(id_period_post)
+    "allocator must be an allocator specification, e.g. alloc_clumpy_spec()" = {
+      inherits(allocator, "allocator_spec")
+    },
+    "id_period_post must be a single integer" = is_scalar_integerish(id_period_post),
+    "id_run must be distinct integers" = {
+      length(id_run) > 0L && is_integerish(id_run) && !anyDuplicated(id_run)
+    },
+    "potentials_ancestor must be a single integer, 0 or more" = {
+      is_scalar_integerish(potentials_ancestor) && potentials_ancestor >= 0L
+    }
   )
+  allocator$check()
+  id_run <- as.integer(id_run)
+  runs <- db$runs_t
 
   # the run potentials_ancestor generations up the lineage, the run itself for 0
-  potentials_run <- get_lineage(db$runs_t, as.integer(id_run))[potentials_ancestor + 1L]
-  if (is.na(potentials_run)) {
+  potentials_run <- vapply(
+    id_run,
+    function(run) get_lineage(runs, run)[potentials_ancestor + 1L],
+    integer(1L)
+  )
+  if (anyNA(potentials_run)) {
     stop(
-      glue::glue("Run {id_run} has no ancestor {potentials_ancestor} generations up"),
+      glue::glue(
+        "Run {id_run[is.na(potentials_run)][1L]} has no ancestor ",
+        "{potentials_ancestor} generations up"
+      ),
       call. = FALSE
     )
   }
+  potentials_run <- unique(potentials_run)
+  stopifnot(
+    "if allocating for multiple runs, they must share their ancestor potentials_ancestor generations up" = {
+      length(potentials_run) == 1L
+    }
+  )
 
   db$predict_trans_pot(
     id_period_post = id_period_post,
@@ -163,33 +248,113 @@ allocate_one_period <- function(
     id_run = potentials_run
   )
 
-  ctx <- allocation_context(db, id_period_post, id_run, potentials_run)
+  item <- data.table::data.table(
+    id_run = id_run,
+    rng_seed = runs[.(ids), on = "id_run", rng_seed, env = list(ids = I(id_run))],
+    # a single run reads its own anterior map, rates and allocation parameters
+    context_run = if (length(id_run) == 1L) id_run else potentials_run,
+    potentials_run = potentials_run
+  )
 
-  message(glue::glue(
-    "  {allocator$name}: period {id_period_post - 1L} -> {id_period_post}"
-  ))
-  posterior <- allocator$one_period(ctx)
-
-  n_changed <- ctx$anterior[posterior, on = "id_coord", sum(id_lulc != i.id_lulc)]
-  message(glue::glue("  Changed {n_changed} of {nrow(posterior)} cells"))
-
-  posterior[, .(id_run = id_run, id_coord, id_lulc, id_period = id_period_post)] |>
-    as_lulc_data_t()
+  allocate_on_context(
+    item = item,
+    db = db,
+    id_period_post = id_period_post,
+    allocator = allocator
+  )
 }
 
-check_allocation_args <- function(allocator, id_run, potentials_ancestor) {
-  stopifnot(
-    "allocator must be an allocator specification, e.g. alloc_clumpy_spec()" = {
-      inherits(allocator, "allocator_spec")
-    },
-    "id_run must be a single integer" = is_scalar_integerish(id_run),
-    "potentials_ancestor must be a single integer, 0 or more" = {
-      is_scalar_integerish(potentials_ancestor) && potentials_ancestor >= 0L
-    }
+# Which run allocates which period, on whose potentials and allocation context: one row per
+# run and period, ordered by period; see inst/allocation_schedule.sql.
+allocation_schedule <- function(db, id_periods, id_run) {
+  runs <- db$runs_t[.(ids), on = "id_run", env = list(ids = I(id_run))]
+  unknown <- runs[is.na(description)]
+  if (nrow(unknown) > 0L) {
+    stop(glue::glue("Runs not in runs_t: {toString(unknown[['id_run']])}"), call. = FALSE)
+  }
+  late <- runs[id_period_eval_start > max(id_periods)]
+  if (nrow(late) > 0L) {
+    stop(
+      glue::glue(
+        "Runs {toString(late[['id_run']])} branch off after the last of id_periods ",
+        "(id_period_eval_start {toString(late[['id_period_eval_start']])})"
+      ),
+      call. = FALSE
+    )
+  }
+
+  db$get_query(
+    read_sql("allocation_schedule.sql"),
+    id_run = id_run,
+    id_period_first = min(id_periods),
+    id_period_last = max(id_periods),
+    runs_read_expr = db$get_read_expr("runs_t"),
+    lulc_read_expr = own_rows_read_expr(db, "lulc_data_t"),
+    pred_read_expr = own_rows_read_expr(db, "pred_data_t"),
+    pot_read_expr = own_rows_read_expr(db, "trans_pot_t"),
+    rates_read_expr = own_rows_read_expr(db, "trans_rates_t"),
+    params_read_expr = own_rows_read_expr(db, "alloc_params_t")
   )
-  # e.g. Dinamica's setup, before anything is predicted or written
-  allocator$check()
-  invisible(NULL)
+}
+
+# Every run's own rows of a table, as stored; an empty stand-in for a table that does not exist
+# yet, e.g. trans_pot_t before the first prediction
+own_rows_read_expr <- function(db, table_name) {
+  if (table_name %in% db$list_tables()) {
+    return(db$get_read_expr(table_name))
+  }
+  DBI::SQL(
+    "(select null::integer as id_run, null::integer as id_period,
+      null::integer as id_period_post where false)"
+  )
+}
+
+# Allocate each run of `item` (a data.table with id_run, rng_seed, context_run and
+# potentials_run, the last two the same for all rows) on one allocation context; the worker
+# of allocate(). Returns the posterior maps of all runs as one lulc_data_t.
+allocate_on_context <- function(item, db, id_period_post, allocator) {
+  ctx <- allocation_context(
+    db,
+    id_period_post,
+    item[["context_run"]][1L],
+    item[["potentials_run"]][1L]
+  )
+
+  # seeded runs leave the caller's generator as it was; unseeded ones draw from it in turn
+  caller_rng <- get_rng_state()
+  on.exit(set_rng_state(caller_rng), add = TRUE)
+
+  posteriors <- lapply(seq_len(nrow(item)), function(i) {
+    run <- item[["id_run"]][i]
+    seed <- item[["rng_seed"]][i]
+    if (is.na(seed)) {
+      set_rng_state(caller_rng)
+    } else {
+      # R's default generator, whichever the process uses: mirai daemons use L'Ecuyer-CMRG
+      set.seed(
+        (seed + id_period_post) %% .Machine$integer.max,
+        kind = "default",
+        normal.kind = "default",
+        sample.kind = "default"
+      )
+    }
+
+    message(glue::glue(
+      "  {allocator$name}: run {run}, period {id_period_post - 1L} -> {id_period_post}"
+    ))
+    ctx$id_run <- run
+    posterior <- allocator$one_period(ctx)
+    if (is.na(seed)) {
+      caller_rng <<- get_rng_state()
+    }
+
+    n_changed <- ctx$anterior[posterior, on = "id_coord", sum(id_lulc != i.id_lulc)]
+    message(glue::glue("  Changed {n_changed} of {nrow(posterior)} cells"))
+
+    posterior[, .(id_run = run, id_coord, id_lulc, id_period = id_period_post)]
+  })
+
+  as_lulc_data_t(data.table::rbindlist(posteriors))
 }
 
 # Everything an allocator reads, gathered in one place. Allocators get this list and never

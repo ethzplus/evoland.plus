@@ -179,11 +179,13 @@ expect_equal(
 )
 
 # --------------------------------------------------------------------------
-# potentials_ancestor = 1: run 4 allocates on its parent's potentials without predicting
+# a branch: run 4 branches off run 3 at period 4, and allocates on its parent's potentials
+# without predicting
 # --------------------------------------------------------------------------
 db$runs_t <- as_runs_t(rbind(
   db$runs_t,
-  list(id_run = 4, parent_id_run = 3, description = "stochastic alloc")
+  list(id_run = 4, parent_id_run = 3, description = "stochastic alloc", id_period_eval_start = 4),
+  fill = TRUE
 ))
 alloc_messages <- character()
 withCallingHandlers(
@@ -193,8 +195,7 @@ withCallingHandlers(
     allocator = alloc_greedy_spec(),
     select_score = "classif.auc",
     select_maximize = TRUE,
-    id_run = 4L,
-    potentials_ancestor = 1L
+    id_run = 4L
   ),
   message = function(m) {
     alloc_messages <<- c(alloc_messages, conditionMessage(m))
@@ -239,7 +240,13 @@ expect_equal(
 # --------------------------------------------------------------------------
 db$runs_t <- as_runs_t(rbind(
   db$runs_t,
-  list(id_run = 5, parent_id_run = 3, description = "no neighbour update")
+  list(
+    id_run = 5,
+    parent_id_run = 3,
+    description = "no neighbour update",
+    id_period_eval_start = 4
+  ),
+  fill = TRUE
 ))
 count_run_5_preds <- function() {
   db$get_query(
@@ -255,7 +262,6 @@ alloc_run_5 <- function(update_neighbors, checkpoint = FALSE) {
     select_score = "classif.auc",
     select_maximize = TRUE,
     id_run = 5L,
-    potentials_ancestor = 1L,
     update_neighbors = update_neighbors,
     checkpoint = checkpoint
   )
@@ -284,27 +290,189 @@ expect_message(
 expect_equal(count_snapshots(), 2)
 
 # --------------------------------------------------------------------------
-# Argument checks
+# several runs: run 7 branches off run 6 at period 4, which allocate() reads from runs_t
 # --------------------------------------------------------------------------
-expect_error(
-  allocate(db, id_periods = c(1L, 3L), select_score = "classif.auc", select_maximize = TRUE),
-  "id_periods must be contiguous"
+db$runs_t <- as_runs_t(rbind(
+  db$runs_t,
+  data.table::data.table(
+    id_run = 6:7,
+    parent_id_run = c(0L, 6L),
+    description = c("trunk", "branch"),
+    id_period_eval_start = c(NA, 4L)
+  ),
+  fill = TRUE
+))
+expect_message(
+  allocate(
+    db,
+    id_periods = 3:4,
+    allocator = alloc_greedy_spec(),
+    select_score = "classif.auc",
+    select_maximize = TRUE,
+    id_run = 6:7
+  ),
+  "run 7, periods 4\n",
+  fixed = TRUE
+)
+own_periods <- function(id_run) {
+  db$get_query(
+    "select distinct id_period from dl_db.lulc_data_t where id_run = {id_run} order by all",
+    as_atomic = TRUE
+  )
+}
+expect_equal(own_periods(6L), 3:4)
+expect_equal(own_periods(7L), 4L)
+# the branch starts from the trunk's period 3; greedy then allocates the same period 4
+expect_identical(evoland.plus:::allocation_context(db, 4L, 7L, 7L)$anterior, lulc_of(6L, 3L))
+expect_equal(lulc_of(7L, 4L), lulc_of(6L, 4L))
+# where it branches off, run 7 shares run 6's potentials and allocation context
+expect_equal(
+  evoland.plus:::allocation_schedule(db, 3:4, 6:7)[, .(
+    id_period,
+    id_run,
+    potentials_run,
+    context_run
+  )],
+  data.table::data.table(
+    id_period = c(3L, 4L, 4L),
+    id_run = c(6L, 6L, 7L),
+    potentials_run = 6L,
+    context_run = 6L
+  )
+)
+expect_equal(
+  db$get_query("select count(*) from dl_db.trans_pot_t where id_run = 7", as_atomic = TRUE),
+  0
 )
 expect_error(
   allocate(
     db,
-    id_periods = 3:4,
+    id_periods = 3L,
+    allocator = alloc_greedy_spec(),
     select_score = "classif.auc",
     select_maximize = TRUE,
-    id_run = 4L,
-    potentials_ancestor = 1L
+    id_run = 7L
   ),
-  "potentials_ancestor above 0 works for a single period only"
+  "Runs 7 branch off after the last of id_periods"
+)
+
+# --------------------------------------------------------------------------
+# rng_seed: a seeded run replays its maps whichever runs it is allocated with, and the
+# caller's generator is left alone
+# --------------------------------------------------------------------------
+db$runs_t <- as_runs_t(rbind(
+  db$runs_t,
+  data.table::data.table(
+    id_run = 8:11,
+    parent_id_run = 3L,
+    description = "clumpy realisation",
+    rng_seed = c(42L, 42L, 43L, 42L),
+    id_period_eval_start = 4L
+  ),
+  fill = TRUE
+))
+alloc_clumpy <- function(id_run) {
+  suppressMessages(allocate(
+    db,
+    id_periods = 4L,
+    allocator = alloc_clumpy_spec(),
+    select_score = "classif.auc",
+    select_maximize = TRUE,
+    id_run = id_run,
+    update_neighbors = FALSE
+  ))
+}
+set.seed(1)
+caller_state <- .Random.seed
+alloc_clumpy(8:10)
+expect_identical(.Random.seed, caller_state)
+# the same seed gives the same map, a different one another map
+expect_equal(lulc_of(9L, 4L), lulc_of(8L, 4L))
+expect_false(isTRUE(all.equal(lulc_of(10L, 4L), lulc_of(8L, 4L))))
+# on its own, a run replays the map it got within the batch
+alloc_clumpy(11L)
+expect_equal(lulc_of(11L, 4L), lulc_of(8L, 4L))
+
+# allocate_one_period() allocates several runs on their parent's context, with their seeds
+shared <- suppressMessages(allocate_one_period(
+  db,
+  id_period_post = 4L,
+  allocator = alloc_clumpy_spec(),
+  select_score = "classif.auc",
+  select_maximize = TRUE,
+  id_run = c(8L, 10L),
+  potentials_ancestor = 1L
+))
+expect_equal(
+  as.data.frame(shared[id_run == 8L, .(id_coord, id_lulc)]),
+  as.data.frame(lulc_of(8L, 4L))
+)
+expect_equal(
+  as.data.frame(shared[id_run == 10L, .(id_coord, id_lulc)]),
+  as.data.frame(lulc_of(10L, 4L))
 )
 expect_error(
   allocate_one_period(
     db,
     id_period_post = 4L,
+    allocator = alloc_clumpy_spec(),
+    select_score = "classif.auc",
+    select_maximize = TRUE,
+    id_run = c(8L, 1L),
+    potentials_ancestor = 1L
+  ),
+  "if allocating for multiple runs, they must share their ancestor"
+)
+
+# on mirai daemons, a seeded run gets the same map as on the calling process
+if (requireNamespace("evoland.plus", quietly = TRUE)) {
+  db$runs_t <- as_runs_t(rbind(
+    db$runs_t,
+    data.table::data.table(
+      id_run = 12:13,
+      parent_id_run = 3L,
+      description = "clumpy realisation on daemons",
+      rng_seed = c(42L, 43L),
+      id_period_eval_start = 4L
+    ),
+    fill = TRUE
+  ))
+  mirai::daemons(2)
+  alloc_clumpy(12:13)
+  mirai::daemons(0)
+  expect_equal(lulc_of(12L, 4L), lulc_of(8L, 4L))
+  expect_equal(lulc_of(13L, 4L), lulc_of(10L, 4L))
+}
+
+# --------------------------------------------------------------------------
+# Argument checks
+# --------------------------------------------------------------------------
+expect_error(
+  allocate(
+    db,
+    id_periods = c(1L, 3L),
+    allocator = alloc_greedy_spec(),
+    select_score = "classif.auc",
+    select_maximize = TRUE
+  ),
+  "id_periods must be contiguous"
+)
+expect_error(
+  allocate(
+    db,
+    id_periods = 4L,
+    allocator = alloc_greedy_spec(),
+    select_score = "classif.auc",
+    select_maximize = TRUE,
+    id_run = c(1L, 1L)
+  ),
+  "id_run must be distinct integers"
+)
+expect_error(
+  allocate_one_period(
+    db,
+    id_period_post = 4L,
+    allocator = alloc_greedy_spec(),
     select_score = "classif.auc",
     select_maximize = TRUE,
     id_run = 4L,

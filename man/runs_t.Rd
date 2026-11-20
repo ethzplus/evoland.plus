@@ -23,6 +23,9 @@ A data.table of class "runs_t" with columns:
 \item \code{id_run}: Unique ID for each run; 0 is the base run
 \item \code{parent_id_run}: The run this run inherits data from; \code{NA} for the base run
 \item \code{description}: Human-readable description of the run
+\item \code{rng_seed}: Seed for the run's allocation, see \code{\link[=allocate]{allocate()}}; \code{NA} for none
+\item \code{id_period_eval_start}: First period the run allocates itself, i.e. where it branches
+off its parent, see \code{\link[=allocate]{allocate()}}; \code{NA} for none
 }
 }
 \description{
@@ -32,6 +35,11 @@ feature that allows one to label data that is either overriding base data (e.g.
 predictors being used for forecasting) or produced by a specific model experiment
 (e.g. a given allocation of land use change given a set of transition potential
 models and allocation parameters).
+}
+\details{
+Like any evoland.plus table, \code{runs_t} takes columns beyond the ones listed below, e.g. to
+document how a run was made (its allocator, model selection, ...): add them to the table
+you assign or commit.
 }
 \section{Methods (by generic)}{
 \itemize{

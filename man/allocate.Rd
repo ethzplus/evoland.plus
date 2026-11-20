@@ -12,10 +12,10 @@ allocate(
   select_score,
   select_maximize,
   id_run = 0L,
-  potentials_ancestor = 0L,
   force_predict = FALSE,
   update_neighbors = TRUE,
-  checkpoint = FALSE
+  checkpoint = FALSE,
+  compute = "default"
 )
 
 allocate_one_period(
@@ -41,16 +41,11 @@ model for prediction, see \code{\link[=predict_trans_pot]{predict_trans_pot()}}.
 
 \item{select_maximize}{Logical; maximize (\code{TRUE}) or minimize (\code{FALSE}) \code{select_score}.}
 
-\item{id_run}{Integer; the run to allocate. It reads its anterior map, demand and
-allocation parameters through its lineage, and the allocated maps are written under it.}
-
-\item{potentials_ancestor}{Integer; how many generations up the lineage of \code{id_run} to
-take the transition potentials from: \code{0} (default) the run itself, \code{1} its parent, \code{2} its
-grandparent. They are predicted under that run if missing. Use \code{1} to let sibling runs
-(e.g. a Monte Carlo ensemble of allocations) share their parent's potentials. \code{2} only
-makes sense if the parent's siblings share the same transition potentials too. Above \code{0}
-for a single period only: from the second period on, the anterior map is the run's own
-allocation, which its ancestors cannot see.}
+\item{id_run}{Integer vector of distinct runs to allocate. Each reads its anterior map,
+demand and allocation parameters through its lineage, and its allocated maps are written
+under it. For \code{allocate_one_period()}, several runs must share their ancestor
+\code{potentials_ancestor} generations up, and are all allocated on the context read under that
+ancestor: their own rates and allocation parameters are not read.}
 
 \item{force_predict}{Logical; if \code{TRUE}, predict the transition potentials even if
 \code{trans_pot_t} already holds them for that run and the period.}
@@ -69,32 +64,42 @@ processes allocate into the same database at the same time: a checkpoint rewrite
 they may be reading. How many snapshots it expires depends on the retention set on the
 database, see \link{ducklake_db}.}
 
+\item{compute}{Name of the mirai compute profile to allocate the runs of a period on, see
+\code{\link[=map_evoland]{map_evoland()}}.}
+
 \item{id_period_post}{Integer posterior period ID.}
+
+\item{potentials_ancestor}{Integer; how many generations up the lineage of \code{id_run} to
+take the transition potentials from: \code{0} (default) the run itself, \code{1} its parent, \code{2} its
+grandparent. They are predicted under that run if missing. Use \code{1} to let sibling runs
+(e.g. a Monte Carlo ensemble of allocations) share their parent's potentials. \code{2} only
+makes sense if the parent's siblings share the same transition potentials too. \code{allocate()}
+takes the parent's potentials where a run branches off, see Description.}
 }
 \value{
 \code{allocate()}: called for its side effects on \code{lulc_data_t} and \code{pred_data_t};
 returns \code{NULL} invisibly. \code{allocate_one_period()}: an \link{lulc_data_t} with the posterior
-map.
+map of each run.
 }
 \description{
 \emph{Allocation} places the projected quantity of change on the map: for each period, it turns
 the land use at the start of the period (the \emph{anterior} map) into the land use at its end
 (the \emph{posterior} map), given the transition potentials and the demanded transition rates.
 
-\code{allocate()} runs a contiguous sequence of periods. For each period it
+\code{allocate()} runs a contiguous sequence of periods for one or more runs. For each period it
 \enumerate{
 \item predicts the transition potentials if \code{trans_pot_t} does not hold them yet, see
 \code{\link[=predict_trans_pot]{predict_trans_pot()}};
 \item builds the allocation context: the anterior map, the allocation-ready potentials
 (\code{\link[=adjusted_trans_pot_v]{adjusted_trans_pot_v()}}), the viable transitions, the quantity of change per
 transition and the allocation parameters;
-\item hands the context to the allocator, which returns the posterior map;
-\item commits the map to \code{lulc_data_t}, together with the neighbor predictors the next period
-is predicted from, in one transaction.
+\item hands the context to the allocator, once per run, which returns the posterior map;
+\item commits the maps of all runs to \code{lulc_data_t}, together with the neighbor predictors the
+next period is predicted from, in one transaction.
 }
 
-\code{allocate_one_period()} runs steps 1-3 for one period and returns the map without
-committing it. Use it to write your own loop: edit \code{trans_pot_t} between prediction and
+\code{allocate_one_period()} runs steps 1-3 for one period and returns the maps without
+committing them. Use it to write your own loop: edit \code{trans_pot_t} between prediction and
 allocation (e.g. theory-driven shifts in potential due to policy interventions), edit the
 allocated map afterwards, or draw an ensemble of single-period realisations. Commit the map
 with \code{db$commit(x, "lulc_data_t", method = "upsert")} and, if a later period follows, run
@@ -102,10 +107,35 @@ with \code{db$commit(x, "lulc_data_t", method = "upsert")} and, if a later perio
 
 The allocator is one of \code{\link[=alloc_clumpy_spec]{alloc_clumpy_spec()}} (stochastic, unbiased; the default),
 \code{\link[=alloc_greedy_spec]{alloc_greedy_spec()}} (deterministic rank-and-fill) or \code{\link[=alloc_dinamica_spec]{alloc_dinamica_spec()}} (Dinamica
-EGO's expander and patcher).
+EGO's expander and patcher). It is not recorded: to document it, add a column to
+\link{runs_t}.
+}
+\section{Runs, branches and seeds}{
+\code{allocate()} takes a vector of runs, e.g. an ensemble of stochastic realisations, or runs
+that branch off one another. It reads two columns of \link{runs_t}:
+\itemize{
+\item \code{id_period_eval_start}: the period a run \emph{branches off} its parent. The run allocates the
+periods of \code{id_periods} from this one on, and reads the earlier ones from its lineage.
+Without it, the run allocates every period of \code{id_periods}.
+\item \code{rng_seed}: before allocating a period, R's default random number generator is seeded
+with \code{rng_seed + id_period}, so that a run's maps replay whichever runs it is allocated
+with, and on whichever process.
+Runs without a seed draw from the caller's generator. Seeding does not change the state
+of the caller's generator.
+}
+
+Periods are allocated one after the other, and each for all runs that have reached it, so
+that a branch finds the maps of the run it branches off. In the period it branches off, a
+run allocates on its parent's transition potentials, unless it holds its own: predictors
+before that period, the anterior map or potentials. Branches that also hold no
+rates or allocation parameters of their own share their parent's allocation context: it is
+built once, and each of them allocated on it in turn. The runs of a period are spread over
+the mirai daemons of \code{compute}, see \code{\link[=map_evoland]{map_evoland()}}, and their maps committed once all are
+done; transition potentials are predicted beforehand, on the calling process.
 
 The quantity of change is the same for every allocator: each viable transition changes
 \code{round(rate * n_anterior)} cells, where \code{rate} is the transition's rate in \code{trans_rates_t}
 for the posterior period and \code{n_anterior} the number of cells of its anterior class in the
 anterior map. Transitions without a rate change no cells.
 }
+
