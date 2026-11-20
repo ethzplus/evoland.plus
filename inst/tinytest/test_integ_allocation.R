@@ -240,7 +240,12 @@ expect_equal(
 # --------------------------------------------------------------------------
 db$runs_t <- as_runs_t(rbind(
   db$runs_t,
-  list(id_run = 5, parent_id_run = 3, description = "no neighbour update", id_period_eval_start = 4),
+  list(
+    id_run = 5,
+    parent_id_run = 3,
+    description = "no neighbour update",
+    id_period_eval_start = 4
+  ),
   fill = TRUE
 ))
 count_run_5_preds <- function() {
@@ -322,8 +327,18 @@ expect_identical(evoland.plus:::allocation_context(db, 4L, 7L, 7L)$anterior, lul
 expect_equal(lulc_of(7L, 4L), lulc_of(6L, 4L))
 # where it branches off, run 7 shares run 6's potentials and allocation context
 expect_equal(
-  evoland.plus:::allocation_schedule(db, 3:4, 6:7)[, .(id_period, id_run, potentials_run, context_run)],
-  data.table::data.table(id_period = c(3L, 4L, 4L), id_run = c(6L, 6L, 7L), potentials_run = 6L, context_run = 6L)
+  evoland.plus:::allocation_schedule(db, 3:4, 6:7)[, .(
+    id_period,
+    id_run,
+    potentials_run,
+    context_run
+  )],
+  data.table::data.table(
+    id_period = c(3L, 4L, 4L),
+    id_run = c(6L, 6L, 7L),
+    potentials_run = 6L,
+    context_run = 6L
+  )
 )
 expect_equal(
   db$get_query("select count(*) from dl_db.trans_pot_t where id_run = 7", as_atomic = TRUE),
@@ -388,8 +403,14 @@ shared <- suppressMessages(allocate_one_period(
   id_run = c(8L, 10L),
   potentials_ancestor = 1L
 ))
-expect_equal(as.data.frame(shared[id_run == 8L, .(id_coord, id_lulc)]), as.data.frame(lulc_of(8L, 4L)))
-expect_equal(as.data.frame(shared[id_run == 10L, .(id_coord, id_lulc)]), as.data.frame(lulc_of(10L, 4L)))
+expect_equal(
+  as.data.frame(shared[id_run == 8L, .(id_coord, id_lulc)]),
+  as.data.frame(lulc_of(8L, 4L))
+)
+expect_equal(
+  as.data.frame(shared[id_run == 10L, .(id_coord, id_lulc)]),
+  as.data.frame(lulc_of(10L, 4L))
+)
 expect_error(
   allocate_one_period(
     db,
