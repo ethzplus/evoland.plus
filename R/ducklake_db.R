@@ -1031,9 +1031,6 @@ ducklake_db <- R6::R6Class(
     },
 
     # cleanup new_data_v and related tables
-    # Only the statement that matches how new_data_v was made: inside a transaction, a failing
-    # one (e.g. unregistering a temp table) aborts the whole transaction, even though the
-    # error itself is caught here
     cleanup_new_data_v = function() {
       kind <- private$new_data_v_kind
       private$new_data_v_kind <- NULL

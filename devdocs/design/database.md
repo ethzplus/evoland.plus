@@ -244,14 +244,15 @@ A child run inherits every slice of data it does not override: reading a run-dep
 For instance, a run that only overrides one predictor reads all other predictors from its parent, and so on up to the base run.
 
 Users add columns to `runs_t` to document how a run was made (allocator, model selection, anything else); the package does not record these itself.
-`allocate()` reads two optional columns, neither of which is inherited:
+Two more columns, `NA` where unset and not inherited, are read by `allocate()`:
 
-| colname              | type          | description                                                         |
-| -------------------- | ------------- | ------------------------------------------------------------------- |
-| rng_seed             | int, nullable | Seeds R's random number generator for the run's allocation          |
-| id_period_eval_start | int, nullable | First period the run allocates itself; earlier ones are its lineage's |
+| colname              | type          | description                                                       |
+| -------------------- | ------------- | ----------------------------------------------------------------- |
+| rng_seed             | int, nullable | Seeds R's random number generator, plus the period, for allocation |
+| id_period_eval_start | int, nullable | Period the run branches off its parent; earlier ones are its lineage's |
 
-Given a vector of runs, `allocate()` goes period by period, each for every run that has reached its `id_period_eval_start`, so that a branch finds the maps of the run it branches off.
+Given several runs, `allocate()` goes period by period, each for every run that has reached its `id_period_eval_start`, so that a branch finds the maps of the run it branches off.
+At its branching period, a run uses its parent's potentials, and shares its parent's allocation context if it holds no inputs of its own.
 
 ### `lulc_meta_t` + `lulc_data_t`
 

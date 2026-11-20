@@ -61,7 +61,11 @@ evoland_db <- R6::R6Class(
         # tables or neither -- and costs one snapshot rather than two
         self$transaction({
           self$set_report(...)
-          self$commit(as_runs_t(), "runs_t", method = "upsert")
+          # only when missing: upserting the base run would reset its rng_seed and
+          # id_period_eval_start each time the database is opened
+          if (self$row_count("runs_t", where = "id_run = 0") == 0L) {
+            self$commit(as_runs_t(), "runs_t", method = "upsert")
+          }
         })
       }
       invisible(self)

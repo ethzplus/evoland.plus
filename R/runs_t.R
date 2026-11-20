@@ -8,14 +8,8 @@
 #' models and allocation parameters).
 #'
 #' Like any evoland.plus table, `runs_t` takes columns beyond the ones listed below, e.g. to
-#' document how a run was made: add them to the table you assign or commit. Two optional
-#' columns are read by [allocate()]:
-#' - `rng_seed` (int): seed of R's random number generator for the run's allocation, so that
-#'   a stochastic allocator (e.g. CLUMPY) replays from the database. `NA` or absent: the run
-#'   draws from the caller's generator.
-#' - `id_period_eval_start` (int): the first period the run allocates itself, i.e. where its
-#'   maps branch off its parent's; earlier periods are read from its lineage. `NA` or absent:
-#'   the run allocates every period it is given.
+#' document how a run was made (its allocator, model selection, ...): add them to the table
+#' you assign or commit.
 #'
 #' @name runs_t
 #'
@@ -25,8 +19,9 @@
 #'   - `id_run`: Unique ID for each run; 0 is the base run
 #'   - `parent_id_run`: The run this run inherits data from; `NA` for the base run
 #'   - `description`: Human-readable description of the run
-#'   - optionally `rng_seed` and `id_period_eval_start`, see Description, and any other
-#'     columns the user adds
+#'   - `rng_seed`: Seed for the run's allocation, see [allocate()]; `NA` for none
+#'   - `id_period_eval_start`: First period the run allocates itself, i.e. where it branches
+#'     off its parent, see [allocate()]; `NA` for none
 #' @export
 as_runs_t <- function(x) {
   if (missing(x)) {
@@ -37,12 +32,15 @@ as_runs_t <- function(x) {
     )
   }
 
-  data.table::setDT(x) |>
-    cast_dt_col("id_run", "int") |>
-    cast_dt_col("parent_id_run", "int")
-  for (col in intersect(RUN_INT_COLS, names(x))) {
-    cast_dt_col(x, col, "int")
+  data.table::setDT(x)
+  for (col in c("rng_seed", "id_period_eval_start")) {
+    if (!col %in% names(x)) data.table::set(x, j = col, value = NA_integer_)
   }
+  x |>
+    cast_dt_col("id_run", "int") |>
+    cast_dt_col("parent_id_run", "int") |>
+    cast_dt_col("rng_seed", "int") |>
+    cast_dt_col("id_period_eval_start", "int")
 
   as_ducklake_db_t(
     x,
@@ -60,18 +58,17 @@ validate.runs_t <- function(x, ...) {
     c(
       "id_run",
       "parent_id_run",
-      "description"
+      "description",
+      "rng_seed",
+      "id_period_eval_start"
     )
   )
 
   stopifnot(
     "id_run is not integer" = is.integer(x[["id_run"]]),
     "parent_id_run is not integer" = is.integer(x[["parent_id_run"]]),
-    "rng_seed and id_period_eval_start must be integer" = all(vapply(
-      intersect(RUN_INT_COLS, names(x)),
-      function(col) is.integer(x[[col]]),
-      logical(1L)
-    )),
+    "rng_seed is not integer" = is.integer(x[["rng_seed"]]),
+    "id_period_eval_start is not integer" = is.integer(x[["id_period_eval_start"]]),
     "all parent_id_run must be in id_run or NA" = all(
       is.na(x[["parent_id_run"]]) | x[["parent_id_run"]] %in% x[["id_run"]]
     ),
@@ -131,16 +128,4 @@ get_lineage <- function(runs_t, id_run) {
   }
 
   lineage
-}
-
-# optional columns of runs_t that allocate() reads, see as_runs_t()
-RUN_INT_COLS <- c("rng_seed", "id_period_eval_start")
-
-# The value of an optional integer column of runs_t for each of `id_run`; NA where the run
-# has none, or the table lacks the column
-get_run_col <- function(runs, id_run, col) {
-  if (!col %in% names(runs)) {
-    return(rep(NA_integer_, length(id_run)))
-  }
-  as.integer(runs[[col]][match(id_run, runs[["id_run"]])])
 }

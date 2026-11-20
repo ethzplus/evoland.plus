@@ -238,3 +238,11 @@ map_evoland <- function(
     .compute = compute
   )[.stop]
 }
+
+# The number of daemons map_evoland() spreads items over on `compute`; 1 when it runs serially
+n_evoland_workers <- function(compute = "default") {
+  if (is.null(compute) || !mirai::daemons_set(.compute = compute)) {
+    return(1L)
+  }
+  mirai::info(.compute = compute)[["connections"]]
+}

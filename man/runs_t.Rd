@@ -23,8 +23,9 @@ A data.table of class "runs_t" with columns:
 \item \code{id_run}: Unique ID for each run; 0 is the base run
 \item \code{parent_id_run}: The run this run inherits data from; \code{NA} for the base run
 \item \code{description}: Human-readable description of the run
-\item optionally \code{rng_seed} and \code{id_period_eval_start}, see Description, and any other
-columns the user adds
+\item \code{rng_seed}: Seed for the run's allocation, see \code{\link[=allocate]{allocate()}}; \code{NA} for none
+\item \code{id_period_eval_start}: First period the run allocates itself, i.e. where it branches
+off its parent, see \code{\link[=allocate]{allocate()}}; \code{NA} for none
 }
 }
 \description{
@@ -37,16 +38,8 @@ models and allocation parameters).
 }
 \details{
 Like any evoland.plus table, \code{runs_t} takes columns beyond the ones listed below, e.g. to
-document how a run was made: add them to the table you assign or commit. Two optional
-columns are read by \code{\link[=allocate]{allocate()}}:
-\itemize{
-\item \code{rng_seed} (int): seed of R's random number generator for the run's allocation, so that
-a stochastic allocator (e.g. CLUMPY) replays from the database. \code{NA} or absent: the run
-draws from the caller's generator.
-\item \code{id_period_eval_start} (int): the first period the run allocates itself, i.e. where its
-maps branch off its parent's; earlier periods are read from its lineage. \code{NA} or absent:
-the run allocates every period it is given.
-}
+document how a run was made (its allocator, model selection, ...): add them to the table
+you assign or commit.
 }
 \section{Methods (by generic)}{
 \itemize{

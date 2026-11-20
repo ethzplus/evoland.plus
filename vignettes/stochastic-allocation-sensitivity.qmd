@@ -250,7 +250,7 @@ db$alloc_params_t <- db$create_alloc_params_t()
 
 The central idea of this tutorial is that **each stochastic allocation is a separate run**. We therefore create 30 run records and propagate the same baseline allocation parameters to each run.
 
-As with all evoland.plus tables, `runs_t` only ensures a minimum set of columns, so we can add columns when overwriting: a `kind` that documents the run, and `rng_seed`, which `allocate()` reads to seed each run's allocation.
+As with all evoland.plus tables, `runs_t` only ensures a minimum set of columns, so we can add columns when overwriting: a `kind` that documents the run. `runs_t` also has two columns that `allocate()` reads: `rng_seed` seeds each run's allocation, and `id_period_eval_start` is the period a run branches off its parent.
 
 ```{r}
 #| label: register-runs
@@ -260,14 +260,16 @@ runs_new <-
     parent_id_run = NA_integer_, # NA for the scenario root
     description = "base",
     kind = "synthetic 'historical' case",
-    rng_seed = NA_integer_
+    rng_seed = NA_integer_,
+    id_period_eval_start = NA_integer_
   )[
     id_run > 0,
     `:=`(
       parent_id_run = 0L,
       description = paste("stochastic allocation", id_run),
       kind = "allocation sensitivity",
-      rng_seed = id_run + 100L
+      rng_seed = id_run + 100L,
+      id_period_eval_start = 4L # branch off the base run in the first extrapolated period
     )
   ]
 
@@ -282,9 +284,10 @@ Note that we do **not** copy the allocation parameters into each run. Every stoc
 ## Running one extrapolated period 30 times
 
 We only allocate the first extrapolated period. This makes the comparison easier to interpret: every realization starts from the same observed state.
-We pass all runs to `allocate()` at once: for each run it allocates the single extrapolated period (`id_period = 4`) under that run's `id_run` -- which controls both the lineage that allocation reads from and the `id_run` stamped on the results it writes -- with R's random number generator seeded from that run's `rng_seed`.
+We pass all runs to `allocate()` at once: for each run it allocates the single extrapolated period (`id_period = 4`) under that run's `id_run` -- which controls both the lineage that allocation reads from and the `id_run` stamped on the results it writes -- with R's random number generator seeded from that run's `rng_seed` and the period.
 Each realization can therefore be replayed from the database alone, and allocating a run again, alone or with others, gives the same map.
-All runs share the transition potentials of their parent, the base run (`potentials_ancestor = 1L`, one generation up), so they are predicted once.
+Since every run branches off the base run in period 4 and holds no inputs of its own, all runs share their parent's transition potentials and allocation context: both are prepared once, and each run is allocated on them in turn.
+With mirai daemons set (e.g. `mirai::daemons(4)`), the runs are spread over them.
 Because only the seed changes between iterations, the resulting maps differ purely through allocation stochasticity.
 
 ```{r}
@@ -296,8 +299,7 @@ allocate(
   allocator = alloc_clumpy_spec(),
   select_score = "no.crossval",
   select_maximize = TRUE,
-  id_run = run_ids,
-  potentials_ancestor = 1L
+  id_run = run_ids
 )
 ```
 
