@@ -79,7 +79,7 @@ allocate <- function(
   allocator = alloc_clumpy_spec(),
   select_score,
   select_maximize,
-  id_run = db$id_run,
+  id_run = 0L,
   potentials_ancestor = 0L,
   force_predict = FALSE,
   update_neighbors = TRUE,
@@ -137,7 +137,7 @@ allocate_one_period <- function(
   allocator = alloc_clumpy_spec(),
   select_score,
   select_maximize,
-  id_run = db$id_run,
+  id_run = 0L,
   potentials_ancestor = 0L,
   force_predict = FALSE
 ) {

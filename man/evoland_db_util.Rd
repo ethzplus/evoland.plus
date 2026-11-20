@@ -6,7 +6,7 @@
 \alias{run_parallel_evoland}
 \title{Utility functions and methods for \code{evoland_db}}
 \usage{
-get_evoland_db_read_expr(self, super, table_name, id_run = self$id_run)
+get_evoland_db_read_expr(self, super, table_name, id_run)
 
 run_parallel_evoland(items, worker_fun, parent_db, cluster = NULL, ...)
 }
@@ -17,7 +17,7 @@ run_parallel_evoland(items, worker_fun, parent_db, cluster = NULL, ...)
 
 \item{table_name}{The name of the table to read from}
 
-\item{id_run}{Integer, the run whose lineage is read; defaults to the active run}
+\item{id_run}{Integer, the run whose lineage is read; \code{NULL} reads every run as stored}
 
 \item{items}{A list of items to iterate over}
 

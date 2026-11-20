@@ -11,7 +11,7 @@
 \usage{
 as_trans_rates_t(x)
 
-get_obs_trans_rates(self)
+get_obs_trans_rates(self, id_run = 0L)
 
 extrapolate_trans_rates(obs_rates, periods)
 
@@ -23,6 +23,9 @@ trans_rate_areas(lulc_data, rates, trans_meta)
 \item{x}{A list or data.frame coercible to a data.table}
 
 \item{self}{a DB instance}
+
+\item{id_run}{Integer; the run whose land use is read, through its lineage, and whose
+\code{id_run} the rates carry}
 
 \item{obs_rates}{A trans_rates_t table of observed transition rates for historical periods}
 

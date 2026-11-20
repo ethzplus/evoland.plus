@@ -45,8 +45,8 @@ create_change_map <- function(initial_map, final_map, from_class = NULL, to_clas
 #'
 #' @param self An [evoland_db] instance
 #' @param id_period_anterior,id_period_post Integer, the two periods to compare
-#' @param id_run_anterior Integer, run to read `id_period_anterior` from; defaults to the active
-#'   run
+#' @param id_run_anterior Integer, run to read `id_period_anterior` from; defaults to the root
+#'   run, 0
 #' @param id_run_post Integer, run to read `id_period_post` from; defaults to `id_run_anterior`
 #'
 #' @return A [data.table::data.table()] with `id_lulc_anterior`, `id_lulc_posterior` and
@@ -58,13 +58,13 @@ lulc_crosstab_v <- function(
   self,
   id_period_anterior,
   id_period_post,
-  id_run_anterior = self$id_run,
+  id_run_anterior = 0L,
   id_run_post = id_run_anterior
 ) {
   stopifnot(
     "id_period_anterior must be a single integer" = is_scalar_integerish(id_period_anterior),
     "id_period_post must be a single integer" = is_scalar_integerish(id_period_post),
-    "id_run_anterior must be a single integer; set an active run or pass it" = is_scalar_integerish(
+    "id_run_anterior must be a single integer" = is_scalar_integerish(
       id_run_anterior
     ),
     "id_run_post must be a single integer" = is_scalar_integerish(id_run_post)
@@ -128,7 +128,7 @@ lulc_crosstab_v <- function(
 #' @param id_period_post Integer, period of the observed and simulated maps
 #' @param id_run_reference Integer, run holding the initial and observed maps
 #' @param id_run_simulated Integer vector, runs holding the simulated maps; defaults to the
-#'   active run
+#'   root run, 0
 #' @param by_transition Logical; if `TRUE`, report per transition instead of overall.
 #' @param exclude_id_lulc Integer vector of classes; cells whose class in the reference run, at
 #'   `id_period_anterior` or `id_period_post`, is one of them are ignored. Default none.
@@ -152,7 +152,7 @@ figure_of_merit_v <- function(
   id_period_anterior,
   id_period_post,
   id_run_reference,
-  id_run_simulated = self$id_run,
+  id_run_simulated = 0L,
   by_transition = FALSE,
   exclude_id_lulc = integer(0)
 ) {

@@ -1176,3 +1176,27 @@ expect_error(
   ),
   "Duplicate key found"
 )
+
+# a read through a table binding that runs past binding_timeout is interrupted with an error, the
+# connection stays usable, and the limit applies to that read only; $fetch() has none
+as_slow_t <- function(x) x
+slow_db_class <- R6::R6Class(
+  "slow_db",
+  inherit = ducklake_db,
+  active = list(slow_t = evoland.plus:::create_table_binding("slow_t"))
+)
+db_slow <- slow_db_class$new(path = tempfile(), binding_timeout = 1)
+db_slow$execute(
+  "create view dl_db.slow_t as
+   select count(*) as n from range(30000000) a, range(1000) b where a.range * b.range = 7"
+)
+expect_error(db_slow$slow_t, "Reading `slow_t` through its table binding took longer than 1")
+expect_equal(db_slow$get_query("select 42 as x", as_atomic = TRUE), 42L)
+expect_equal(
+  db_slow$get_query("select current_setting('max_execution_time')", as_atomic = TRUE),
+  0
+)
+expect_error(
+  ducklake_db$new(path = tempfile(), binding_timeout = 0),
+  "binding_timeout must be NULL"
+)

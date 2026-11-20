@@ -280,7 +280,30 @@ create_table_binding <- function(
       md <- .(mode)
 
       if (missing(x)) {
-        fetched <- self$fetch(table_name = tbl)
+        # a binding is an interactive view, so its read is cut off after binding_timeout;
+        # DuckDB's limit holds for the whole connection, so it is set for this read only
+        if (!is.null(self$binding_timeout)) {
+          # at least 1 ms, as 0 means no limit
+          self$execute(
+            "set max_execution_time = {max(1, round(self$binding_timeout * 1000))}"
+          )
+          on.exit(self$execute("reset max_execution_time"), add = TRUE)
+        }
+        fetched <- tryCatch(self$fetch(table_name = tbl), error = function(e) {
+          if (!grepl("exceeded maximum execution time", conditionMessage(e), fixed = TRUE)) {
+            stop(e)
+          }
+          stop(
+            "Reading `",
+            tbl,
+            "` through its table binding took longer than ",
+            self$binding_timeout,
+            " seconds and was interrupted. Read a large table with ",
+            "`$fetch()`, narrowed with `where` or `id_run`, or raise the database's ",
+            "`binding_timeout`.",
+            call. = FALSE
+          )
+        })
         as_fn <- paste0("as_", tbl) |> get()
         return(as_fn(fetched))
       }

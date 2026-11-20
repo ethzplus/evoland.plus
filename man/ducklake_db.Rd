@@ -44,6 +44,10 @@ which doubles per attempt up to 64 times this}
 
     \item{\code{retry_max}}{Integer, maximum number of attempts in case something retries
 faster than \code{retry_timeout} can measure.}
+
+    \item{\code{binding_timeout}}{Numeric or \code{NULL}, how long in seconds a read through a table
+binding may take before it is interrupted with an error; \code{NULL} never interrupts. See
+\code{initialize()}.}
   }
   \if{html}{\out{</div>}}
 }
@@ -82,7 +86,8 @@ faster than \code{retry_timeout} can measure.}
   data_path = NULL,
   sqlite_journal_mode = "wal",
   expire_older_than = NULL,
-  delete_older_than = NULL
+  delete_older_than = NULL,
+  binding_timeout = 2
 )}
     \if{html}{\out{</div>}}
   }
@@ -110,6 +115,11 @@ interval DuckDB reads, e.g. \code{"7 days"}: how old a snapshot must be before i
 expired, and how old an unreferenced file must be before it is deleted. Stored in
 the catalog but can be overwritten by passing. Default to NULL, discarding
 nothing.}
+      \item{\code{binding_timeout}}{Numeric or \code{NULL}, how long in seconds a read through a table
+binding (\verb{db$<table>}) may take before it is interrupted with an error; default 2.
+Table bindings are an interactive view into the database, so a read that takes longer
+is most likely a large table read whole by accident. \verb{$fetch()} has no limit. \code{NULL}
+never interrupts.}
     }
     \if{html}{\out{</div>}}
   }
@@ -235,7 +245,7 @@ constructs.}
   Fetch data from a table
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
-    \preformatted{ducklake_db$fetch(table_name, cols = NULL, where = NULL, limit = NULL)}
+    \preformatted{ducklake_db$fetch(table_name, cols = NULL, where = NULL, limit = NULL, ...)}
     \if{html}{\out{</div>}}
   }
   \subsection{Arguments}{
@@ -246,6 +256,7 @@ constructs.}
       \item{\code{where}}{Character string. Optional WHERE clause for the SQL query (e.g.
 \verb{id_pred in (0,4,5)})}
       \item{\code{limit}}{Integer. Optional limit on number of rows to return.}
+      \item{\code{...}}{Passed to \verb{$get_read_expr()}, e.g. a subclass's own filters.}
     }
     \if{html}{\out{</div>}}
   }

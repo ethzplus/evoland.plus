@@ -14,9 +14,9 @@ NULL
 #' @param self The `evoland_db` instance
 #' @param super The superclass (parent class) environment.
 #' @param table_name The name of the table to read from
-#' @param id_run Integer, the run whose lineage is read; defaults to the active run
+#' @param id_run Integer, the run whose lineage is read; `NULL` reads every run as stored
 #' @return A SQL expression string to read most specific data for slice
-get_evoland_db_read_expr <- function(self, super, table_name, id_run = self$id_run) {
+get_evoland_db_read_expr <- function(self, super, table_name, id_run) {
   base_read_expr <- super$get_read_expr(table_name)
   all_cols <- self$get_query(
     "select column_name from (describe {base_read_expr})",
@@ -47,19 +47,14 @@ get_evoland_db_read_expr <- function(self, super, table_name, id_run = self$id_r
 
   # .envir, or the statement would be interpolated in this helper's frame
   sql <- function(...) glue::glue_sql(..., .con = self$connection, .envir = parent.frame())
-  # the active run's lineage is cached; another run's is looked up
-  run_lineage <- if (isTRUE(id_run == self$id_run)) {
-    self$run_lineage
-  } else {
-    get_lineage(self$runs_t, as.integer(id_run))
-  }
+  run_lineage <- get_lineage(self$runs_t, as.integer(id_run))
 
-  # Single run in lineage: just filter for active id_run
+  # Single run in lineage: just filter for id_run
   if (length(run_lineage) == 1L) {
     return(sql("(select * from {base_read_expr} where id_run = {id_run})"))
   }
 
-  # map each id_run in lineage to its distance from the active run; used to
+  # map each id_run in lineage to its distance from the requested run; used to
   # find the minimum distance. e.g. if run_lineage is (3, 2, 0) we get
   # case id_run when 3 then 1 when 2 then 2 when 0 then 3 else 999999 end
   run_case <- sql(
@@ -193,13 +188,12 @@ run_parallel_evoland <- function(
   }
 
   # Wrapper function to manage DB connection inside the worker
-  wrapper <- function(item, worker_fun_inner, id_run, catalog, data_path, ...) {
+  wrapper <- function(item, worker_fun_inner, catalog, data_path, ...) {
     if (!exists("evoland_db")) {
       stop("evoland_db class not found on worker. Ensure package is installed.")
     }
 
     worker_db <- evoland_db$new(
-      id_run = id_run,
       read_only = TRUE,
       catalog = catalog,
       data_path = data_path
@@ -216,7 +210,6 @@ run_parallel_evoland <- function(
     X = items,
     fun = wrapper,
     worker_fun_inner = worker_fun,
-    id_run = parent_db$id_run,
     # workers must reach the same catalog and data files as the parent
     catalog = parent_db$catalog,
     data_path = parent_db$data_path,

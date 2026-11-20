@@ -89,8 +89,7 @@ expect_equal(nrow(lulc_of(1L, 4L)), 900L)
 expect_true(all(
   changes_of(lulc_of(1L, 4L))[!viable, on = .(id_lulc_anterior, id_lulc_posterior), .N] == 0L
 ))
-# the active run is left alone; the potentials were predicted under the allocated run
-expect_equal(db$id_run, 0L)
+# the potentials were predicted under the allocated run
 expect_equal(db$row_count("trans_pot_t"), n_potentials(lulc_of(0L, 3L)))
 expect_equal(
   db$get_query("select distinct id_run from dl_db.trans_pot_t", as_atomic = TRUE),
