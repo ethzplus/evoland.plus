@@ -17,7 +17,7 @@ fit_partial_models(
   measures,
   sample_frac = 0.7,
   seed = NULL,
-  cluster = NULL,
+  compute = "default",
   id_trans = NULL,
   id_period_anterior = NULL,
   id_run = 0L
@@ -28,7 +28,7 @@ fit_full_models(
   learner = NULL,
   select_score = NULL,
   select_maximize = TRUE,
-  cluster = NULL,
+  compute = "default",
   id_trans = NULL,
   id_period_anterior = NULL,
   id_run = 0L
@@ -59,8 +59,8 @@ testing).}
 
 \item{seed}{Optional integer seed for reproducible subsampling.}
 
-\item{cluster}{An optional cluster object created by \code{\link[parallel:makeCluster]{parallel::makeCluster()}} or
-\code{\link[mirai:make_cluster]{mirai::make_cluster()}}.}
+\item{compute}{Name of the mirai compute profile to run on, see \code{\link[=map_evoland]{map_evoland()}}: on its
+daemons when they are set, serially otherwise.}
 
 \item{id_trans}{Optional integer; filter by transition ID.}
 
