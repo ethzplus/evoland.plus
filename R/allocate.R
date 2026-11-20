@@ -248,17 +248,13 @@ allocate_one_period <- function(
     id_run = potentials_run
   )
 
-  item <-
-    data.table::data.table(
-      id_run = id_run,
-      # a single run reads its own anterior map, rates and allocation parameters
-      context_run = if (length(id_run) == 1L) id_run else potentials_run,
-      potentials_run = potentials_run
-    )[
-      runs,
-      on = "id_run",
-      rng_seed := i.rng_seed
-    ]
+  item <- data.table::data.table(
+    id_run = id_run,
+    rng_seed = runs[.(ids), on = "id_run", rng_seed, env = list(ids = I(id_run))],
+    # a single run reads its own anterior map, rates and allocation parameters
+    context_run = if (length(id_run) == 1L) id_run else potentials_run,
+    potentials_run = potentials_run
+  )
 
   allocate_on_context(
     item = item,
@@ -269,23 +265,14 @@ allocate_one_period <- function(
 }
 
 # Which run allocates which period, on whose potentials and allocation context: one row per
-# run and period, ordered by period. A run allocates from where it branches off
-# (id_period_eval_start) on. There, it takes its parent's potentials unless it holds inputs of
-# its own: an anterior map, predictors before the period or potentials. If it holds no rates
-# or allocation parameters of its own either, it shares its parent's whole context.
+# run and period, ordered by period; see inst/allocation_schedule.sql.
 allocation_schedule <- function(db, id_periods, id_run) {
-  # data.table expressions below would read id_run as the column
-  run_ids <- id_run
-  runs <- db$runs_t
-  unknown <- setdiff(run_ids, runs[["id_run"]])
-  if (length(unknown) > 0L) {
-    stop(glue::glue("Runs not in runs_t: {toString(unknown)}"), call. = FALSE)
+  runs <- db$runs_t[.(ids), on = "id_run", env = list(ids = I(id_run))]
+  unknown <- runs[is.na(description)]
+  if (nrow(unknown) > 0L) {
+    stop(glue::glue("Runs not in runs_t: {toString(unknown[['id_run']])}"), call. = FALSE)
   }
-
-  runs <- runs[.(run_ids), on = "id_run"][,
-    first := pmax(min(id_periods), id_period_eval_start, na.rm = TRUE)
-  ]
-  late <- runs[first > max(id_periods)]
+  late <- runs[id_period_eval_start > max(id_periods)]
   if (nrow(late) > 0L) {
     stop(
       glue::glue(
@@ -296,68 +283,29 @@ allocation_schedule <- function(db, id_periods, id_run) {
     )
   }
 
-  schedule <- runs[,
-    .(id_period = seq.int(first, max(id_periods))),
-    by = .(id_run, parent_id_run, rng_seed, id_period_eval_start, first)
-  ][,
-    `:=`(potentials_run = id_run, context_run = id_run)
-  ]
-
-  # where a run branches off, which of its inputs and context it holds itself
-  branching <-
-    schedule[
-      id_period == id_period_eval_start & !is.na(parent_id_run)
-    ][,
-      {
-        period <- .BY[["id_period"]]
-        own_inputs <- c(
-          runs_with_own_rows(db, "lulc_data_t", id_run, paste("id_period =", period - 1L)),
-          runs_with_own_rows(db, "pred_data_t", id_run, paste("id_period <", period)),
-          runs_with_own_rows(db, "trans_pot_t", id_run, paste("id_period_post =", period))
-        )
-        own_context <- c(
-          own_inputs,
-          runs_with_own_rows(db, "trans_rates_t", id_run, paste("id_period =", period)),
-          runs_with_own_rows(db, "alloc_params_t", id_run)
-        )
-        .(
-          id_run,
-          parent_id_run,
-          has_own_inputs = id_run %in% own_inputs,
-          has_own_context = id_run %in% own_context
-        )
-      },
-      by = id_period
-    ]
-
-  # the others take their parent's potentials, and its whole context if they hold none of it
-  schedule[
-    branching[has_own_inputs == FALSE],
-    on = .(id_run, id_period),
-    potentials_run := i.parent_id_run
-  ][
-    branching[has_own_context == FALSE],
-    on = .(id_run, id_period),
-    context_run := i.parent_id_run
-  ]
-
-  schedule <- schedule[
-    order(id_period),
-    .(id_period, id_run, rng_seed, potentials_run, context_run)
-  ]
-  data.table::setattr(schedule, "class", c("data.table", "data.frame"))
+  db$get_query(
+    read_sql("allocation_schedule.sql"),
+    id_run = id_run,
+    id_period_first = min(id_periods),
+    id_period_last = max(id_periods),
+    runs_read_expr = db$get_read_expr("runs_t"),
+    lulc_read_expr = own_rows_read_expr(db, "lulc_data_t"),
+    pred_read_expr = own_rows_read_expr(db, "pred_data_t"),
+    pot_read_expr = own_rows_read_expr(db, "trans_pot_t"),
+    rates_read_expr = own_rows_read_expr(db, "trans_rates_t"),
+    params_read_expr = own_rows_read_expr(db, "alloc_params_t")
+  )
 }
 
-# Those of `id_run` that hold rows of their own, matching `where`, in a table
-runs_with_own_rows <- function(db, table_name, id_run, where = "true") {
-  # data.table evaluates a grouped j once even on an empty table, with no runs
-  if (length(id_run) == 0L || !table_name %in% db$list_tables()) {
-    return(integer(0L))
+# Every run's own rows of a table, as stored; an empty stand-in for a table that does not exist
+# yet, e.g. trans_pot_t before the first prediction
+own_rows_read_expr <- function(db, table_name) {
+  if (table_name %in% db$list_tables()) {
+    return(db$get_read_expr(table_name))
   }
-  db$get_query(
-    "select distinct id_run from dl_db.{`table_name`}
-     where id_run in ({id_run*}) and ({DBI::SQL(where)})",
-    as_atomic = TRUE
+  DBI::SQL(
+    "(select null::integer as id_run, null::integer as id_period,
+      null::integer as id_period_post where false)"
   )
 }
 
