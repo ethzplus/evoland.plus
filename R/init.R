@@ -39,6 +39,7 @@ NULL
 #   tools:::.check_code_usage_in_package("evoland.plus")
 utils::globalVariables(c(
   ".",
+  ".BY",
   ".evoland_worker_db", # set on mirai daemons by map_evoland()
   ".I",
   ".N",
@@ -49,6 +50,7 @@ utils::globalVariables(c(
   "catalog", # set on mirai daemons by map_evoland()
   "cell",
   "cells",
+  "chunk",
   "context_run",
   "data_path", # set on mirai daemons by map_evoland()
   "did_transition",
@@ -61,12 +63,16 @@ utils::globalVariables(c(
   "frac_expander",
   "frac_patcher",
   "frequency_rel",
+  "has_own_context",
+  "has_own_inputs",
   "i.area",
   "i.cell",
   "i.gain",
   "i.id_lulc",
   "i.id_lulc_posterior",
   "i.loss",
+  "i.parent_id_run",
+  "i.rng_seed",
   "i.value",
   "id_coord",
   "id_lulc",

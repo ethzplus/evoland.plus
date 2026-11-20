@@ -32,11 +32,8 @@ as_runs_t <- function(x) {
     )
   }
 
-  data.table::setDT(x)
-  for (col in c("rng_seed", "id_period_eval_start")) {
-    if (!col %in% names(x)) data.table::set(x, j = col, value = NA_integer_)
-  }
-  x |>
+  # a missing column is cast from NULL, which data.table fills with NA
+  data.table::setDT(x) |>
     cast_dt_col("id_run", "int") |>
     cast_dt_col("parent_id_run", "int") |>
     cast_dt_col("rng_seed", "int") |>

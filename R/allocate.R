@@ -113,8 +113,10 @@ allocate <- function(
   checkpoint = FALSE,
   compute = "default"
 ) {
-  check_allocator(allocator)
   stopifnot(
+    "allocator must be an allocator specification, e.g. alloc_clumpy_spec()" = {
+      inherits(allocator, "allocator_spec")
+    },
     "checkpoint must be TRUE or FALSE" = is_scalar_logical(checkpoint),
     "id_periods must be integers" = is_integerish(id_periods),
     "id_periods must be contiguous" = all(diff(id_periods) == 1L),
@@ -123,13 +125,17 @@ allocate <- function(
       length(id_run) > 0L && is_integerish(id_run) && !anyDuplicated(id_run)
     }
   )
+  # e.g. Dinamica's setup, before anything is predicted or written
+  allocator$check()
 
   schedule <- allocation_schedule(db, as.integer(id_periods), as.integer(id_run))
-  for (run in schedule[, .(periods = paste(id_period, collapse = " -> ")), by = id_run][,
-    paste0("run ", id_run, ", periods ", periods)
-  ]) {
-    message(glue::glue("Allocating with {allocator$name}: {run}"))
-  }
+  schedule[,
+    .(periods = paste(id_period, collapse = " -> ")),
+    by = id_run
+  ][,
+    message("Allocating with ", allocator$name, ": run ", id_run, ", periods ", periods),
+    by = id_run
+  ]
   n_workers <- n_evoland_workers(compute)
 
   for (id_period_post in id_periods) {
@@ -146,18 +152,17 @@ allocate <- function(
       )
     }
 
-    # the runs sharing a context, in as many items as there are workers
-    items <- todo |>
-      split(by = c("context_run", "potentials_run")) |>
-      lapply(function(group) {
-        chunks <- min(n_workers, nrow(group))
-        split(group, rep_len(seq_len(chunks), nrow(group)))
-      }) |>
-      unlist(recursive = FALSE)
+    # the runs sharing a context, dealt out to at most as many items as there are workers
+    items <-
+      todo[,
+        chunk := (data.table::rowid(context_run, potentials_run) - 1L) %% n_workers
+      ] |>
+      split(by = c("context_run", "potentials_run", "chunk")) |>
+      unname()
 
     posterior <-
       map_evoland(
-        items = unname(items),
+        items = items,
         worker_fun = allocate_on_context,
         parent_db = db,
         compute = compute,
@@ -197,8 +202,10 @@ allocate_one_period <- function(
   potentials_ancestor = 0L,
   force_predict = FALSE
 ) {
-  check_allocator(allocator)
   stopifnot(
+    "allocator must be an allocator specification, e.g. alloc_clumpy_spec()" = {
+      inherits(allocator, "allocator_spec")
+    },
     "id_period_post must be a single integer" = is_scalar_integerish(id_period_post),
     "id_run must be distinct integers" = {
       length(id_run) > 0L && is_integerish(id_run) && !anyDuplicated(id_run)
@@ -207,6 +214,7 @@ allocate_one_period <- function(
       is_scalar_integerish(potentials_ancestor) && potentials_ancestor >= 0L
     }
   )
+  allocator$check()
   id_run <- as.integer(id_run)
   runs <- db$runs_t
 
@@ -227,7 +235,7 @@ allocate_one_period <- function(
   }
   potentials_run <- unique(potentials_run)
   stopifnot(
-    "several runs must share their ancestor potentials_ancestor generations up" = {
+    "if allocating for multiple runs, they must share their ancestor potentials_ancestor generations up" = {
       length(potentials_run) == 1L
     }
   )
@@ -240,29 +248,24 @@ allocate_one_period <- function(
     id_run = potentials_run
   )
 
-  allocate_on_context(
-    item = data.table::data.table(
+  item <-
+    data.table::data.table(
       id_run = id_run,
-      rng_seed = runs[["rng_seed"]][match(id_run, runs[["id_run"]])],
       # a single run reads its own anterior map, rates and allocation parameters
       context_run = if (length(id_run) == 1L) id_run else potentials_run,
       potentials_run = potentials_run
-    ),
+    )[
+      runs,
+      on = "id_run",
+      rng_seed := i.rng_seed
+    ]
+
+  allocate_on_context(
+    item = item,
     db = db,
     id_period_post = id_period_post,
     allocator = allocator
   )
-}
-
-check_allocator <- function(allocator) {
-  stopifnot(
-    "allocator must be an allocator specification, e.g. alloc_clumpy_spec()" = {
-      inherits(allocator, "allocator_spec")
-    }
-  )
-  # e.g. Dinamica's setup, before anything is predicted or written
-  allocator$check()
-  invisible(NULL)
 }
 
 # Which run allocates which period, on whose potentials and allocation context: one row per
@@ -279,14 +282,15 @@ allocation_schedule <- function(db, id_periods, id_run) {
     stop(glue::glue("Runs not in runs_t: {toString(unknown)}"), call. = FALSE)
   }
 
-  runs <- runs[(match(run_ids, runs[["id_run"]]))]
-  runs[, first := pmax(min(id_periods), id_period_eval_start, na.rm = TRUE)]
-  late <- runs[["first"]] > max(id_periods)
-  if (any(late)) {
+  runs <- runs[.(run_ids), on = "id_run"][,
+    first := pmax(min(id_periods), id_period_eval_start, na.rm = TRUE)
+  ]
+  late <- runs[first > max(id_periods)]
+  if (nrow(late) > 0L) {
     stop(
       glue::glue(
-        "Runs {toString(run_ids[late])} branch off after the last of id_periods ",
-        "(id_period_eval_start {toString(runs[['id_period_eval_start']][late])})"
+        "Runs {toString(late[['id_run']])} branch off after the last of id_periods ",
+        "(id_period_eval_start {toString(late[['id_period_eval_start']])})"
       ),
       call. = FALSE
     )
@@ -295,39 +299,59 @@ allocation_schedule <- function(db, id_periods, id_run) {
   schedule <- runs[,
     .(id_period = seq.int(first, max(id_periods))),
     by = .(id_run, parent_id_run, rng_seed, id_period_eval_start, first)
-  ][, `:=`(potentials_run = id_run, context_run = id_run)]
+  ][,
+    `:=`(potentials_run = id_run, context_run = id_run)
+  ]
 
-  branching <- schedule[id_period == id_period_eval_start & !is.na(parent_id_run)]
-  for (period in unique(branching[["id_period"]])) {
-    branch_runs <- branching[id_period == period, id_run]
-    own_inputs <- c(
-      runs_with_own_rows(db, "lulc_data_t", branch_runs, paste("id_period =", period - 1L)),
-      runs_with_own_rows(db, "pred_data_t", branch_runs, paste("id_period <", period)),
-      runs_with_own_rows(db, "trans_pot_t", branch_runs, paste("id_period_post =", period))
-    )
-    own_context <- c(
-      own_inputs,
-      runs_with_own_rows(db, "trans_rates_t", branch_runs, paste("id_period =", period)),
-      runs_with_own_rows(db, "alloc_params_t", branch_runs)
-    )
+  # where a run branches off, which of its inputs and context it holds itself
+  branching <-
     schedule[
-      id_period == period & id_run %in% setdiff(branch_runs, own_inputs),
-      potentials_run := parent_id_run
+      id_period == id_period_eval_start & !is.na(parent_id_run)
+    ][,
+      {
+        period <- .BY[["id_period"]]
+        own_inputs <- c(
+          runs_with_own_rows(db, "lulc_data_t", id_run, paste("id_period =", period - 1L)),
+          runs_with_own_rows(db, "pred_data_t", id_run, paste("id_period <", period)),
+          runs_with_own_rows(db, "trans_pot_t", id_run, paste("id_period_post =", period))
+        )
+        own_context <- c(
+          own_inputs,
+          runs_with_own_rows(db, "trans_rates_t", id_run, paste("id_period =", period)),
+          runs_with_own_rows(db, "alloc_params_t", id_run)
+        )
+        .(
+          id_run,
+          parent_id_run,
+          has_own_inputs = id_run %in% own_inputs,
+          has_own_context = id_run %in% own_context
+        )
+      },
+      by = id_period
     ]
-    schedule[
-      id_period == period & id_run %in% setdiff(branch_runs, own_context),
-      context_run := parent_id_run
-    ]
-  }
 
-  data.table::setorder(schedule, id_period)
-  schedule <- schedule[, .(id_period, id_run, rng_seed, potentials_run, context_run)]
+  # the others take their parent's potentials, and its whole context if they hold none of it
+  schedule[
+    branching[has_own_inputs == FALSE],
+    on = .(id_run, id_period),
+    potentials_run := i.parent_id_run
+  ][
+    branching[has_own_context == FALSE],
+    on = .(id_run, id_period),
+    context_run := i.parent_id_run
+  ]
+
+  schedule <- schedule[
+    order(id_period),
+    .(id_period, id_run, rng_seed, potentials_run, context_run)
+  ]
   data.table::setattr(schedule, "class", c("data.table", "data.frame"))
 }
 
 # Those of `id_run` that hold rows of their own, matching `where`, in a table
 runs_with_own_rows <- function(db, table_name, id_run, where = "true") {
-  if (!table_name %in% db$list_tables()) {
+  # data.table evaluates a grouped j once even on an empty table, with no runs
+  if (length(id_run) == 0L || !table_name %in% db$list_tables()) {
     return(integer(0L))
   }
   db$get_query(
@@ -383,21 +407,6 @@ allocate_on_context <- function(item, db, id_period_post, allocator) {
   })
 
   as_lulc_data_t(data.table::rbindlist(posteriors))
-}
-
-get_rng_state <- function() {
-  if (exists(".Random.seed", envir = globalenv(), inherits = FALSE)) {
-    get(".Random.seed", envir = globalenv(), inherits = FALSE)
-  }
-}
-
-set_rng_state <- function(state) {
-  if (!is.null(state)) {
-    assign(".Random.seed", state, envir = globalenv())
-  } else if (exists(".Random.seed", envir = globalenv(), inherits = FALSE)) {
-    # R seeds a fresh generator on the next draw
-    rm(".Random.seed", envir = globalenv())
-  }
 }
 
 # Everything an allocator reads, gathered in one place. Allocators get this list and never

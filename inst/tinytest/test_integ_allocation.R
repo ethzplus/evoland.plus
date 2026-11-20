@@ -421,7 +421,7 @@ expect_error(
     id_run = c(8L, 1L),
     potentials_ancestor = 1L
   ),
-  "several runs must share their ancestor"
+  "if allocating for multiple runs, they must share their ancestor"
 )
 
 # on mirai daemons, a seeded run gets the same map as on the calling process
