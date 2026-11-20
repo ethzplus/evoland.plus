@@ -111,6 +111,8 @@ erDiagram
         int id_run PK
         int parent_id_run FK
         string description
+        int rng_seed
+        int id_period_eval_start
     }
     trans_meta_t {
         int id_trans UK
