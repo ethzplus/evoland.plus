@@ -44,7 +44,7 @@ lulc_of <- function(id_run, id_period) {
      where id_period = {id_period} order by id_coord"
   )
 }
-viable <- db$trans_meta_t[is_viable == TRUE]
+viable <- db$trans_meta_v()[is_viable == TRUE]
 # the cells that changed between an anterior and a posterior map, by transition; the anterior
 # map is the observed period 3 unless given
 changes_of <- function(posterior, anterior = lulc_of(0L, 3L)) {
@@ -451,6 +451,105 @@ if (can_run_parallel) {
   mirai::daemons(0)
   message("Skipping the allocation on daemons: they cannot load the installed package")
 }
+
+# --------------------------------------------------------------------------
+# viability per run (ethzplus/evoland.plus#142): run 20 disallows transition 2 (1 -> 3), which
+# its parent allows, and run 21 allows it again under run 20. Each calibrates, predicts and
+# allocates with its own set; their ancestors and siblings keep theirs
+# --------------------------------------------------------------------------
+db$runs_t <- as_runs_t(rbind(
+  db$runs_t,
+  data.table::data.table(
+    id_run = 20:22,
+    parent_id_run = c(0L, 20L, 3L),
+    description = c("without 1 -> 3", "with 1 -> 3 again", "branch without 1 -> 3"),
+    id_period_eval_start = c(NA, NA, 4L)
+  ),
+  fill = TRUE
+))
+db$trans_viability_t <- as_trans_viability_t(data.table::data.table(
+  id_run = 20:22,
+  id_trans = 2L,
+  is_viable = c(FALSE, TRUE, FALSE)
+))
+expect_equal(viable[id_trans == 2L, c(id_lulc_anterior, id_lulc_posterior)], c(1L, 3L))
+
+# calibration: predictor sets and models for the three transitions run 20 allows; the partial
+# models of transition 2 it inherits from run 0 are not refitted
+db$set_full_trans_preds(id_run = 20L)
+expect_equal(
+  sort(unique(db$fetch("trans_preds_t", where = "id_run = 20")[["id_trans"]])),
+  c(1L, 3L, 4L)
+)
+# run 20 still inherits run 0's predictor set of transition 2, which scoring skips
+run_20_scores <- suppressMessages(db$get_pred_filter_score("correlation", id_run = 20L))
+expect_equal(sort(unique(run_20_scores[["id_trans"]])), c(1L, 3L, 4L))
+expect_message(
+  db$trans_models_t <- db$fit_partial_models(
+    learner = test_learner,
+    measures = test_measures,
+    seed = 1244244,
+    id_run = 20L
+  ),
+  "Fitting partial models for 3 transitions..."
+)
+expect_message(
+  db$trans_models_t <- db$fit_full_models(select_score = "classif.auc", id_run = 20L),
+  "Fitting full models for 3 transitions..."
+)
+
+# prediction and allocation: run 21 reads the model of transition 2 from run 0
+suppressMessages(allocate(
+  db,
+  id_periods = 4L,
+  allocator = alloc_greedy_spec(),
+  select_score = "classif.auc",
+  select_maximize = TRUE,
+  id_run = 20:21
+))
+own_pot_trans <- function(id_run) {
+  db$get_query(
+    "select distinct id_trans from dl_db.trans_pot_t where id_run = {id_run} order by all",
+    as_atomic = TRUE
+  )
+}
+expect_equal(own_pot_trans(20L), c(1L, 3L, 4L))
+expect_equal(own_pot_trans(21L), 1:4)
+ctx_20 <- evoland.plus:::allocation_context(db, 4L, 20L, 20L)
+expect_equal(ctx_20$viable_trans[["id_trans"]], c(1L, 3L, 4L))
+# greedy meets the quota of the allowed transitions, and no cell takes the disallowed one
+expect_equal(
+  changes_by_trans(lulc_of(20L, 4L)),
+  ctx_20$quota[
+    viable[, .(id_trans)],
+    on = "id_trans",
+    .(id_trans, N = data.table::fcoalesce(quota, 0L))
+  ]
+)
+ctx_21 <- evoland.plus:::allocation_context(db, 4L, 21L, 21L)
+expect_true(ctx_21$quota[id_trans == 2L, quota] > 0L)
+expect_equal(changes_by_trans(lulc_of(21L, 4L)), ctx_21$quota[, .(id_trans, N = quota)])
+
+# the parent and the siblings keep the default set
+expect_true(all(db$trans_meta_v()[["is_viable"]]))
+for (run in c(0L, 1L, 3L)) {
+  expect_equal(
+    evoland.plus:::allocation_context(db, 4L, run, run)$viable_trans[["id_trans"]],
+    viable[["id_trans"]]
+  )
+}
+
+# a branch with its own overrides predicts its own potentials, where run 4 takes run 3's
+expect_equal(
+  evoland.plus:::allocation_schedule(db, 4L, c(4L, 22L))[,
+    .(id_run, potentials_run, context_run)
+  ],
+  data.table::data.table(
+    id_run = c(4L, 22L),
+    potentials_run = c(3L, 22L),
+    context_run = c(3L, 22L)
+  )
+)
 
 # --------------------------------------------------------------------------
 # Argument checks

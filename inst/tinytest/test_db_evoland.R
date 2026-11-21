@@ -20,7 +20,8 @@ expect_identical(
     "reporting_t",
     "runs_t",
     "trans_meta_t",
-    "trans_preds_t"
+    "trans_preds_t",
+    "trans_viability_t"
   )
 )
 expect_equal(db$reporting_t["report_name", value], "evoland_scenario")
@@ -28,7 +29,7 @@ expect_equal(db$reporting_t["report_name", value], "evoland_scenario")
 # create_alloc_params_t() returns one best estimate per viable transition, for run 1
 expect_equal(
   sort(db$fetch("alloc_params_t", id_run = 1L)[["id_trans"]]),
-  sort(db$trans_meta_t[is_viable == TRUE, id_trans])
+  sort(db$trans_meta_v()[is_viable == TRUE, id_trans])
 )
 # id_period_post restricts the estimate to the given period pairs; an empty selection errors
 expect_error(
@@ -105,6 +106,96 @@ db$trans_pot_t <- pots(0L, 0.5)
 db$trans_pot_t <- pots(2L, 0)
 expect_equal(db$fetch("trans_pot_t", id_run = 2L)[["value"]], c(0, 0, 0))
 expect_equal(db$fetch("trans_pot_t", id_run = 1L)[["value"]], c(0.5, 0.5, 0.5))
+
+# viability is resolved per run. trans_meta_t holds the identity of the transitions only; the
+# defaults are rows of the root run, which every run inherits
+expect_false("is_viable" %in% names(db$trans_meta_t))
+expect_equal(
+  db$fetch("trans_viability_t")[, .(id_run, id_trans)],
+  data.table::data.table(
+    id_run = 0L,
+    id_trans = 1:4
+  ),
+  check.attributes = FALSE
+)
+expect_equal(db$trans_meta_v(id_run = 2L)[["is_viable"]], rep(TRUE, 4L))
+# the child disallows transition 1; the grandchild allows it again and disallows 4 instead
+db$trans_viability_t <- as_trans_viability_t(list(
+  id_run = c(1L, 2L, 2L),
+  id_trans = c(1L, 1L, 4L),
+  is_viable = c(FALSE, TRUE, FALSE)
+))
+viable_ids <- function(id_run, id_trans = NULL) {
+  evoland.plus:::viable_trans_meta(db, id_trans = id_trans, id_run = id_run)[["id_trans"]]
+}
+expect_equal(viable_ids(0L), 1:4)
+expect_equal(viable_ids(1L), 2:4)
+expect_equal(viable_ids(2L), 1:3)
+expect_equal(viable_ids(1L, id_trans = 1:2), 2L)
+# the identity of the transitions stays as it is
+expect_equal(
+  db$trans_meta_v(id_run = 1L)[, .(id_trans, id_lulc_anterior, id_lulc_posterior)],
+  db$trans_meta_t[order(id_trans), .(id_trans, id_lulc_anterior, id_lulc_posterior)]
+)
+# the prefetch of predictors for all viable transitions reads the run's set: without the
+# transitions out of class 2 (3 and 4), no cell of class 2 is fetched
+db$trans_viability_t <- as_trans_viability_t(data.table::data.table(
+  id_run = 1L,
+  id_trans = 3:4,
+  is_viable = FALSE
+))
+expect_equal(viable_ids(1L), 2L)
+expect_equal(
+  unique(db$pred_wide_predict_v(id_trans = NA, id_period_anterior = 1L, id_run = 1L)[["id_lulc"]]),
+  1L
+)
+expect_equal(
+  sort(unique(db$pred_wide_predict_v(id_trans = NA, id_period_anterior = 1L)[["id_lulc"]])),
+  1:2
+)
+db$delete_from("trans_viability_t", where = "id_run <> 0")
+
+# a transition without a row anywhere in the lineage is viable
+db$delete_from("trans_viability_t", where = "id_trans = 4")
+expect_equal(viable_ids(2L), 1:4)
+db$trans_viability_t <- as_trans_viability_t(list(id_run = 0L, id_trans = 4L, is_viable = TRUE))
+
+# a database written before trans_viability_t existed kept is_viable in trans_meta_t. Opened
+# read-only, the column is read in place of the root run's rows; opened read-write, it is
+# moved there, except where the root run already has a row
+legacy_dir <- tempfile("legacy_evolanddb_")
+legacy_db <- evoland_db$new(legacy_dir)
+legacy_db$commit(
+  as_trans_meta_t(data.table::data.table(
+    id_trans = 1:3,
+    id_lulc_anterior = c(1L, 1L, 2L),
+    id_lulc_posterior = c(2L, 3L, 1L),
+    cardinality = c(10L, 1L, 5L),
+    frequency_rel = c(0.625, 0.0625, 0.3125),
+    frequency_abs = c(0.1, 0.01, 0.05),
+    is_viable = c(TRUE, FALSE, FALSE)
+  )),
+  "trans_meta_t",
+  method = "upsert"
+)
+legacy_db$trans_viability_t <- as_trans_viability_t(list(
+  id_run = 0L,
+  id_trans = 3L,
+  is_viable = TRUE
+))
+legacy_reader <- evoland_db$new(legacy_dir, read_only = TRUE)
+expect_true("is_viable" %in% names(legacy_reader$trans_meta_t))
+expect_equal(legacy_reader$trans_meta_v()[["is_viable"]], c(TRUE, FALSE, TRUE))
+expect_message(legacy_db <- evoland_db$new(legacy_dir), "Moved is_viable")
+expect_false("is_viable" %in% names(legacy_db$trans_meta_t))
+expect_equal(
+  legacy_db$fetch("trans_viability_t")[order(id_trans), .(id_run, id_trans, is_viable)],
+  data.table::data.table(id_run = 0L, id_trans = 1:3, is_viable = c(TRUE, FALSE, TRUE)),
+  check.attributes = FALSE
+)
+expect_equal(legacy_db$trans_meta_v()[["is_viable"]], c(TRUE, FALSE, TRUE))
+# opening it again finds nothing to migrate
+expect_silent(evoland_db$new(legacy_dir))
 
 # fetch back as rast
 expect_equal(
@@ -450,6 +541,30 @@ expect_equal(
   grep("^id_pred_", names(db$pred_wide_predict_v(child_trans, 1L, id_run = 13L)), value = TRUE),
   paste0("id_pred_", base_preds[id_trans == child_trans][1:2, id_pred])
 )
+
+# Each run-scoped table is read through the lineage by its declared inherit_by, which returns
+# what the column-name guessing it replaced returned: one slice per tuple of the id columns
+# among id_period, id_period_post, id_trans and id_pred. Runs 11 and 13 inherit land use and
+# predictor sets from run 10 and the base run.
+run_scoped <- Filter(\(spec) !is.null(spec[["inherit_by"]]), evoland.plus:::EVOLAND_SCHEMA)
+for (table_name in intersect(names(run_scoped), db$list_tables())) {
+  base_read_expr <- db$get_read_expr(table_name)
+  guessed <- intersect(
+    db$get_query("select column_name from (describe {base_read_expr})", as_atomic = TRUE),
+    c("id_period", "id_period_post", "id_trans", "id_pred")
+  )
+  key_cols <- run_scoped[[table_name]][["key_cols"]]
+  for (run in c(11L, 13L)) {
+    guessed_read_expr <- evoland.plus:::lineage_read_expr(db, base_read_expr, guessed, run)
+    expect_equal(
+      db$get_query(
+        "from {db$get_read_expr(table_name, id_run = run)} order by {`key_cols`*}"
+      ),
+      db$get_query("from {guessed_read_expr} order by {`key_cols`*}"),
+      info = paste(table_name, run)
+    )
+  }
+}
 
 # set_full_trans_preds() refuses a run that holds predictor sets; reset = TRUE starts the run's
 # selection over, its scores included, and leaves the parent's rows alone

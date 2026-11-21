@@ -45,13 +45,11 @@ the state the replay starts from.}
 \value{
 A data.table of class "trans_rates_t" with columns:
 \itemize{
-\item \code{id_run}: Foreign key to runs_t
-\item \code{id_period}: Foreign key to periods_t
-\item \code{id_trans}: Foreign key to trans_meta_t
-\item \code{count}: Number of transitioning cells for (id_trans, id_period), for reporting; see
-Description
-\item \code{rate}: Transition rate: count of transitions in (id_trans, id_period)
-over count of cells of id_lulc_anterior in id_period
+\item \code{id_run}: Foreign key to \link{runs_t}
+\item \code{id_period}: Foreign key to \link{periods_t}
+\item \code{id_trans}: Foreign key to \link{trans_meta_t}
+\item \code{count}: Number of transitioning cells for (id_trans, id_period), for reporting; see Description
+\item \code{rate}: Transition rate: count of transitions in (id_trans, id_period) over count of cells of id_lulc_anterior in id_period
 }
 
 \code{trans_rate_areas()} returns a data.table with \code{id_lulc}, \code{id_period} and

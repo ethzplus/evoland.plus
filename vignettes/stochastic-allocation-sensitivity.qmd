@@ -177,8 +177,9 @@ These will then be used to train models.
 ```{r}
 #| label: transitions-and-predictors
 #| seed: 666
-db$trans_meta_t <- create_trans_meta_t(
-  db$trans_v(),
+db$trans_meta_t <- create_trans_meta_t(db$trans_v())
+db$trans_viability_t <- create_trans_viability_t(
+  db$trans_meta_t,
   min_cardinality_abs = 20,
   exclude_anterior = 4 # exclude immutable class
 )
@@ -222,17 +223,21 @@ setting. Model fitting does not necessarily produce a usable model for *every* v
 transition: a rare transition can fail to train -- for example a `classif.rpart` tree
 that never splits, or too few positive cases in the random draw of the synthetic data --
 in which case its `learner_full` is left empty (`NULL`). Such a transition would stay
-`is_viable == TRUE` yet have no model, and allocation (which predicts a potential for
+viable yet have no model, and allocation (which predicts a potential for
 every viable transition) would then abort with `No fitted model for viable
 transition(s): ...`. We keep the viable set and the fitted models in lockstep by
 demoting any transition whose full model did not train, reading the result returned by
-`fit_full_models()` directly:
+`fit_full_models()` directly. The demotion is a row of `trans_viability_t` for the base run,
+which every run of the ensemble inherits:
 
 ```{r}
 #| label: reconcile-viable-transitions
-trans_meta_reconciled <- db$trans_meta_t
-trans_meta_reconciled[, is_viable := is_viable & id_trans %in% modeled_trans]
-db$trans_meta_t <- trans_meta_reconciled
+db$trans_viability_t <-
+  db$trans_meta_v()[
+    is_viable == TRUE & !id_trans %in% modeled_trans,
+    .(id_run = 0L, id_trans, is_viable = FALSE)
+  ] |>
+  as_trans_viability_t()
 ```
 
 ### Transition rates and baseline allocation parameters

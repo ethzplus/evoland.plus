@@ -1,3 +1,25 @@
+PRED_DATA_T <- table_spec(
+  "pred_data_t",
+  columns = c(
+    id_run = "int",
+    id_period = "int",
+    id_pred = "int",
+    id_coord = "int",
+    value = "float"
+  ),
+  descriptions = c(
+    id_run = "Foreign key to [runs_t]",
+    id_period = "Foreign key to [periods_t]",
+    id_pred = "Foreign key to [pred_meta_t]",
+    id_coord = "Foreign key to [coords_t]",
+    value = "Predictor value, stored as double and cast back through [pred_meta_t]"
+  ),
+  key_cols = c("id_run", "id_period", "id_pred", "id_coord"),
+  partition_cols = c("id_run", "id_period"),
+  inherit_by = c("id_period", "id_pred"),
+  allow_extra_cols = FALSE
+)
+
 #' Create Predictor Data Table
 #'
 #' Construct and validate a `pred_data_t` objects, which are used to store predictor
@@ -5,64 +27,20 @@
 #' (pred_data_t_float, ...)
 #'
 #' @name pred_data_t
+#' @include table_spec.R
 #'
 #' @param x Coercible to data.table
 #'
-#' @return A data.table of class "pred_data_t" with columns:
-#'   - `id_run`: Foreign key to runs_t
-#'   - `id_pred`: Foreign key to pred_meta_t
-#'   - `id_coord`: Foreign key to coords_t
-#'   - `id_period`: Foreign key to periods_t
-#'   - `value`: Predictor value (coerced to double, recoverable through [pred_meta_t])
+#' @eval table_spec_rd(PRED_DATA_T)
 #' @export
 as_pred_data_t <- function(x) {
-  if (missing(x)) {
-    x <- data.table::data.table(
-      id_run = integer(0),
-      id_period = integer(0),
-      id_pred = integer(0),
-      id_coord = integer(0),
-      value = double(0)
-    )
-  }
-
-  data.table::setDT(x) |>
-    cast_dt_col("id_run", "int") |>
-    cast_dt_col("id_period", "int") |>
-    cast_dt_col("id_pred", "int") |>
-    cast_dt_col("id_coord", "int") |>
-    cast_dt_col("value", "float")
-
-  as_ducklake_db_t(
-    x,
-    class_name = "pred_data_t",
-    key_cols = c("id_run", "id_period", "id_pred", "id_coord"),
-    partition_cols = c("id_run", "id_period")
-  )
+  as_table_t(x, PRED_DATA_T)
 }
 
 #' @export
 validate.pred_data_t <- function(x, ...) {
   NextMethod()
-
-  data.table::setcolorder(
-    x,
-    c(
-      "id_run",
-      "id_period",
-      "id_pred",
-      "id_coord",
-      "value"
-    )
-  )
-  stop_on_extra_cols(x, c("id_run", "id_period", "id_pred", "id_coord", "value"))
-
-  stopifnot(
-    is.integer(x[["id_run"]]),
-    is.integer(x[["id_period"]]),
-    is.integer(x[["id_pred"]]),
-    is.integer(x[["id_coord"]])
-  )
+  validate_table_spec(x, PRED_DATA_T)
 
   return(x)
 }
@@ -187,7 +165,7 @@ pred_wide_predict_v <- function(
   )
 
   if (is.na(id_trans)) {
-    # if NA, fetch all data for viable transitions. used for prefetch.
+    # if NA, fetch all data for the run's viable transitions. used for prefetch.
     trans_condition <- DBI::SQL("is_viable = TRUE")
     trans_filter <- DBI::SQL("")
   } else {
@@ -210,7 +188,8 @@ pred_wide_predict_v <- function(
   result <-
     self$get_query(
       read_sql("pred_wide_predict.sql"),
-      trans_meta_read_expr = self$get_read_expr("trans_meta_t"),
+      # with is_viable resolved for the run, which the prefetch (id_trans = NA) filters on
+      trans_meta_read_expr = trans_meta_read_expr(self, id_run),
       lulc_data_read_expr = self$get_read_expr("lulc_data_t", id_run = id_run),
       pred_data_read_expr = self$get_read_expr("pred_data_t", id_run = id_run),
       trans_condition = trans_condition,

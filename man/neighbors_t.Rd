@@ -61,10 +61,10 @@ missing, only use non-extrapolated periods}
 \value{
 A data.table of class "neighbors_t" with columns:
 \itemize{
-\item \code{id_coord_origin}: Foreign key to coords_t (origin coordinate)
-\item \code{id_coord_neighbor}: Foreign key to coords_t (neighbor coordinate)
-\item \code{distance}: Numeric distance between coordinates
-\item \code{distance_class}: Optional factor representing distance intervals
+\item \code{id_coord_origin}: Foreign key to \link{coords_t}, the origin coordinate point
+\item \code{id_coord_neighbor}: Foreign key to \link{coords_t}, the neighbor coordinate point
+\item \code{distance}: Distance between origin and neighbor, in the unit of the CRS
+\item \code{distance_class}: Optional. Distance band, if \code{distance_breaks} were given
 }
 }
 \description{

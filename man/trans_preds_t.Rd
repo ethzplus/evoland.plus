@@ -52,11 +52,10 @@ daemons when they are set, serially otherwise.}
 \value{
 A data.table of class "trans_preds_t" with columns:
 \itemize{
-\item \code{id_run}: Foreign key to runs_t
-\item \code{id_pred}: Foreign key to pred_meta_t
-\item \code{id_trans}: Foreign key to trans_meta_t
-\item \code{is_selected}: Logical, whether the models of the transition use the predictor
-\item any further columns, e.g. filter scores
+\item \code{id_run}: Foreign key to \link{runs_t}
+\item \code{id_pred}: Foreign key to \link{pred_meta_t}
+\item \code{id_trans}: Foreign key to \link{trans_meta_t}
+\item \code{is_selected}: Whether the models of the transition use the predictor
 }
 }
 \description{
@@ -75,7 +74,7 @@ flags rather than a subset of it: rows left out of the assignment keep the flags
 \section{Functions}{
 \itemize{
 \item \code{set_full_trans_preds()}: Set an initial full set of transition / predictor relations for
-a run: every predictor for every viable transition, all selected
+a run: every predictor for every transition viable in the run, all selected
 
 \item \code{get_pred_filter_score()}: Get a filter score for the selected transition-predictor
 relationships based on mlr3filters. Returns trans_preds_t with an additional

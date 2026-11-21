@@ -1,3 +1,39 @@
+ALLOC_PARAMS_T <- table_spec(
+  "alloc_params_t",
+  columns = c(
+    id_run = "int",
+    id_trans = "int",
+    mean_patch_size = "float",
+    patch_size_variance = "float",
+    patch_elongation = "float",
+    patch_isometry = "float",
+    frac_expander = "float",
+    frac_patcher = "float"
+  ),
+  descriptions = c(
+    id_run = "Foreign key to [runs_t]",
+    id_trans = "Foreign key to [trans_meta_t]",
+    mean_patch_size = paste(
+      "Mean area of new patches (in cell units); a patch is a set of cells connected by",
+      "their edges (rook adjacency)"
+    ),
+    patch_size_variance = "Variance of patch area (in cell units)",
+    patch_elongation = paste(
+      "Mean patch elongation, `1 - sqrt(lambda_2 / lambda_1)` from the eigenvalues of the",
+      "patch's covariance, from 0 (isometric) to 1 (linear); the raw shape summary from",
+      "`calculate_class_stats_cpp()`"
+    ),
+    patch_isometry = paste(
+      "Dinamica-specific isometry parameter derived from `patch_elongation` via",
+      "[isometry_from_elongation()]"
+    ),
+    frac_expander = "Fraction of transition cells adjacent to existing patches, in \\[0, 1\\]",
+    frac_patcher = "Fraction of transition cells forming new patches, in \\[0, 1\\]"
+  ),
+  key_cols = c("id_run", "id_trans"),
+  inherit_by = "id_trans"
+)
+
 #' Create Allocation Parameters Table
 #'
 #' Creates an alloc_params_t table for storing allocation parameters for each
@@ -5,76 +41,20 @@
 #' structure for storing allocation parameters.
 #'
 #' @name alloc_params_t
+#' @include table_spec.R
 #'
 #' @param x A list or data.frame coercible to a data.table
 #'
-#' @return A data.table of class "alloc_params_t" with columns:
-#'   - `id_run`: Foreign key to runs_t
-#'   - `id_trans`: Foreign key to trans_meta_t
-#'   - `mean_patch_size`: Mean area of new patches (in cell units); a patch is a set of cells
-#'     connected by their edges (rook adjacency)
-#'   - `patch_size_variance`: Variance of patch area (in cell units)
-#'   - `patch_elongation`: Mean patch elongation (\eqn{e = 1 - \sqrt{\lambda_2 / \lambda_1}},
-#'     range 0–1); the raw shape summary from `calculate_class_stats_cpp()`
-#'   - `patch_isometry`: Dinamica-specific isometry parameter derived from `patch_elongation`
-#'     via [isometry_from_elongation()]
-#'   - `frac_expander`: Fraction of transition cells adjacent to existing patches
-#'   - `frac_patcher`: Fraction of transition cells forming new patches
-#'
+#' @eval table_spec_rd(ALLOC_PARAMS_T)
 #' @export
 as_alloc_params_t <- function(x) {
-  if (missing(x)) {
-    x <- data.table::data.table(
-      id_run = integer(0),
-      id_trans = integer(0),
-      mean_patch_size = numeric(0),
-      patch_size_variance = numeric(0),
-      patch_elongation = numeric(0),
-      patch_isometry = numeric(0),
-      frac_expander = numeric(0),
-      frac_patcher = numeric(0)
-    )
-  }
-
-  data.table::setDT(x) |>
-    cast_dt_col("id_run", "int") |>
-    cast_dt_col("id_trans", "int") |>
-    cast_dt_col("mean_patch_size", "float") |>
-    cast_dt_col("patch_size_variance", "float") |>
-    cast_dt_col("patch_elongation", "float") |>
-    cast_dt_col("patch_isometry", "float") |>
-    cast_dt_col("frac_expander", "float") |>
-    cast_dt_col("frac_patcher", "float")
-
-  as_ducklake_db_t(
-    x,
-    class_name = "alloc_params_t",
-    key_cols = c("id_run", "id_trans")
-  )
+  as_table_t(x, ALLOC_PARAMS_T)
 }
 
 #' @export
 validate.alloc_params_t <- function(x, ...) {
   NextMethod()
-
-  data.table::setcolorder(
-    x,
-    c(
-      "id_run",
-      "id_trans",
-      "mean_patch_size",
-      "patch_size_variance",
-      "patch_elongation",
-      "patch_isometry",
-      "frac_expander",
-      "frac_patcher"
-    )
-  )
-
-  stopifnot(
-    is.integer(x[["id_run"]]),
-    is.integer(x[["id_trans"]])
-  )
+  validate_table_spec(x, ALLOC_PARAMS_T)
 
   return(x)
 }
@@ -271,7 +251,7 @@ create_alloc_params_t <- function(self, id_period_post = NULL, id_run = 0L) {
   } else {
     self$periods_t[is_extrapolated == FALSE & id_period > 1 & id_period %in% id_period_post]
   }
-  viable_trans <- viable_trans_meta(self)
+  viable_trans <- viable_trans_meta(self, id_run = id_run)
 
   # validate DB inputs
   stopifnot(

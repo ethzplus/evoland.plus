@@ -36,6 +36,8 @@ Additional methods and active bindings are added to this class in separate files
 
     \item{\code{trans_meta_t}}{Get or upsert \link{trans_meta_t}}
 
+    \item{\code{trans_viability_t}}{Get or upsert \link{trans_viability_t}}
+
     \item{\code{trans_preds_t}}{Get or upsert \link{trans_preds_t}; deselect a predictor by setting
 its \code{is_selected} to \code{FALSE}}
 
@@ -60,7 +62,6 @@ Use \code{\link[=adjusted_trans_pot_v]{adjusted_trans_pot_v()}} for allocation-r
 \section{Methods}{
 \subsection{Public methods}{
   \itemize{
-    \item \href{#method-evoland_db-adjusted_trans_pot_v}{\code{evoland_db$adjusted_trans_pot_v()}}
     \item \href{#method-evoland_db-initialize}{\code{evoland_db$new()}}
     \item \href{#method-evoland_db-get_read_expr}{\code{evoland_db$get_read_expr()}}
     \item \href{#method-evoland_db-print}{\code{evoland_db$print()}}
@@ -71,6 +72,7 @@ Use \code{\link[=adjusted_trans_pot_v]{adjusted_trans_pot_v()}} for allocation-r
     \item \href{#method-evoland_db-add_predictor}{\code{evoland_db$add_predictor()}}
     \item \href{#method-evoland_db-pred_wide_train_v}{\code{evoland_db$pred_wide_train_v()}}
     \item \href{#method-evoland_db-pred_wide_predict_v}{\code{evoland_db$pred_wide_predict_v()}}
+    \item \href{#method-evoland_db-trans_meta_v}{\code{evoland_db$trans_meta_v()}}
     \item \href{#method-evoland_db-figure_of_merit_v}{\code{evoland_db$figure_of_merit_v()}}
     \item \href{#method-evoland_db-lulc_crosstab_v}{\code{evoland_db$lulc_crosstab_v()}}
     \item \href{#method-evoland_db-create_alloc_params_t}{\code{evoland_db$create_alloc_params_t()}}
@@ -83,6 +85,7 @@ Use \code{\link[=adjusted_trans_pot_v]{adjusted_trans_pot_v()}} for allocation-r
     \item \href{#method-evoland_db-predict_trans_pot}{\code{evoland_db$predict_trans_pot()}}
     \item \href{#method-evoland_db-get_obs_trans_rates}{\code{evoland_db$get_obs_trans_rates()}}
     \item \href{#method-evoland_db-trans_v}{\code{evoland_db$trans_v()}}
+    \item \href{#method-evoland_db-adjusted_trans_pot_v}{\code{evoland_db$adjusted_trans_pot_v()}}
     \item \href{#method-evoland_db-clone}{\code{evoland_db$clone()}}
   }
 }
@@ -101,21 +104,6 @@ Use \code{\link[=adjusted_trans_pot_v]{adjusted_trans_pot_v()}} for allocation-r
   <li><span class="pkg-link" data-pkg="evoland.plus" data-topic="ducklake_db" data-id="transaction"><a href='../../evoland.plus/html/ducklake_db.html#method-ducklake_db-transaction'><code>ducklake_db$transaction()</code></a></span></li>
 </ul>
 </details>}}
-\if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-evoland_db-adjusted_trans_pot_v"></a>}}
-\if{latex}{\out{\hypertarget{method-evoland_db-adjusted_trans_pot_v}{}}}
-\subsection{\code{evoland_db$adjusted_trans_pot_v()}}{
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{evoland_db$adjusted_trans_pot_v(
-  id_period_post,
-  id_run = 0L,
-  id_run_trans_pot = id_run
-)}
-    \if{html}{\out{</div>}}
-  }
-}
-
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-evoland_db-initialize"></a>}}
 \if{latex}{\out{\hypertarget{method-evoland_db-initialize}{}}}
@@ -376,6 +364,26 @@ data.table, see \code{\link[=pred_wide_train_v]{pred_wide_train_v()}}
       \item{\code{id_trans}}{Integer transition ID, see \link{trans_meta_t}}
       \item{\code{id_period_anterior}}{Integer ID of period to retrieve data for}
       \item{\code{id_run}}{Integer, the run whose predictors and anterior map are read}
+    }
+    \if{html}{\out{</div>}}
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-evoland_db-trans_meta_v"></a>}}
+\if{latex}{\out{\hypertarget{method-evoland_db-trans_meta_v}{}}}
+\subsection{\code{evoland_db$trans_meta_v()}}{
+  The transition metadata with \code{is_viable} resolved for a run, see
+\code{\link[=trans_meta_v]{trans_meta_v()}} and \link{trans_viability_t}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{evoland_db$trans_meta_v(id_run = 0L)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{id_run}}{Integer, the run whose viability overrides are read, through its lineage}
     }
     \if{html}{\out{</div>}}
   }
@@ -706,6 +714,21 @@ carry}
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
     \preformatted{evoland_db$trans_v(id_run = 0L)}
+    \if{html}{\out{</div>}}
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-evoland_db-adjusted_trans_pot_v"></a>}}
+\if{latex}{\out{\hypertarget{method-evoland_db-adjusted_trans_pot_v}{}}}
+\subsection{\code{evoland_db$adjusted_trans_pot_v()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{evoland_db$adjusted_trans_pot_v(
+  id_period_post,
+  id_run = 0L,
+  id_run_trans_pot = id_run
+)}
     \if{html}{\out{</div>}}
   }
 }

@@ -1,3 +1,31 @@
+PERIODS_T <- table_spec(
+  "periods_t",
+  columns = c(
+    id_period = "int",
+    start_date = "date",
+    end_date = "date",
+    mean_date = "date",
+    period_length_d = "int",
+    is_extrapolated = "bool"
+  ),
+  descriptions = c(
+    id_period = "Unique ID for each period",
+    start_date = "First day of the period",
+    end_date = "Last day of the period",
+    mean_date = "Midpoint of the period, derived from start and end date",
+    period_length_d = paste(
+      "Days between this and the preceding period's midpoints, derived from start and end",
+      "date"
+    ),
+    is_extrapolated = paste(
+      "Whether the period is used for extrapolation (`TRUE`) or matched to observations",
+      "(`FALSE`)"
+    )
+  ),
+  key_cols = c("start_date", "end_date"),
+  alternate_key_cols = "id_period"
+)
+
 #' Create Period Table
 #'
 #' Creates a `periods_t` table, i.e. a description of discrete, regular periods during
@@ -7,51 +35,25 @@
 #' the end of the observed period.
 #'
 #' @name periods_t
+#' @include table_spec.R
 #'
 #' @param x A list or data.frame coercible to a data.table
 #'
-#' @return A data.table of class "periods_t" with columns:
-#'   - `id_period`: Unique ID for each tperiod
-#'   - `start_date`: Start date for period
-#'   - `end_date`: End date for period
-#'   - `period_length_d`: Days between this and the preceding period's
-#'     midpoints, derived from start and end date.
-#'   - `is_extrapolated`: bool, are observations matched to this period, or is it used
-#'     for extrapolation?
+#' @eval table_spec_rd(PERIODS_T)
 #' @export
 as_periods_t <- function(x) {
-  if (missing(x)) {
-    x <- data.table::data.table(
-      id_period = integer(0),
-      start_date = as.Date(character(0)),
-      end_date = as.Date(character(0)),
-      is_extrapolated = logical(0)
-    )
-  }
-
-  data.table::setDT(x) |>
-    cast_dt_col("id_period", "int") |>
-    cast_dt_col("start_date", "date") |>
-    cast_dt_col("end_date", "date") |>
-    cast_dt_col("is_extrapolated", "bool")
-
-  data.table::setorder(x, id_period)
-  x[, mean_date := start_date + difftime(end_date, start_date) / 2]
-  x[
-    id_period > 0,
-    period_length_d := as.integer(difftime(
-      mean_date,
-      data.table::shift(mean_date, n = 1),
-      units = "days"
-    ))
-  ]
-
-  as_ducklake_db_t(
-    x,
-    class_name = "periods_t",
-    key_cols = c("start_date", "end_date"),
-    alternate_key_cols = "id_period",
-  )
+  as_table_t(x, PERIODS_T, derive = function(x) {
+    data.table::setorder(x, id_period)
+    x[, mean_date := start_date + difftime(end_date, start_date) / 2]
+    x[
+      id_period > 0,
+      period_length_d := as.integer(difftime(
+        mean_date,
+        data.table::shift(mean_date, n = 1),
+        units = "days"
+      ))
+    ]
+  })
 }
 
 #' @describeIn periods_t Creates a regular `periods_t` table from specifications.
@@ -119,18 +121,7 @@ create_periods_t <- function(
 #' @export
 validate.periods_t <- function(x, ...) {
   NextMethod()
-
-  data.table::setcolorder(
-    x,
-    c(
-      "id_period",
-      "start_date",
-      "end_date",
-      "mean_date",
-      "period_length_d",
-      "is_extrapolated"
-    )
-  )
+  validate_table_spec(x, PERIODS_T)
 
   overlapping <-
     x[
@@ -151,10 +142,6 @@ validate.periods_t <- function(x, ...) {
   }
 
   stopifnot(
-    "id_period should be an integer" = is.integer(x[["id_period"]]),
-    "start_date should be a Date" = inherits(x[["start_date"]], "Date"),
-    "end_date should be a Date" = inherits(x[["end_date"]], "Date"),
-    "is_extrapolated should be bool" = is.logical(x[["is_extrapolated"]]),
     "extrapolated periods must be regular (within leap-year tolerance)" = equal_lengths,
     "periods must not overlap" = nrow(overlapping) == 0
   )

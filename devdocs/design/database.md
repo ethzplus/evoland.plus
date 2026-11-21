@@ -9,7 +9,9 @@ The catalog can also live in PostgreSQL and the data in object storage (S3 and s
 
 DuckLake was chosen over plain Parquet files because it gives atomic writes and snapshot isolation: several processes can write to one database concurrently, and a reader never sees a half-written table.
 It supports no constraints, keys, or indexes so `ducklake_db$commit()` enforces key uniqueness itself.
-The keys, partitioning and map columns of each table are declared by its `as_*_t()` constructor and stored as table comments.
+Each table is declared once, as a `table_spec()` next to its `as_*_t()` constructor: its columns and their types, its keys, partitioning and map columns, and whether and how it is inherited along the run lineage.
+The constructor, the reads through the lineage, the column lists in the help pages and the tables in this document are derived from that declaration; the registry of all of them is `EVOLAND_SCHEMA`.
+The keys, partitioning, map columns and inheritance of each table are also stored in the catalog, as a JSON object in the table's comment, e.g. `{"key_cols": ["id_run", "id_coord", "id_period"], "partition_cols": ["id_run"], "inherit_by": ["id_period"], ...}`, so that other tools can read them.
 An append or upsert that brings columns a table does not have adds them (`alter table ... add column`, which only touches the catalog; existing rows read `NULL`).
 The validators of the large per-coordinate tables (`coords_t`, `lulc_data_t`, `pred_data_t`, `neighbors_t`, `trans_pot_t`) reject columns they do not declare, to keep those tables lean.
 DuckLake also does not support ENUMs, so R factors are stored as strings and cast back by the `as_*_t()` constructors.
@@ -29,7 +31,8 @@ Grouped by the [workflow](workflow.md) phase that writes them:
   - `pred_meta_t` + `pred_data_t`: predictor metadata and values
   - `neighbors_t`: neighbor relationships between coordinates, for neighborhood predictors
 - Calibration
-  - `trans_meta_t`: the transitions between classes and whether each is viable for modelling
+  - `trans_meta_t`: the transitions between classes and how often each was observed
+  - `trans_viability_t`: whether each transition is viable for modelling, per run
   - `trans_preds_t`: which predictors each transition's model may use
   - `trans_models_t`: fitted transition potential models and their scores
 - Allocation
@@ -121,7 +124,6 @@ erDiagram
         int cardinality
         float frequency_rel
         float frequency_abs
-        bool is_viable
     }
     trans_models_t {
         int id_run PK, FK
@@ -153,6 +155,11 @@ erDiagram
         int count
         float rate
     }
+    trans_viability_t {
+        int id_run PK, FK
+        int id_trans PK, FK
+        bool is_viable
+    }
 
     alloc_params_t }o--|| runs_t : "id_run"
     alloc_params_t }o--|| trans_meta_t : "id_trans"
@@ -181,6 +188,8 @@ erDiagram
     trans_rates_t }o--|| runs_t : "id_run"
     trans_rates_t }o--|| periods_t : "id_period"
     trans_rates_t }o--|| trans_meta_t : "id_trans"
+    trans_viability_t }o--|| runs_t : "id_run"
+    trans_viability_t }o--|| trans_meta_t : "id_trans"
 ```
 <!-- END GENERATED ER DIAGRAM -->
 
@@ -190,6 +199,14 @@ Likewise, `id_period_anterior` and `id_period_post` name the periods before and 
 ### `reporting_t`
 
 A key/value (string) store for report metadata.
+
+<!-- BEGIN GENERATED COLUMNS reporting_t: run `Rscript devdocs/er_diagram.R`, do not edit -->
+| uniqueness | colname | type   | description          |
+| ---------- | ------- | ------ | -------------------- |
+| \*         | key     | string | Unique character key |
+|            | value   | string | Value as character   |
+<!-- END GENERATED COLUMNS reporting_t -->
+
 On initialization, `evoland_db` sets `report_name`, `report_name_pretty`, `report_include_date` and `creator_username` if the table is empty, and updates `last_opened` and `last_opened_username` every time the database is opened read-write.
 
 Few functions read this table yet; the plotting of model diagnostics should.
@@ -197,11 +214,13 @@ Which standard outputs (tables, graphs, maps) the package generates, and therefo
 
 ### `coords_t`
 
-| uniqueness | colname  | type  | description                        |
-| ---------- | -------- | ----- | ---------------------------------- |
-| \*         | id_coord | int   | Unique ID for each coordinate point |
-|            | lon      | float | x coordinate, in the CRS's unit    |
-|            | lat      | float | y coordinate, in the CRS's unit    |
+<!-- BEGIN GENERATED COLUMNS coords_t: run `Rscript devdocs/er_diagram.R`, do not edit -->
+| uniqueness | colname  | type  | description                                    |
+| ---------- | -------- | ----- | ---------------------------------------------- |
+| \*         | id_coord | int   | Unique ID for each coordinate point            |
+|            | lon      | float | Longitude/x coordinate, in the unit of the CRS |
+|            | lat      | float | Latitude/y coordinate, in the unit of the CRS  |
+<!-- END GENERATED COLUMNS coords_t -->
 
 `coords_t` specifies the coordinate points at which the model is set up and run.
 It is either derived from a reference grid (e.g. existing LULC data) or generated from parameters; `create_coords_t_square()` builds a regular square grid from an extent and a resolution.
@@ -215,14 +234,16 @@ This works for irregular coordinate points as well as for dense grids.
 
 ### `periods_t`
 
-| uniqueness | colname         | type | description                                                    |
-| ---------- | --------------- | ---- | -------------------------------------------------------------- |
-| alternate  | id_period       | int  | Unique ID for each period                                      |
-| \*         | start_date      | date | First day of the period                                        |
-| \*         | end_date        | date | Last day of the period                                         |
-|            | mean_date       | date | Midpoint of the period, derived                                |
-|            | period_length_d | int  | Days between this and the preceding period's midpoint, derived |
-|            | is_extrapolated | bool | False if observed, true if extrapolated                        |
+<!-- BEGIN GENERATED COLUMNS periods_t: run `Rscript devdocs/er_diagram.R`, do not edit -->
+| uniqueness | colname         | type | description                                                                                |
+| ---------- | --------------- | ---- | ------------------------------------------------------------------------------------------ |
+| alternate  | id_period       | int  | Unique ID for each period                                                                  |
+| \*         | start_date      | date | First day of the period                                                                    |
+| \*         | end_date        | date | Last day of the period                                                                     |
+|            | mean_date       | date | Midpoint of the period, derived from start and end date                                    |
+|            | period_length_d | int  | Days between this and the preceding period's midpoints, derived from start and end date    |
+|            | is_extrapolated | bool | Whether the period is used for extrapolation (`TRUE`) or matched to observations (`FALSE`) |
+<!-- END GENERATED COLUMNS periods_t -->
 
 This table identifies periods in the past and future.
 `create_periods_t()` builds it from a start and end date for the observations, an end date for the extrapolation, and a period length.
@@ -234,51 +255,55 @@ They can then be stored and joined like time-varying predictors.
 
 ### `runs_t`
 
-| uniqueness | colname       | type          | description                                   |
-| ---------- | ------------- | ------------- | --------------------------------------------- |
-| \*         | id_run        | int           | Unique ID for each run (0 = base)             |
-|            | parent_id_run | int, nullable | The run this run inherits from                |
-|            | description   | str           | Human-readable description of the run         |
+<!-- BEGIN GENERATED COLUMNS runs_t: run `Rscript devdocs/er_diagram.R`, do not edit -->
+| uniqueness | colname              | type   | description                                                                                                   |
+| ---------- | -------------------- | ------ | ------------------------------------------------------------------------------------------------------------- |
+| \*         | id_run               | int    | Unique ID for each run; 0 is the base run                                                                     |
+|            | parent_id_run        | int    | The run this run inherits data from; `NA` for the base run                                                    |
+|            | description          | string | Human-readable description of the run                                                                         |
+|            | rng_seed             | int    | Seed for the run's allocation, see `allocate()`; `NA` for none                                                |
+|            | id_period_eval_start | int    | First period the run allocates itself, i.e. where it branches off its parent, see `allocate()`; `NA` for none |
+<!-- END GENERATED COLUMNS runs_t -->
 
 Runs label data that either overrides base data (e.g. predictors for a scenario) or is produced by a specific experiment (e.g. one allocation in an ensemble).
 Run 0 is the base run.
 A child run inherits every slice of data it does not override: reading a run-dependent table under a run returns, for each slice, the data of the closest run in its lineage that has it.
 For instance, a run that only overrides one predictor reads all other predictors from its parent, and so on up to the base run.
+Which columns form a slice is declared per table, as the `inherit_by` of its specification: `id_period` for `lulc_data_t`, the pair of `id_period` and `id_pred` for `pred_data_t`, and so on.
+A slice that holds `id_period` falls back to the static period 0 where the period itself is missing.
 
 Users add columns to `runs_t` to document how a run was made (allocator, model selection, anything else); the package does not record these itself.
-Two more columns, `NA` where unset and not inherited, are read by `allocate()`:
-
-| colname              | type          | description                                                       |
-| -------------------- | ------------- | ----------------------------------------------------------------- |
-| rng_seed             | int, nullable | Seeds R's random number generator, plus the period, for allocation |
-| id_period_eval_start | int, nullable | Period the run branches off its parent; earlier ones are its lineage's |
-
+`rng_seed` and `id_period_eval_start`, `NA` where unset and not inherited, are read by `allocate()`.
 Given several runs, `allocate()` goes period by period, each for every run that has reached its `id_period_eval_start`, so that a branch finds the maps of the run it branches off.
-At its branching period, a run uses its parent's potentials, and shares its parent's allocation context if it holds no inputs of its own.
+At its branching period, a run uses its parent's potentials unless it holds inputs of its own (predictors, the anterior map, potentials or `trans_viability_t` overrides), and shares its parent's allocation context if it also holds no rates or allocation parameters of its own.
 
 ### `lulc_meta_t` + `lulc_data_t`
 
 `lulc_meta_t` describes each land use / land cover class.
 
-| uniqueness | colname     | type | description                                               |
-| ---------- | ----------- | ---- | --------------------------------------------------------- |
-| alternate  | id_lulc     | int  | Unique ID for each land use class                         |
-| \*         | name        | str  | Concise name for use in queries, e.g. `forest_dense`      |
-|            | pretty_name | str  | Long name for plots/output e.g. _Dense/Old Growth Forest_ |
-|            | description | str  | Long description / operationalisation                     |
-|            | src_classes | list | Source class IDs that are aggregated into this class      |
+<!-- BEGIN GENERATED COLUMNS lulc_meta_t: run `Rscript devdocs/er_diagram.R`, do not edit -->
+| uniqueness | colname     | type   | description                                                      |
+| ---------- | ----------- | ------ | ---------------------------------------------------------------- |
+| alternate  | id_lulc     | int    | Unique ID for each land use class                                |
+| \*         | name        | string | Concise name for use in code and queries, e.g. `forest_dense`    |
+|            | pretty_name | string | Long name for plots and output, e.g. _Dense/Old Growth Forest_   |
+|            | description | string | Long description / operationalisation                            |
+|            | src_classes | list   | List of the source class IDs that are aggregated into this class |
+<!-- END GENERATED COLUMNS lulc_meta_t -->
 
 The `src_classes` column allows aggregating from source data class IDs to the harmonized LULC classes used in the model.
 
 `lulc_data_t` records that at a given place and time, a certain class was observed or allocated.
 Every coordinate point of `coords_t` must have a class in every observed period.
 
-| uniqueness | colname   | type | description                   |
-| ---------- | --------- | ---- | ----------------------------- |
-| \*         | id_run    | int  | FK from `runs_t` (0 for base) |
-| \*         | id_coord  | int  | FK from `coords_t`            |
-|            | id_lulc   | int  | FK from `lulc_meta_t`         |
-| \*         | id_period | int  | FK from `periods_t`           |
+<!-- BEGIN GENERATED COLUMNS lulc_data_t: run `Rscript devdocs/er_diagram.R`, do not edit -->
+| uniqueness | colname   | type | description                  |
+| ---------- | --------- | ---- | ---------------------------- |
+| \*         | id_run    | int  | Foreign key to `runs_t`      |
+| \*         | id_coord  | int  | Foreign key to `coords_t`    |
+|            | id_lulc   | int  | Foreign key to `lulc_meta_t` |
+| \*         | id_period | int  | Foreign key to `periods_t`   |
+<!-- END GENERATED COLUMNS lulc_data_t -->
 
 The table is partitioned by `id_run`.
 
@@ -289,29 +314,33 @@ If they matter, add them as predictors, e.g. "number of years before or after th
 
 `pred_meta_t` describes each predictor.
 
-| uniqueness | colname       | type                               | description                                            |
-| ---------- | ------------- | ---------------------------------- | ------------------------------------------------------ |
-| alternate  | id_pred       | int                                | Unique ID for each predictor                           |
-| \*         | name          | str                                | Concise name for use in queries, e.g. `distance_road`  |
-|            | pretty_name   | str                                | Name of the predictor, e.g. _Distance To Closest Road_ |
-|            | description   | str, nullable                      | Long description / operationalisation                  |
-|            | orig_format   | str, nullable                      | Original format, e.g. "100m raster, daily"             |
-|            | sources       | list of (url, md5sum)              | Where the data were fetched                            |
-|            | unit          | str, nullable                      | SI-compatible unit, null for categorical values        |
-|            | factor_levels | list of character vectors          | Ordered level labels when `data_type = "factor"`       |
-|            | data_type     | factor (int, float, bool, factor)  | Type the stored values are cast back to                |
-|            | fill_value    | str, nullable                      | Value of coordinate points without a stored value      |
+<!-- BEGIN GENERATED COLUMNS pred_meta_t: run `Rscript devdocs/er_diagram.R`, do not edit -->
+| uniqueness | colname       | type   | description                                                                                                                                         |
+| ---------- | ------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| alternate  | id_pred       | int    | Unique ID for each predictor                                                                                                                        |
+| \*         | name          | string | Concise name for use in code and queries, e.g. `distance_road`                                                                                      |
+|            | pretty_name   | string | Name for plots and output, e.g. _Distance To Closest Road_                                                                                          |
+|            | description   | string | Long description / operationalisation                                                                                                               |
+|            | orig_format   | string | Original format, e.g. "100m raster, daily"                                                                                                          |
+|            | sources       | list   | Where the data were fetched: list column of data.frames with columns `url` and `md5sum`                                                             |
+|            | unit          | string | SI units for physical properties, or more complex descriptors like "bed nights/year" as a proxy for touristic activity; `NA` for categorical values |
+|            | factor_levels | list   | List of character vectors, the ordered level labels when `data_type` is "factor" or "ordered"                                                       |
+|            | data_type     | factor | Factor with levels "int", "float", "bool", "factor", "ordered": the type the stored values are cast back to                                         |
+|            | fill_value    | string | Value of the `coords_t` coordinate points that are not explicitly stored in `pred_data_t`                                                           |
+<!-- END GENERATED COLUMNS pred_meta_t -->
 
 `pred_data_t` stores the predictor values.
 All predictor types share one `value` column stored as float; `data_type` and `factor_levels` cast them back when read.
 
-| uniqueness | colname   | type  | description                   |
-| ---------- | --------- | ----- | ----------------------------- |
-| \*         | id_run    | int   | FK from `runs_t` (0 for base) |
-| \*         | id_period | int   | FK from `periods_t`           |
-| \*         | id_pred   | int   | FK from `pred_meta_t`         |
-| \*         | id_coord  | int   | FK from `coords_t`            |
-|            | value     | float | Predictor value               |
+<!-- BEGIN GENERATED COLUMNS pred_data_t: run `Rscript devdocs/er_diagram.R`, do not edit -->
+| uniqueness | colname   | type  | description                                                           |
+| ---------- | --------- | ----- | --------------------------------------------------------------------- |
+| \*         | id_run    | int   | Foreign key to `runs_t`                                               |
+| \*         | id_period | int   | Foreign key to `periods_t`                                            |
+| \*         | id_pred   | int   | Foreign key to `pred_meta_t`                                          |
+| \*         | id_coord  | int   | Foreign key to `coords_t`                                             |
+|            | value     | float | Predictor value, stored as double and cast back through `pred_meta_t` |
+<!-- END GENERATED COLUMNS pred_data_t -->
 
 Unlike `lulc_data_t`, `pred_data_t` need not hold a row for every coordinate point.
 Values may be stored only where they are informative; reads join against `coords_t` and fill the remaining points with the predictor's `fill_value`.
@@ -321,26 +350,56 @@ The table is partitioned by `(id_run, id_period)`.
 
 ### `trans_meta_t`
 
-Relates _anterior_ and _posterior_ classes to each other as _transitions_, with statistics about their frequency in the observed data and an indicator of whether each is viable for modelling.
+Relates _anterior_ and _posterior_ classes to each other as _transitions_, with statistics about their frequency in the observed data.
 `create_trans_meta_t()` derives it from the observed transitions (`db$trans_v`).
+The table is the same for every run: `id_trans` identifies a pair of classes everywhere it is referenced.
 
-| uniqueness | colname           | type  | description                                                          |
-| ---------- | ----------------- | ----- | -------------------------------------------------------------------- |
-| alternate  | id_trans          | int   | Unique ID for each transition                                        |
-| \*         | id_lulc_anterior  | int   | FK from `lulc_meta_t`, class before the transition                   |
-| \*         | id_lulc_posterior | int   | FK from `lulc_meta_t`, class after the transition                    |
-|            | cardinality       | int   | How many times this transition was observed                          |
-|            | frequency_rel     | float | Frequency relative to all observed transitions                       |
-|            | frequency_abs     | float | Frequency relative to all coordinate points                          |
-|            | is_viable         | bool  | Whether a transition potential model is fitted for this transition   |
-
-A transition can be non-viable for conceptual or statistical reasons.
-A model may contain an "other" class that simplifies what a class can turn into; since "other" says nothing about what comes next, transitions out of it cannot be modelled (`exclude_anterior`).
-And a transition may be observed too rarely for statistical inference (`min_cardinality_abs`, `min_frequency_rel`).
+<!-- BEGIN GENERATED COLUMNS trans_meta_t: run `Rscript devdocs/er_diagram.R`, do not edit -->
+| uniqueness | colname           | type  | description                                                   |
+| ---------- | ----------------- | ----- | ------------------------------------------------------------- |
+| alternate  | id_trans          | int   | Unique ID for each transition                                 |
+| \*         | id_lulc_anterior  | int   | Foreign key to `lulc_meta_t`, the class before the transition |
+| \*         | id_lulc_posterior | int   | Foreign key to `lulc_meta_t`, the class after the transition  |
+|            | cardinality       | int   | How many times this transition was observed                   |
+|            | frequency_rel     | float | Frequency relative to all observed transitions                |
+|            | frequency_abs     | float | Frequency relative to all coordinate points                   |
+<!-- END GENERATED COLUMNS trans_meta_t -->
 
 > [!NOTE]
 > The previous generation of this model, [evoland-plus-legacy](https://github.com/ethzplus/evoland-plus-legacy), determined the viability of a transition per period.
 > This meant that a single period for training our transition models had to be picked (usually the most recent), which made us lose out on the data provided by previous periods. We could still restrict our training periods in training now, but this only really makes sense if we suppose that different causal mechanisms drove land use change in different periods.
+
+### `trans_viability_t`
+
+<!-- BEGIN GENERATED COLUMNS trans_viability_t: run `Rscript devdocs/er_diagram.R`, do not edit -->
+| uniqueness | colname   | type | description                                                                                  |
+| ---------- | --------- | ---- | -------------------------------------------------------------------------------------------- |
+| \*         | id_run    | int  | Foreign key to `runs_t`                                                                      |
+| \*         | id_trans  | int  | Foreign key to `trans_meta_t`                                                                |
+|            | is_viable | bool | Whether the transition is viable for modelling in this run (and the runs inheriting from it) |
+<!-- END GENERATED COLUMNS trans_viability_t -->
+
+Whether a transition is viable for modelling, per run.
+A transition can be non-viable for conceptual or statistical reasons.
+A model may contain an "other" class that simplifies what a class can turn into; since "other" says nothing about what comes next, transitions out of it cannot be modelled (`exclude_anterior`).
+And a transition may be observed too rarely for statistical inference (`min_cardinality_abs`, `min_frequency_rel`).
+Which transitions are modelled is also a modelling choice: a model may do better or worse when a rare transition is allowed or left out (ethzplus/evoland.plus#142).
+
+The defaults are rows of the root run, derived from the thresholds and exclusions by `create_trans_viability_t()`:
+
+```r
+db$trans_meta_t <- create_trans_meta_t(db$trans_v())
+db$trans_viability_t <- create_trans_viability_t(db$trans_meta_t, min_cardinality_abs = 5L)
+```
+
+A run that allows or disallows transitions differently adds rows of its own.
+The table is read through the lineage per `id_trans`, like any run-dependent table: a transition takes the row of the closest run in the lineage that has one, and a transition without any row is viable.
+`db$trans_meta_v(id_run)` returns `trans_meta_t` with the resolved `is_viable` of a run; predictor selection, model fitting, prediction, allocation parameters and allocation all work on that set.
+A run that branches off its parent and holds rows of its own predicts its own potentials instead of taking its parent's, see `runs_t`.
+
+Viability was a column of `trans_meta_t` until ethzplus/evoland.plus#142.
+Opening such a database read-write moves the column into rows of the root run of `trans_viability_t` (keeping any root-run rows already there) and drops it; opened read-only, the column is read in place of the root run's rows.
+The alternative of making `trans_meta_t` itself run-dependent was rejected: it duplicates the transition statistics per run and lets `id_trans` drift between runs although every other table refers to it.
 
 ### `trans_preds_t`
 
@@ -354,26 +413,29 @@ A run inherits each pair from its closest ancestor that holds it, so a child run
 And the scores each filter writes, in a column named after the filter, stay next to the decision they informed.
 These score columns are added to the table as they are first written and are not part of the schema readers rely on; readers use only the selected pairs.
 
-| uniqueness | colname     | type | description                                 |
-| ---------- | ----------- | ---- | ------------------------------------------- |
-| \*         | id_run      | int  | FK from `runs_t`                            |
-| \*         | id_pred     | int  | FK from `pred_meta_t`                       |
-| \*         | id_trans    | int  | FK from `trans_meta_t`                      |
-|            | is_selected | bool | whether the transition's model uses it      |
-|            | _filter id_ | num  | score of that filter, for interpretation    |
+<!-- BEGIN GENERATED COLUMNS trans_preds_t: run `Rscript devdocs/er_diagram.R`, do not edit -->
+| uniqueness | colname     | type | description                                            |
+| ---------- | ----------- | ---- | ------------------------------------------------------ |
+| \*         | id_run      | int  | Foreign key to `runs_t`                                |
+| \*         | id_pred     | int  | Foreign key to `pred_meta_t`                           |
+| \*         | id_trans    | int  | Foreign key to `trans_meta_t`                          |
+|            | is_selected | bool | Whether the models of the transition use the predictor |
+<!-- END GENERATED COLUMNS trans_preds_t -->
 
 ### `trans_rates_t`
 
 Transition rates per transition and period.
 Rates are not probabilities: for observed periods they describe the change that happened, and for extrapolated periods they prescribe how much change allocation has to produce.
 
-| uniqueness | colname   | type  | description                                                              |
-| ---------- | --------- | ----- | ------------------------------------------------------------------------ |
-| \*         | id_run    | int   | FK from `runs_t`                                                         |
-| \*         | id_period | int   | FK from `periods_t`                                                      |
-| \*         | id_trans  | int   | FK from `trans_meta_t`                                                   |
-|            | count     | int   | Number of coordinate points that underwent the transition in this period |
-|            | rate      | float | `count` over the number of points in the anterior class (non-negative)  |
+<!-- BEGIN GENERATED COLUMNS trans_rates_t: run `Rscript devdocs/er_diagram.R`, do not edit -->
+| uniqueness | colname   | type  | description                                                                                                         |
+| ---------- | --------- | ----- | ------------------------------------------------------------------------------------------------------------------- |
+| \*         | id_run    | int   | Foreign key to `runs_t`                                                                                             |
+| \*         | id_period | int   | Foreign key to `periods_t`                                                                                          |
+| \*         | id_trans  | int   | Foreign key to `trans_meta_t`                                                                                       |
+|            | count     | int   | Number of transitioning cells for (id_trans, id_period), for reporting; see Description                             |
+|            | rate      | float | Transition rate: count of transitions in (id_trans, id_period) over count of cells of id_lulc_anterior in id_period |
+<!-- END GENERATED COLUMNS trans_rates_t -->
 
 Observed rates come from `$get_obs_trans_rates()`.
 Rates for extrapolated periods can be extrapolated from the observed ones with a linear regression (`extrapolate_trans_rates()`), or derived from target class shares or areas with a linear program that yields a constrained optimal set of rates (`solve_trans_rates()`, see `trans_rates_lp`).
@@ -386,16 +448,18 @@ The table is populated in one of two ways:
 - Select by score: each call to `$fit_partial_models(learner, ...)` fits one candidate learner per transition on a training split and scores it on the held-out split; `$fit_full_models(select_score = ...)` refits the best-scoring candidate per transition on the full data.
 - Direct: `$fit_full_models(learner = ...)` fits the given learner on the full data straight away, with no candidates to compare. An mlr3 `AutoTuner` works in either mode and does its own tuning internally.
 
-| uniqueness | colname              | type | description                                                                                         |
-| ---------- | -------------------- | ---- | --------------------------------------------------------------------------------------------------- |
-| \*         | id_run               | int  | FK from `runs_t`                                                                                    |
-| \*         | id_trans             | int  | FK from `trans_meta_t`                                                                              |
-| \*         | learner_id           | str  | mlr3 learner key, e.g. `"classif.ranger"`                                                           |
-|            | learner_params       | map  | Atomic scalar learner hyperparameters, for querying                                                 |
-|            | learner_spec         | blob | Serialized untrained mlr3 `Learner`; for AutoTuners, the optimal inner learner after tuning         |
-|            | crossval_score       | map  | Cross-validation performance scores (from `prediction$score(measures)`)                             |
-|            | crossval_predictions | blob | Serialized mlr3 `PredictionClassif` on the held-out split                                           |
-|            | learner_full         | blob | Serialized trained mlr3 `Learner` fitted on the full data, used for extrapolation                   |
+<!-- BEGIN GENERATED COLUMNS trans_models_t: run `Rscript devdocs/er_diagram.R`, do not edit -->
+| uniqueness | colname              | type   | description                                                                                                                                                                                                                                                         |
+| ---------- | -------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| \*         | id_run               | int    | Foreign key to `runs_t`                                                                                                                                                                                                                                             |
+| \*         | id_trans             | int    | Foreign key to `trans_meta_t`                                                                                                                                                                                                                                       |
+| \*         | learner_id           | string | mlr3 twoclass `LearnerClassif`(https://mlr3.mlr-org.com/reference/LearnerClassif.html) key, e.g. `"classif.ranger"`                                                                                                                                                 |
+|            | learner_params       | map    | MAP of atomic scalar learner hyperparameters for querying; complete hyperparameters are captured by `learner_spec`. A fit that failed is recorded as a sentinel row whose `learner_params` holds a single `error_message` entry, and whose `learner_full` is `NULL` |
+|            | learner_spec         | list   | BLOB of serialized untrained mlr3 `Learner`; for AutoTuners, this is the optimal inner learner after tuning                                                                                                                                                         |
+|            | crossval_score       | map    | MAP of cross-validation performance scores (from `prediction$score(measures)`)                                                                                                                                                                                      |
+|            | crossval_predictions | list   | BLOB of serialized mlr3 `PredictionClassif` on the held-out test split                                                                                                                                                                                              |
+|            | learner_full         | list   | BLOB of serialized trained mlr3 `Learner` fitted on the full dataset, used for extrapolation                                                                                                                                                                        |
+<!-- END GENERATED COLUMNS trans_models_t -->
 
 The table is partitioned by `id_run`.
 
@@ -407,16 +471,18 @@ Multiclass learners (ethzplus/evoland.plus#58) would fit one model per anterior 
 
 ### `alloc_params_t`
 
-| uniqueness | colname             | type  | description                                                                                   |
-| ---------- | ------------------- | ----- | --------------------------------------------------------------------------------------------- |
-| \*         | id_run              | int   | FK from `runs_t`                                                                              |
-| \*         | id_trans            | int   | FK from `trans_meta_t`                                                                        |
-|            | mean_patch_size     | float | Mean area of new patches (in cells)                                                           |
-|            | patch_size_variance | float | Variance of patch area (in cells²)                                                            |
-|            | patch_elongation    | float | Mean patch elongation, 0 (isometric) to 1 (linear); see `src/clumpy_geometry.h`               |
-|            | patch_isometry      | float | Dinamica patcher isometry parameter, derived from `patch_elongation`                          |
-|            | frac_expander       | float | Fraction of transition cells adjacent to existing patches [0, 1]                              |
-|            | frac_patcher        | float | Fraction of transition cells forming new patches [0, 1]                                       |
+<!-- BEGIN GENERATED COLUMNS alloc_params_t: run `Rscript devdocs/er_diagram.R`, do not edit -->
+| uniqueness | colname             | type  | description                                                                                                                                                                                       |
+| ---------- | ------------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| \*         | id_run              | int   | Foreign key to `runs_t`                                                                                                                                                                           |
+| \*         | id_trans            | int   | Foreign key to `trans_meta_t`                                                                                                                                                                     |
+|            | mean_patch_size     | float | Mean area of new patches (in cell units); a patch is a set of cells connected by their edges (rook adjacency)                                                                                     |
+|            | patch_size_variance | float | Variance of patch area (in cell units)                                                                                                                                                            |
+|            | patch_elongation    | float | Mean patch elongation, `1 - sqrt(lambda_2 / lambda_1)` from the eigenvalues of the patch's covariance, from 0 (isometric) to 1 (linear); the raw shape summary from `calculate_class_stats_cpp()` |
+|            | patch_isometry      | float | Dinamica-specific isometry parameter derived from `patch_elongation` via `isometry_from_elongation()`                                                                                             |
+|            | frac_expander       | float | Fraction of transition cells adjacent to existing patches, in [0, 1]                                                                                                                              |
+|            | frac_patcher        | float | Fraction of transition cells forming new patches, in [0, 1]                                                                                                                                       |
+<!-- END GENERATED COLUMNS alloc_params_t -->
 
 Patch statistics measured on the observed transitions, used to parameterize allocation.
 `create_alloc_params_t()` estimates one set per viable transition on the active run; perturbed variants for sensitivity analysis go on child runs.
@@ -426,12 +492,14 @@ The CLUMPY allocator reads `mean_patch_size`, `patch_size_variance` and `patch_e
 
 ### `neighbors_t`
 
-| uniqueness | colname           | type             | description                                           |
-| ---------- | ----------------- | ---------------- | ----------------------------------------------------- |
-| \*         | id_coord_origin   | int              | FK from `coords_t` (origin coordinate)                |
-| \*         | id_coord_neighbor | int              | FK from `coords_t` (neighbor coordinate)              |
-|            | distance          | float            | Distance between origin and neighbor                  |
-|            | distance_class    | factor, optional | Distance band, if `distance_breaks` were given        |
+<!-- BEGIN GENERATED COLUMNS neighbors_t: run `Rscript devdocs/er_diagram.R`, do not edit -->
+| uniqueness | colname           | type             | description                                                  |
+| ---------- | ----------------- | ---------------- | ------------------------------------------------------------ |
+| \*         | id_coord_origin   | int              | Foreign key to `coords_t`, the origin coordinate point       |
+| \*         | id_coord_neighbor | int              | Foreign key to `coords_t`, the neighbor coordinate point     |
+|            | distance          | float            | Distance between origin and neighbor, in the unit of the CRS |
+|            | distance_class    | factor, optional | Distance band, if `distance_breaks` were given               |
+<!-- END GENERATED COLUMNS neighbors_t -->
 
 Lists, for each coordinate point, the points within `max_distance`.
 `$set_neighbors()` builds it with a spatial hash (`distance_neighbors_cpp()`); `$generate_neighbor_predictors()` then counts, per point, the neighbors of each class within each distance band.
@@ -453,13 +521,15 @@ It carries `id_run` so that each run can use its own potentials; with `allocate(
 Potentials can also be computed outside the package and written to the table directly.
 It is partitioned by `id_run`.
 
-| uniqueness | colname        | type  | description                                |
-| ---------- | -------------- | ----- | ------------------------------------------ |
-| \*         | id_run         | int   | FK from `runs_t`                           |
-| \*         | id_trans       | int   | FK from `trans_meta_t`                     |
-| \*         | id_period_post | int   | FK from `periods_t` (the posterior period) |
-| \*         | id_coord       | int   | FK from `coords_t`                         |
-|            | value          | float | Raw transition potential in [0, 1]         |
+<!-- BEGIN GENERATED COLUMNS trans_pot_t: run `Rscript devdocs/er_diagram.R`, do not edit -->
+| uniqueness | colname        | type  | description                                                                |
+| ---------- | -------------- | ----- | -------------------------------------------------------------------------- |
+| \*         | id_run         | int   | Foreign key to `runs_t`                                                    |
+| \*         | id_trans       | int   | Foreign key to `trans_meta_t`                                              |
+| \*         | id_period_post | int   | Foreign key to `periods_t`, the posterior period                           |
+| \*         | id_coord       | int   | Foreign key to `coords_t`                                                  |
+|            | value          | float | Raw transition potential in [0, 1], as predicted by the transition's model |
+<!-- END GENERATED COLUMNS trans_pot_t -->
 
 ## Views
 

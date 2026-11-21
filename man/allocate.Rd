@@ -127,16 +127,17 @@ of the caller's generator.
 Periods are allocated one after the other, and each for all runs that have reached it, so
 that a branch finds the maps of the run it branches off. In the period it branches off, a
 run allocates on its parent's transition potentials, unless it holds its own: predictors
-before that period, the anterior map or potentials. Branches that also hold no
+before that period, the anterior map, potentials or overrides of which transitions are
+viable (\link{trans_viability_t}). Branches that also hold no
 rates or allocation parameters of their own share their parent's allocation context: it is
 built once, and each of them allocated on it in turn. The runs of a period are spread over
 the mirai daemons of \code{compute}, see \code{\link[=map_evoland]{map_evoland()}}, and their maps committed once all are
 done; transition potentials are predicted beforehand, on the calling process.
 
-The demanded quantity of change is the same for every allocator: for each viable transition,
-\code{round(rate * n_anterior)} cells, where \code{rate} is the transition's rate in \code{trans_rates_t}
-for the posterior period and \code{n_anterior} the number of cells of its anterior class in the
-anterior map. Transitions without a rate change no cells. How closely the allocated map meets
+The demanded quantity of change is the same for every allocator: for each transition viable
+in the run (see \link{trans_viability_t}), \code{round(rate * n_anterior)} cells, where \code{rate} is the
+transition's rate in \code{trans_rates_t} for the posterior period and \code{n_anterior} the number of
+cells of its anterior class in the anterior map. Transitions without a rate change no cells. How closely the allocated map meets
 the demand depends on the allocator: the greedy allocator meets it exactly where enough
 candidate cells exist, CLUMPY's uSAM on average and its uPAM to within a patch, see
 \code{\link[=alloc_clumpy_spec]{alloc_clumpy_spec()}}.

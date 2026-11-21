@@ -1,57 +1,38 @@
+NEIGHBORS_T <- table_spec(
+  "neighbors_t",
+  columns = c(id_coord_origin = "int", id_coord_neighbor = "int", distance = "float"),
+  optional_cols = c(distance_class = "factor"),
+  descriptions = c(
+    id_coord_origin = "Foreign key to [coords_t], the origin coordinate point",
+    id_coord_neighbor = "Foreign key to [coords_t], the neighbor coordinate point",
+    distance = "Distance between origin and neighbor, in the unit of the CRS",
+    distance_class = "Distance band, if `distance_breaks` were given"
+  ),
+  key_cols = c("id_coord_origin", "id_coord_neighbor"),
+  allow_extra_cols = FALSE
+)
+
 #' Create Neighbors Table
 #'
 #' Creates a `neighbors_t` table and validates that it matches the schema.
 #'
 #' @name neighbors_t
+#' @include table_spec.R
 #'
 #' @param x An object that can be passed to [data.table::setDT()]
 #' @param ... Passed to [data.table::print.data.table()] resp. [validate()]
 #'
-#' @return A data.table of class "neighbors_t" with columns:
-#'   - `id_coord_origin`: Foreign key to coords_t (origin coordinate)
-#'   - `id_coord_neighbor`: Foreign key to coords_t (neighbor coordinate)
-#'   - `distance`: Numeric distance between coordinates
-#'   - `distance_class`: Optional factor representing distance intervals
+#' @eval table_spec_rd(NEIGHBORS_T)
 #' @export
 as_neighbors_t <- function(x) {
-  if (missing(x)) {
-    x <- data.table::data.table(
-      id_coord_origin = integer(0),
-      id_coord_neighbor = integer(0),
-      distance = numeric(0)
-    )
-  }
-
-  data.table::setDT(x) |>
-    cast_dt_col("id_coord_origin", "int") |>
-    cast_dt_col("id_coord_neighbor", "int")
-
-  if ("distance_class" %in% names(x)) {
-    cast_dt_col(x, "distance_class", "factor")
-  }
-
-  as_ducklake_db_t(
-    x,
-    class_name = "neighbors_t",
-    key_cols = c("id_coord_origin", "id_coord_neighbor")
-  )
+  as_table_t(x, NEIGHBORS_T)
 }
 
 #' @describeIn neighbors_t Validate a neighbors_t object
 #' @export
 validate.neighbors_t <- function(x, ...) {
   NextMethod()
-
-  required_cols <- c("id_coord_origin", "id_coord_neighbor", "distance")
-
-  data.table::setcolorder(x, required_cols)
-  stop_on_extra_cols(x, c(required_cols, "distance_class"))
-
-  stopifnot(
-    is.integer(x[["id_coord_origin"]]),
-    is.integer(x[["id_coord_neighbor"]]),
-    is.numeric(x[["distance"]])
-  )
+  validate_table_spec(x, NEIGHBORS_T)
 
   return(x)
 }

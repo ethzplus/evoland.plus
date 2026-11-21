@@ -5,19 +5,16 @@
 \alias{as_trans_meta_t}
 \alias{create_trans_meta_t}
 \alias{print.trans_meta_t}
+\alias{trans_meta_v}
 \title{Create Transition Metadata Table}
 \usage{
 as_trans_meta_t(x)
 
-create_trans_meta_t(
-  transitions,
-  min_cardinality_abs = NULL,
-  min_frequency_rel = NULL,
-  exclude_anterior = NULL,
-  exclude_posterior = NULL
-)
+create_trans_meta_t(transitions, ...)
 
 \method{print}{trans_meta_t}(x, nrow = 10, ...)
+
+trans_meta_v(self, id_run = 0L)
 }
 \arguments{
 \item{x}{A list or data.frame coercible to a trans_meta_t object.}
@@ -26,36 +23,39 @@ create_trans_meta_t(
 id_lulc_posterior, id_period; contains transitions and non-transitions (where
 anterior == posterior)}
 
-\item{min_cardinality_abs}{Minimum absolute number of transitions for viability (optional)}
-
-\item{min_frequency_rel}{Minimum relative frequency of transitions for viability (optional)}
-
-\item{exclude_anterior}{Vector of id_lulc values to exclude as anterior (source) classes}
-
-\item{exclude_posterior}{Vector of id_lulc values to exclude as posterior (target) classes}
+\item{...}{passed to \link[data.table:print.data.table]{data.table::print.data.table}}
 
 \item{nrow}{see \link[data.table:print.data.table]{data.table::print.data.table}}
 
-\item{...}{passed to \link[data.table:print.data.table]{data.table::print.data.table}}
+\item{self}{An \link{evoland_db} instance}
+
+\item{id_run}{Integer, the run whose viability overrides are read, through its lineage}
 }
 \value{
 A data.table of class "trans_meta_t" with columns:
 \itemize{
 \item \code{id_trans}: Unique ID for each transition
-\item \code{id_lulc_anterior}: Foreign key to lulc_meta_t (before transition)
-\item \code{id_lulc_posterior}: Foreign key to lulc_meta_t (after transition)
-\item \code{cardinality}: How many times this transition occurred
-\item \code{frequency_rel}: Frequency relative to all transitions
-\item \code{frequency_abs}: Frequency relative to all coordinate pairs
-\item \code{is_viable}: Whether this transition is viable for modelling
+\item \code{id_lulc_anterior}: Foreign key to \link{lulc_meta_t}, the class before the transition
+\item \code{id_lulc_posterior}: Foreign key to \link{lulc_meta_t}, the class after the transition
+\item \code{cardinality}: How many times this transition was observed
+\item \code{frequency_rel}: Frequency relative to all observed transitions
+\item \code{frequency_abs}: Frequency relative to all coordinate points
 }
 }
 \description{
 Creates a trans_meta_t table based on observed land use transitions in the
-LULC data. This function analyzes transition patterns and creates metadata
-entries for each viable transition type. The metadata is kept constant across
-runs, since comparisons of model performance should be based on the same set
-of transitions.
+LULC data: one row per observed transition type, with how often it was observed.
+The table is the same for all runs: \code{id_trans} identifies a pair of anterior and
+posterior classes in every run. Whether a transition is viable for modelling is
+stored per run in \link{trans_viability_t}; \code{db$trans_meta_v(id_run)} returns this table
+with the viability resolved for a run, in a column \code{is_viable}.
+}
+\details{
+The usual workflow derives both tables from the observed transitions:
+
+\if{html}{\out{<div class="sourceCode r">}}\preformatted{db$trans_meta_t <- create_trans_meta_t(db$trans_v())
+db$trans_viability_t <- create_trans_viability_t(db$trans_meta_t, min_cardinality_abs = 5L)
+}\if{html}{\out{</div>}}
 }
 \section{Methods (by generic)}{
 \itemize{
@@ -64,7 +64,10 @@ of transitions.
 }}
 \section{Functions}{
 \itemize{
-\item \code{create_trans_meta_t()}: Calculate the transition metadata and mark for modelling
-feasibility. Does not attribute \code{id_trans}; this only makes sense as part of a DB.
+\item \code{create_trans_meta_t()}: Calculate the transition metadata from observed transitions.
+\code{id_trans} numbers the transitions in the order of their classes.
+
+\item \code{trans_meta_v()}: The transition metadata with \code{is_viable} resolved for a run,
+see \link{trans_viability_t}
 
 }}

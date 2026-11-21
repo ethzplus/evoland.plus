@@ -1,59 +1,45 @@
+TRANS_POT_T <- table_spec(
+  "trans_pot_t",
+  columns = c(
+    id_run = "int",
+    id_trans = "int",
+    id_period_post = "int",
+    id_coord = "int",
+    value = "float"
+  ),
+  descriptions = c(
+    id_run = "Foreign key to [runs_t]",
+    id_trans = "Foreign key to [trans_meta_t]",
+    id_period_post = "Foreign key to [periods_t], the posterior period",
+    id_coord = "Foreign key to [coords_t]",
+    value = "Raw transition potential in \\[0, 1\\], as predicted by the transition's model"
+  ),
+  key_cols = c("id_run", "id_trans", "id_period_post", "id_coord"),
+  partition_cols = "id_run",
+  inherit_by = c("id_trans", "id_period_post"),
+  allow_extra_cols = FALSE
+)
+
 #' Calculate Transition Potential
 #'
 #' Estimate transition potential at `id_period_post`. Based on the LULC at `id_period_anterior`
 #'
 #' @name trans_pot_t
+#' @include table_spec.R
 #'
 #' @param x A list or data.frame coercible to a data.table
 #' @param id_period_post Integer, period to estimate transition potential to
 #'
-#' @return A data.table of class "trans_pot_t" with columns:
-#'   - `id_run`: Foreign key to [runs_t()]
-#'   - `id_trans`: Foreign key to [trans_meta_t()]
-#'   - `id_period_post`: Foreign key to [periods_t()], the posterior period
-#'   - `id_coord`: Foreign key to [coords_t()]
-#'   - `value`: Raw transition potential in \[0, 1\], as predicted by the transition's model
+#' @eval table_spec_rd(TRANS_POT_T)
 #' @export
 as_trans_pot_t <- function(x) {
-  if (missing(x)) {
-    x <- data.table::data.table(
-      id_run = integer(0),
-      id_trans = integer(0),
-      id_period_post = integer(0),
-      id_coord = integer(0),
-      value = numeric(0)
-    )
-  }
-
-  data.table::setDT(x) |>
-    cast_dt_col("id_run", "int") |>
-    cast_dt_col("id_trans", "int") |>
-    cast_dt_col("id_period_post", "int") |>
-    cast_dt_col("id_coord", "int")
-
-  as_ducklake_db_t(
-    x,
-    class_name = "trans_pot_t",
-    key_cols = c("id_run", "id_trans", "id_period_post", "id_coord"),
-    partition_cols = "id_run"
-  )
+  as_table_t(x, TRANS_POT_T)
 }
 
 #' @export
 validate.trans_pot_t <- function(x, ...) {
   NextMethod()
-
-  data.table::setcolorder(
-    x,
-    c(
-      "id_run",
-      "id_trans",
-      "id_period_post",
-      "id_coord",
-      "value"
-    )
-  )
-  stop_on_extra_cols(x, c("id_run", "id_trans", "id_period_post", "id_coord", "value"))
+  validate_table_spec(x, TRANS_POT_T)
 
   # Skip soft checks if empty
   if (nrow(x) == 0L) {
@@ -61,10 +47,6 @@ validate.trans_pot_t <- function(x, ...) {
   }
 
   stopifnot(
-    is.integer(x[["id_run"]]),
-    is.integer(x[["id_trans"]]),
-    is.integer(x[["id_period_post"]]),
-    is.integer(x[["id_coord"]]),
     all(x[["value"]] >= 0),
     all(x[["value"]] <= 1)
   )
@@ -122,7 +104,7 @@ predict_trans_pot <- function(
   id_run = 0L
 ) {
   stopifnot("id_run must be a single integer" = is_scalar_integerish(id_run))
-  viable_trans <- viable_trans_meta(self)
+  viable_trans <- viable_trans_meta(self, id_run = id_run)
 
   # potentials may come from outside evoland.plus (written to trans_pot_t directly); models are only
   # needed for the transitions left to predict
@@ -219,7 +201,7 @@ predict_trans_pot <- function(
 # called for side effect: error if a viable transition does either not have a full model available
 # OR it does not have the required crossvalidation score
 .check_viable_trans_models <- function(self, select_score, id_run = 0L) {
-  viable_trans <- viable_trans_meta(self)
+  viable_trans <- viable_trans_meta(self, id_run = id_run)
 
   modeled_ids <- self$get_query(
     r"[

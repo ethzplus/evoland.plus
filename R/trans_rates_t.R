@@ -1,3 +1,29 @@
+TRANS_RATES_T <- table_spec(
+  "trans_rates_t",
+  columns = c(
+    id_run = "int",
+    id_period = "int",
+    id_trans = "int",
+    count = "int",
+    rate = "float"
+  ),
+  descriptions = c(
+    id_run = "Foreign key to [runs_t]",
+    id_period = "Foreign key to [periods_t]",
+    id_trans = "Foreign key to [trans_meta_t]",
+    count = paste(
+      "Number of transitioning cells for (id_trans, id_period), for reporting; see",
+      "Description"
+    ),
+    rate = paste(
+      "Transition rate: count of transitions in (id_trans, id_period) over count of cells of",
+      "id_lulc_anterior in id_period"
+    )
+  ),
+  key_cols = c("id_run", "id_period", "id_trans"),
+  inherit_by = c("id_period", "id_trans")
+)
+
 #' Create Transition Rates Table
 #'
 #' Creates a trans_rates_t table that stores transition rates for each transition type in
@@ -13,41 +39,14 @@
 #' by regression, whose count depends on the map they will be applied to.
 #'
 #' @name trans_rates_t
+#' @include table_spec.R
 #'
 #' @param x A list or data.frame coercible to a data.table
 #'
-#' @return A data.table of class "trans_rates_t" with columns:
-#'   - `id_run`: Foreign key to runs_t
-#'   - `id_period`: Foreign key to periods_t
-#'   - `id_trans`: Foreign key to trans_meta_t
-#'   - `count`: Number of transitioning cells for (id_trans, id_period), for reporting; see
-#'     Description
-#'   - `rate`: Transition rate: count of transitions in (id_trans, id_period)
-#'     over count of cells of id_lulc_anterior in id_period
+#' @eval table_spec_rd(TRANS_RATES_T)
 #' @export
 as_trans_rates_t <- function(x) {
-  if (missing(x)) {
-    x <- data.table::data.table(
-      id_run = integer(0),
-      id_period = integer(0),
-      id_trans = integer(0),
-      count = integer(0),
-      rate = numeric(0)
-    )
-  }
-
-  data.table::setDT(x) |>
-    cast_dt_col("id_run", "int") |>
-    cast_dt_col("id_period", "int") |>
-    cast_dt_col("id_trans", "int") |>
-    cast_dt_col("count", "int") |>
-    cast_dt_col("rate", "float")
-
-  as_ducklake_db_t(
-    x,
-    class_name = "trans_rates_t",
-    key_cols = c("id_run", "id_period", "id_trans")
-  )
+  as_table_t(x, TRANS_RATES_T)
 }
 
 #' @describeIn trans_rates_t Calculate observed transition rates from historical data.
@@ -176,23 +175,9 @@ extrapolate_trans_rates <- function(obs_rates, periods) {
 #' @export
 validate.trans_rates_t <- function(x, ...) {
   NextMethod()
-
-  data.table::setcolorder(
-    x,
-    c(
-      "id_run",
-      "id_period",
-      "id_trans",
-      "count",
-      "rate"
-    )
-  )
+  validate_table_spec(x, TRANS_RATES_T)
 
   stopifnot(
-    "id_run is not integer" = is.integer(x[["id_run"]]),
-    "id_period is not integer" = is.integer(x[["id_period"]]),
-    "id_trans is not integer" = is.integer(x[["id_trans"]]),
-    "rate is not numeric" = is.numeric(x[["rate"]]),
     "rate is negative" = all(x[["rate"]] >= 0, na.rm = TRUE)
   )
 

@@ -1,71 +1,69 @@
+TRANS_META_T <- table_spec(
+  "trans_meta_t",
+  columns = c(
+    id_trans = "int",
+    id_lulc_anterior = "int",
+    id_lulc_posterior = "int",
+    cardinality = "int",
+    frequency_rel = "float",
+    frequency_abs = "float"
+  ),
+  descriptions = c(
+    id_trans = "Unique ID for each transition",
+    id_lulc_anterior = "Foreign key to [lulc_meta_t], the class before the transition",
+    id_lulc_posterior = "Foreign key to [lulc_meta_t], the class after the transition",
+    cardinality = "How many times this transition was observed",
+    frequency_rel = "Frequency relative to all observed transitions",
+    frequency_abs = "Frequency relative to all coordinate points"
+  ),
+  key_cols = c("id_lulc_anterior", "id_lulc_posterior"),
+  alternate_key_cols = "id_trans"
+)
+
 #' Create Transition Metadata Table
 #'
 #' Creates a trans_meta_t table based on observed land use transitions in the
-#' LULC data. This function analyzes transition patterns and creates metadata
-#' entries for each viable transition type. The metadata is kept constant across
-#' runs, since comparisons of model performance should be based on the same set
-#' of transitions.
+#' LULC data: one row per observed transition type, with how often it was observed.
+#' The table is the same for all runs: `id_trans` identifies a pair of anterior and
+#' posterior classes in every run. Whether a transition is viable for modelling is
+#' stored per run in [trans_viability_t]; `db$trans_meta_v(id_run)` returns this table
+#' with the viability resolved for a run, in a column `is_viable`.
+#'
+#' The usual workflow derives both tables from the observed transitions:
+#'
+#' ```r
+#' db$trans_meta_t <- create_trans_meta_t(db$trans_v())
+#' db$trans_viability_t <- create_trans_viability_t(db$trans_meta_t, min_cardinality_abs = 5L)
+#' ```
 #'
 #' @name trans_meta_t
+#' @include table_spec.R
 #'
 #' @param x A list or data.frame coercible to a trans_meta_t object.
 #' @param transitions A trans_v table, with columns id_coord, id_lulc_anterior,
 #' id_lulc_posterior, id_period; contains transitions and non-transitions (where
 #' anterior == posterior)
-#' @param min_cardinality_abs Minimum absolute number of transitions for viability (optional)
-#' @param min_frequency_rel Minimum relative frequency of transitions for viability (optional)
-#' @param exclude_anterior Vector of id_lulc values to exclude as anterior (source) classes
-#' @param exclude_posterior Vector of id_lulc values to exclude as posterior (target) classes
+#' @param ... Not used. The thresholds and exclusions that `create_trans_meta_t()` used to
+#' take are arguments of [create_trans_viability_t()].
 #'
-#' @return A data.table of class "trans_meta_t" with columns:
-#'   - `id_trans`: Unique ID for each transition
-#'   - `id_lulc_anterior`: Foreign key to lulc_meta_t (before transition)
-#'   - `id_lulc_posterior`: Foreign key to lulc_meta_t (after transition)
-#'   - `cardinality`: How many times this transition occurred
-#'   - `frequency_rel`: Frequency relative to all transitions
-#'   - `frequency_abs`: Frequency relative to all coordinate pairs
-#'   - `is_viable`: Whether this transition is viable for modelling
+#' @eval table_spec_rd(TRANS_META_T)
 #' @export
 as_trans_meta_t <- function(x) {
-  if (missing(x)) {
-    x <- data.table::data.table(
-      id_trans = integer(0),
-      id_lulc_anterior = integer(0),
-      id_lulc_posterior = integer(0),
-      cardinality = integer(0),
-      frequency_rel = numeric(0),
-      frequency_abs = numeric(0),
-      is_viable = logical(0)
-    )
-  }
-
-  data.table::setDT(x) |>
-    cast_dt_col("id_trans", "int") |>
-    cast_dt_col("id_lulc_anterior", "int") |>
-    cast_dt_col("id_lulc_posterior", "int") |>
-    cast_dt_col("cardinality", "int") |>
-    cast_dt_col("frequency_rel", "float") |>
-    cast_dt_col("frequency_abs", "float") |>
-    cast_dt_col("is_viable", "bool")
-
-  as_ducklake_db_t(
-    x,
-    class_name = "trans_meta_t",
-    key_cols = c("id_lulc_anterior", "id_lulc_posterior"),
-    alternate_key_cols = "id_trans"
-  )
+  as_table_t(x, TRANS_META_T)
 }
 
-#' @describeIn trans_meta_t Calculate the transition metadata and mark for modelling
-#' feasibility. Does not attribute `id_trans`; this only makes sense as part of a DB.
+#' @describeIn trans_meta_t Calculate the transition metadata from observed transitions.
+#' `id_trans` numbers the transitions in the order of their classes.
 #' @export
-create_trans_meta_t <- function(
-  transitions,
-  min_cardinality_abs = NULL,
-  min_frequency_rel = NULL,
-  exclude_anterior = NULL,
-  exclude_posterior = NULL
-) {
+create_trans_meta_t <- function(transitions, ...) {
+  if (...length() > 0L) {
+    stop(
+      "create_trans_meta_t() no longer derives viability; pass ",
+      toString(names(list(...))),
+      " to create_trans_viability_t() instead",
+      call. = FALSE
+    )
+  }
   # Return empty table if no data provided
   if (missing(transitions) || nrow(transitions) == 0L) {
     return(as_trans_meta_t())
@@ -75,86 +73,31 @@ create_trans_meta_t <- function(
   n_total_pairs <- nrow(transitions)
 
   # Aggregate transitions by type and calculate frequencies
-  trans_summary <-
-    transitions[
-      # excludes non-transitions
-      id_lulc_anterior != id_lulc_posterior
-    ][,
-      .(cardinality = .N),
-      by = .(id_lulc_anterior, id_lulc_posterior)
-    ][,
-      `:=`(
-        frequency_rel = cardinality / sum(cardinality),
-        frequency_abs = cardinality / n_total_pairs
-      )
-    ][
-      order(id_lulc_anterior, id_lulc_posterior) # deterministic id_trans
-    ]
-
-  # default: all viable until determined otherwise
-  trans_summary[, is_viable := TRUE]
-  trans_summary[, id_trans := seq_len(.N)]
-
-  # Apply exclusions
-  if (!is.null(exclude_anterior) && length(exclude_anterior) > 0) {
-    trans_summary[id_lulc_anterior %in% exclude_anterior, is_viable := FALSE]
-  }
-
-  if (!is.null(exclude_posterior) && length(exclude_posterior) > 0) {
-    trans_summary[id_lulc_posterior %in% exclude_posterior, is_viable := FALSE]
-  }
-
-  # Apply minimum thresholds
-  if (!is.null(min_cardinality_abs) || !is.null(min_frequency_rel)) {
-    if (!is.null(min_cardinality_abs) && !is.null(min_frequency_rel)) {
-      # Both specified: viable if both thresholds are met
-      trans_summary[
-        cardinality < min_cardinality_abs &
-          frequency_rel < min_frequency_rel,
-        is_viable := FALSE
-      ]
-    } else if (!is.null(min_cardinality_abs)) {
-      # Only absolute threshold specified
-      trans_summary[
-        cardinality < min_cardinality_abs,
-        is_viable := FALSE
-      ]
-    } else {
-      # Only relative threshold specified
-      trans_summary[
-        frequency_rel < min_frequency_rel,
-        is_viable := FALSE
-      ]
-    }
-  }
-
-  as_trans_meta_t(trans_summary)
+  transitions[
+    # excludes non-transitions
+    id_lulc_anterior != id_lulc_posterior
+  ][,
+    .(cardinality = .N),
+    by = .(id_lulc_anterior, id_lulc_posterior)
+  ][,
+    `:=`(
+      frequency_rel = cardinality / sum(cardinality),
+      frequency_abs = cardinality / n_total_pairs
+    )
+  ][
+    order(id_lulc_anterior, id_lulc_posterior) # deterministic id_trans
+  ][,
+    id_trans := seq_len(.N)
+  ] |>
+    as_trans_meta_t()
 }
 
 #' @export
 validate.trans_meta_t <- function(x, ...) {
   NextMethod()
-
-  data.table::setcolorder(
-    x,
-    c(
-      "id_trans",
-      "id_lulc_anterior",
-      "id_lulc_posterior",
-      "cardinality",
-      "frequency_rel",
-      "frequency_abs",
-      "is_viable"
-    )
-  )
+  validate_table_spec(x, TRANS_META_T)
 
   stopifnot(
-    is.integer(x[["id_lulc_anterior"]]),
-    is.integer(x[["id_lulc_posterior"]]),
-    is.integer(x[["cardinality"]]),
-    is.numeric(x[["frequency_rel"]]),
-    is.numeric(x[["frequency_abs"]]),
-    is.logical(x[["is_viable"]]),
     all(x[["cardinality"]] >= 0),
     all(x[["frequency_rel"]] >= 0 & x[["frequency_rel"]] <= 1),
     all(x[["frequency_abs"]] >= 0 & x[["frequency_abs"]] <= 1)
@@ -169,15 +112,12 @@ validate.trans_meta_t <- function(x, ...) {
 #' @param ... passed to [data.table::print.data.table]
 print.trans_meta_t <- function(x, nrow = 10, ...) {
   if (nrow(x) > 0) {
-    n_viable <- sum(x[["is_viable"]])
-    n_total <- nrow(x)
-    total_transitions <- sum(x[["cardinality"]])
-
     cat(glue::glue(
       "Transition Metadata Table\n",
-      "Total transition types: {n_total}\n",
-      "Viable for modelling: {n_viable}\n",
-      "Total observed transitions: {total_transitions}\n\n"
+      "Total transition types: {nrow(x)}\n",
+      # only as returned by db$trans_meta_v(), resolved for a run
+      if ("is_viable" %in% names(x)) "Viable for modelling: {sum(x[['is_viable']])}\n" else "",
+      "Total observed transitions: {sum(x[['cardinality']])}\n\n"
     ))
   } else {
     cat("Transition Metadata Table (empty)\n")
@@ -186,12 +126,53 @@ print.trans_meta_t <- function(x, nrow = 10, ...) {
   invisible(x)
 }
 
-# The viable transitions, optionally narrowed to `id_trans`
-viable_trans_meta <- function(self, id_trans = NULL) {
+# trans_meta_t with is_viable resolved for `id_run`: the row in trans_viability_t of the
+# closest run in the lineage that has one; a transition without any is viable. A database
+# written before trans_viability_t existed, and not yet migrated (i.e. opened read-only), still
+# carries is_viable in trans_meta_t, which then serves as the root run's rows.
+trans_meta_read_expr <- function(self, id_run) {
+  meta_read_expr <- self$get_read_expr("trans_meta_t")
+  legacy <- has_legacy_is_viable(self)
+  viability_read_expr <- if ("trans_viability_t" %in% self$list_tables()) {
+    self$get_read_expr("trans_viability_t", id_run = id_run)
+  } else {
+    DBI::SQL("(select null::integer as id_trans, null::boolean as is_viable where false)")
+  }
+  glue::glue_sql(
+    "(select m.* {exclude}, coalesce(v.is_viable, {fallback}true) as is_viable
+      from {meta_read_expr} m
+      left join {viability_read_expr} v using (id_trans))",
+    exclude = DBI::SQL(if (legacy) "exclude (is_viable)" else ""),
+    fallback = DBI::SQL(if (legacy) "m.is_viable, " else ""),
+    .con = self$connection
+  )
+}
+
+# Whether trans_meta_t still has the is_viable column it had before trans_viability_t
+has_legacy_is_viable <- function(self) {
+  "trans_meta_t" %in%
+    self$list_tables() &&
+    "is_viable" %in%
+      self$get_query("select column_name from (describe dl_db.trans_meta_t)", as_atomic = TRUE)
+}
+
+#' @describeIn trans_meta_t The transition metadata with `is_viable` resolved for a run,
+#' see [trans_viability_t]
+#' @param self An [evoland_db] instance
+#' @param id_run Integer, the run whose viability overrides are read, through its lineage
+trans_meta_v <- function(self, id_run = 0L) {
+  stopifnot("id_run must be a single integer" = is_scalar_integerish(id_run))
+  self$get_query("from {trans_meta_read_expr(self, id_run)} order by id_trans") |>
+    as_trans_meta_t()
+}
+
+# The viable transitions of a run, optionally narrowed to `id_trans`
+viable_trans_meta <- function(self, id_trans = NULL, id_run = 0L) {
   stopifnot("id_trans must be NULL or integers" = is.null(id_trans) || is_integerish(id_trans))
+  viable <- trans_meta_v(self, id_run)[is_viable == TRUE]
   if (is.null(id_trans)) {
-    return(self$trans_meta_t[is_viable == TRUE])
+    return(viable)
   }
   # env renames the argument, which inside `[` would be masked by the column of the same name
-  self$trans_meta_t[is_viable == TRUE & id_trans %in% ids, env = list(ids = I(id_trans))]
+  viable[id_trans %in% ids, env = list(ids = I(id_trans))]
 }

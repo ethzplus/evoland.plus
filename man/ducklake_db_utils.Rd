@@ -99,12 +99,15 @@ passing to \verb{$get_query()} -- which interpolates it, so the placeholders in 
 file are filled from the named arguments given alongside it.
 
 \item \code{serialize_metadata()}: Serialize a named list of atomic vectors into the
-single string that \link{ducklake_db} stores as a comment on the catalog table. Each
-entry becomes one line, \verb{key: "value1", "value2"}.
+single string that \link{ducklake_db} stores as a comment on the catalog table: a JSON object
+with one array per entry, e.g. \verb{\{"key_cols": ["id_run", "id_coord"], "epsg": [2056]\}},
+readable by any tool that reads the catalog.
 
 \item \code{deserialize_metadata()}: Recover the named list written by
-\code{\link[=serialize_metadata]{serialize_metadata()}}. Values are type-converted, so that a numeric
-attribute survives the round-trip as a number rather than as a string.
+\code{\link[=serialize_metadata]{serialize_metadata()}}. Numbers come back as integers where they are whole, as with
+\code{\link[utils:type.convert]{utils::type.convert()}}. A comment in the format of earlier versions, one
+\verb{key: "value1", "value2"} line per entry, is read as well; \link{ducklake_db} rewrites such
+comments as JSON when it opens a catalog read-write.
 
 \item \code{convert_list_cols()}: Convert list columns by applying \code{fn}
 

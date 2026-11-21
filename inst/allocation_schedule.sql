@@ -2,9 +2,9 @@
 Which run allocates which period, on whose potentials and allocation context: one row per run
 and period. A run allocates from where it branches off (id_period_eval_start) on, and from the
 first of the requested periods otherwise. In the period it branches off, it takes its parent's
-potentials unless it holds inputs of its own (the anterior map, predictors before the period or
-potentials), and its parent's whole allocation context unless it also holds its own rates or
-allocation parameters.
+potentials unless it holds inputs of its own (the anterior map, predictors before the period,
+potentials or overrides of transition viability), and its parent's whole allocation context
+unless it also holds its own rates or allocation parameters.
 
 Interpolated by `ducklake_db$get_query()`, requiring
 Filters:
@@ -17,6 +17,7 @@ Data sources, each read as stored, i.e. every run's own rows:
 - {pot_read_expr}: trans_pot_t
 - {rates_read_expr}: trans_rates_t
 - {params_read_expr}: alloc_params_t
+- {viability_read_expr}: trans_viability_t
 */
 with
   runs as (
@@ -76,6 +77,15 @@ with
           where
             t.id_run = s.id_run
             and t.id_period_post = s.id_period
+        )
+        -- a run allowing other transitions than its parent needs other potentials
+        or exists (
+          select
+            1
+          from
+            {viability_read_expr} v
+          where
+            v.id_run = s.id_run
         )
       ) as has_own_inputs,
       (
