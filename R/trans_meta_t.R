@@ -150,7 +150,8 @@ trans_meta_read_expr <- function(self, id_run) {
 
 # Whether trans_meta_t still has the is_viable column it had before trans_viability_t
 has_legacy_is_viable <- function(self) {
-  "trans_meta_t" %in% self$list_tables() &&
+  "trans_meta_t" %in%
+    self$list_tables() &&
     "is_viable" %in%
       self$get_query("select column_name from (describe dl_db.trans_meta_t)", as_atomic = TRUE)
 }

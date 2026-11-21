@@ -98,7 +98,8 @@ create_trans_viability_t <- function(
   data.table::data.table(
     id_run = id_run,
     id_trans = trans_meta[["id_trans"]],
-    is_viable = !(trans_meta[["id_lulc_anterior"]] %in% exclude_anterior |
+    is_viable = !(trans_meta[["id_lulc_anterior"]] %in%
+      exclude_anterior |
       trans_meta[["id_lulc_posterior"]] %in% exclude_posterior |
       below_threshold)
   ) |>

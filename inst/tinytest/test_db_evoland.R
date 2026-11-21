@@ -110,10 +110,14 @@ expect_equal(db$fetch("trans_pot_t", id_run = 1L)[["value"]], c(0.5, 0.5, 0.5))
 # viability is resolved per run. trans_meta_t holds the identity of the transitions only; the
 # defaults are rows of the root run, which every run inherits
 expect_false("is_viable" %in% names(db$trans_meta_t))
-expect_equal(db$fetch("trans_viability_t")[, .(id_run, id_trans)], data.table::data.table(
-  id_run = 0L,
-  id_trans = 1:4
-), check.attributes = FALSE)
+expect_equal(
+  db$fetch("trans_viability_t")[, .(id_run, id_trans)],
+  data.table::data.table(
+    id_run = 0L,
+    id_trans = 1:4
+  ),
+  check.attributes = FALSE
+)
 expect_equal(db$trans_meta_v(id_run = 2L)[["is_viable"]], rep(TRUE, 4L))
 # the child disallows transition 1; the grandchild allows it again and disallows 4 instead
 db$trans_viability_t <- as_trans_viability_t(list(
