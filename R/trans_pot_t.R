@@ -103,7 +103,7 @@ predict_trans_pot <- function(
   id_run = 0L
 ) {
   stopifnot("id_run must be a single integer" = is_scalar_integerish(id_run))
-  viable_trans <- viable_trans_meta(self)
+  viable_trans <- viable_trans_meta(self, id_run = id_run)
 
   # potentials may come from outside evoland.plus (written to trans_pot_t directly); models are only
   # needed for the transitions left to predict
@@ -200,7 +200,7 @@ predict_trans_pot <- function(
 # called for side effect: error if a viable transition does either not have a full model available
 # OR it does not have the required crossvalidation score
 .check_viable_trans_models <- function(self, select_score, id_run = 0L) {
-  viable_trans <- viable_trans_meta(self)
+  viable_trans <- viable_trans_meta(self, id_run = id_run)
 
   modeled_ids <- self$get_query(
     r"[

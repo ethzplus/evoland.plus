@@ -62,3 +62,10 @@ for (i in 1:5) {
   shuffled <- synthetic_transitions[sample(.N)]
   expect_equal(create_trans_meta_t(shuffled), trans_meta_ordered)
 }
+
+# the thresholds moved to create_trans_viability_t()
+expect_error(
+  create_trans_meta_t(synthetic_transitions, min_cardinality_abs = 2L),
+  "pass min_cardinality_abs to create_trans_viability_t"
+)
+expect_false("is_viable" %in% names(trans_meta_ordered))

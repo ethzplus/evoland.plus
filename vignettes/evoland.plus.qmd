@@ -354,16 +354,20 @@ For a hands-on introduction, see [mlr3 by Example](https://mlr3book.mlr-org.com/
 
 ## Eligible Transitions and Predictor Pruning
 
-We filter transitions eligible for modeling based on a minimum number of observed occurrences, and exclude the lake, which cannot change.
+`trans_meta_t` lists the observed transitions and how often each occurred.
+Which of them are eligible for modeling (*viable*) is stored separately, in `trans_viability_t`, so that runs can allow or disallow transitions differently.
+Here, the defaults of the base run require a minimum number of observed occurrences and exclude the lake, which cannot change.
+`db$trans_meta_v()` shows the transitions together with their viability.
 
 ```{r}
 #| label: eligible-transitions-and-predictors
-db$trans_meta_t <- create_trans_meta_t(
-  db$trans_v(),
+db$trans_meta_t <- create_trans_meta_t(db$trans_v())
+db$trans_viability_t <- create_trans_viability_t(
+  db$trans_meta_t,
   min_cardinality_abs = 20,
   exclude_anterior = 4 # the lake
 )
-db$trans_meta_t
+db$trans_meta_v()
 ```
 
 Because each transition may be modelled using different predictors (aka *features*), we start out by setting the `trans_preds_t` table to the full cross product of viable transitions and predictors.

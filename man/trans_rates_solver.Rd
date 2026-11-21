@@ -20,7 +20,8 @@ returned by \code{evoland_db$get_obs_trans_rates()}.}
 \item{periods}{A \link{periods_t} table, used for the true period lengths.}
 
 \item{trans_meta}{A \link{trans_meta_t} table, defining the full set of transitions and their
-viability.}
+viability; \code{db$trans_meta_v(id_run)} gives it with the viability of a run, see
+\link{trans_viability_t}.}
 
 \item{include_persistence}{Whether to reconstruct the \code{i -> i} diagonal as
 \code{1 - sum(rate)} over all transitions out of \code{i}. The diagonal is not part of

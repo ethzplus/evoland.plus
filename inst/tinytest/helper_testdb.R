@@ -8,7 +8,7 @@
 #' Create a fully-populated evoland_db in a temp directory
 #'
 #' Populates: coords_t, periods_t, lulc_meta_t, lulc_data_t,
-#'   trans_meta_t, pred_meta_t, pred_data_t_float, neighbors,
+#'   trans_meta_t, trans_viability_t, pred_meta_t, pred_data_t_float, neighbors,
 #'   neighbor predictors, trans_preds_t.
 #'
 #' @param include_neighbors bool, run set_neighbors() + generate_neighbor_predictors()
@@ -34,7 +34,8 @@ make_test_db <- function(
   db$pred_data_t <- evoland.plus:::test_pred_data_t
 
   # derived tables
-  db$trans_meta_t <- create_trans_meta_t(db$trans_v(), min_cardinality_abs = 5L)
+  db$trans_meta_t <- create_trans_meta_t(db$trans_v())
+  db$trans_viability_t <- create_trans_viability_t(db$trans_meta_t, min_cardinality_abs = 5L)
 
   if (include_neighbors) {
     suppressMessages(db$set_neighbors(quiet = TRUE))

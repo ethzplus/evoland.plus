@@ -237,8 +237,10 @@ figure_of_merit_v <- function(
 #'   or an integer vector for a single ensemble. Unnamed ensembles are numbered.
 #' @param by_anterior Logical; if `TRUE`, report per anterior class instead of overall.
 #' @param changeable_only Logical; if `TRUE` (default), score only the cells whose anterior
-#'   class has a viable transition in [trans_meta_t]. The cells of other classes cannot
-#'   change, and every forecast, the reference included, gets them right.
+#'   class has a transition that is viable in the reference run, see [trans_viability_t]. The
+#'   cells of other classes cannot change, and every forecast, the reference included, gets
+#'   them right. The reference run's viability applies to every ensemble, so that all of them
+#'   are scored on the same cells, even where members allow or disallow other transitions.
 #' @param exclude_id_lulc Integer vector of classes; cells whose class in the reference run,
 #'   at `id_period_anterior` or `id_period_post`, is one of them are ignored. Default none.
 #'
@@ -300,7 +302,8 @@ brier_score_v <- function(
       # the reference run's maps may be inherited; the members' are read from their own rows
       reference_read_expr = self$get_read_expr("lulc_data_t", id_run = id_run_reference),
       lulc_data_read_expr = self$get_read_expr("lulc_data_t"),
-      trans_meta_read_expr = self$get_read_expr("trans_meta_t"),
+      # the scored cells are those of the comparison, so the reference run's viability applies
+      trans_meta_read_expr = trans_meta_read_expr(self, id_run_reference),
       result = result
     )
   }

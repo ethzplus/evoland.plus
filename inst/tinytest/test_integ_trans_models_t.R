@@ -394,7 +394,7 @@ expect_equal(
   db$row_count("trans_pot_t"),
   nrow(
     db$lulc_data_t[id_period == 3L][
-      db$trans_meta_t[is_viable == TRUE],
+      db$trans_meta_v()[is_viable == TRUE],
       on = .(id_lulc = id_lulc_anterior),
       nomatch = NULL,
       allow.cartesian = TRUE

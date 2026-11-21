@@ -20,7 +20,8 @@ expect_identical(
     "reporting_t",
     "runs_t",
     "trans_meta_t",
-    "trans_preds_t"
+    "trans_preds_t",
+    "trans_viability_t"
   )
 )
 expect_equal(db$reporting_t["report_name", value], "evoland_scenario")
@@ -28,7 +29,7 @@ expect_equal(db$reporting_t["report_name", value], "evoland_scenario")
 # create_alloc_params_t() returns one best estimate per viable transition, for run 1
 expect_equal(
   sort(db$fetch("alloc_params_t", id_run = 1L)[["id_trans"]]),
-  sort(db$trans_meta_t[is_viable == TRUE, id_trans])
+  sort(db$trans_meta_v()[is_viable == TRUE, id_trans])
 )
 # id_period_post restricts the estimate to the given period pairs; an empty selection errors
 expect_error(
@@ -105,6 +106,59 @@ db$trans_pot_t <- pots(0L, 0.5)
 db$trans_pot_t <- pots(2L, 0)
 expect_equal(db$fetch("trans_pot_t", id_run = 2L)[["value"]], c(0, 0, 0))
 expect_equal(db$fetch("trans_pot_t", id_run = 1L)[["value"]], c(0.5, 0.5, 0.5))
+
+# viability is resolved per run. trans_meta_t holds the identity of the transitions only; the
+# defaults are rows of the root run, which every run inherits
+expect_false("is_viable" %in% names(db$trans_meta_t))
+expect_equal(
+  db$fetch("trans_viability_t")[, .(id_run, id_trans)],
+  data.table::data.table(
+    id_run = 0L,
+    id_trans = 1:4
+  ),
+  check.attributes = FALSE
+)
+expect_equal(db$trans_meta_v(id_run = 2L)[["is_viable"]], rep(TRUE, 4L))
+# the child disallows transition 1; the grandchild allows it again and disallows 4 instead
+db$trans_viability_t <- as_trans_viability_t(list(
+  id_run = c(1L, 2L, 2L),
+  id_trans = c(1L, 1L, 4L),
+  is_viable = c(FALSE, TRUE, FALSE)
+))
+viable_ids <- function(id_run, id_trans = NULL) {
+  evoland.plus:::viable_trans_meta(db, id_trans = id_trans, id_run = id_run)[["id_trans"]]
+}
+expect_equal(viable_ids(0L), 1:4)
+expect_equal(viable_ids(1L), 2:4)
+expect_equal(viable_ids(2L), 1:3)
+expect_equal(viable_ids(1L, id_trans = 1:2), 2L)
+# the identity of the transitions stays as it is
+expect_equal(
+  db$trans_meta_v(id_run = 1L)[, .(id_trans, id_lulc_anterior, id_lulc_posterior)],
+  db$trans_meta_t[order(id_trans), .(id_trans, id_lulc_anterior, id_lulc_posterior)]
+)
+# the prefetch of predictors for all viable transitions reads the run's set: without the
+# transitions out of class 2 (3 and 4), no cell of class 2 is fetched
+db$trans_viability_t <- as_trans_viability_t(data.table::data.table(
+  id_run = 1L,
+  id_trans = 3:4,
+  is_viable = FALSE
+))
+expect_equal(viable_ids(1L), 2L)
+expect_equal(
+  unique(db$pred_wide_predict_v(id_trans = NA, id_period_anterior = 1L, id_run = 1L)[["id_lulc"]]),
+  1L
+)
+expect_equal(
+  sort(unique(db$pred_wide_predict_v(id_trans = NA, id_period_anterior = 1L)[["id_lulc"]])),
+  1:2
+)
+db$delete_from("trans_viability_t", where = "id_run <> 0")
+
+# a transition without a row anywhere in the lineage is viable
+db$delete_from("trans_viability_t", where = "id_trans = 4")
+expect_equal(viable_ids(2L), 1:4)
+db$trans_viability_t <- as_trans_viability_t(list(id_run = 0L, id_trans = 4L, is_viable = TRUE))
 
 # fetch back as rast
 expect_equal(
@@ -436,6 +490,27 @@ expect_equal(
   )$brier,
   1
 )
+
+# changeable_only scores the cells whose anterior class has a transition viable in the
+# reference run: all six here, and only the four of class 1 once run 10 disallows the
+# transitions out of class 2 (3 and 4). The viability of the members does not matter
+brier_cells <- function() {
+  db$brier_score_v(1L, 2L, id_run_reference = 10L, ensembles = 11:12)$n_cells
+}
+expect_equal(brier_cells(), 6L)
+db$trans_viability_t <- as_trans_viability_t(data.table::data.table(
+  id_run = 10L,
+  id_trans = 3:4,
+  is_viable = FALSE
+))
+expect_equal(brier_cells(), 4L)
+db$trans_viability_t <- as_trans_viability_t(data.table::data.table(
+  id_run = 11L,
+  id_trans = 1:4,
+  is_viable = TRUE
+))
+expect_equal(brier_cells(), 4L)
+db$delete_from("trans_viability_t", where = "id_run in (10, 11)")
 
 # brier_score_v against an independent computation in R, on a random fixture: run 20 holds the
 # initial and observed maps of 300 cells in 3 classes, runs 21-25 a simulated map each. Class 3

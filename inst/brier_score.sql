@@ -29,7 +29,7 @@ Ensembles, one element per member run:
 Data sources:
 - {reference_read_expr}: lulc_data_t of the reference run, holding the anterior and observed map
 - {lulc_data_read_expr}: lulc_data_t as stored, every run's own rows
-- {trans_meta_read_expr}: trans_meta_t
+- {trans_meta_read_expr}: trans_meta_t with is_viable resolved for the reference run
 Output:
 - {`result`}: "coverage", "overall" or "per_anterior"
 */

@@ -30,8 +30,10 @@ or an integer vector for a single ensemble. Unnamed ensembles are numbered.}
 \item{by_anterior}{Logical; if \code{TRUE}, report per anterior class instead of overall.}
 
 \item{changeable_only}{Logical; if \code{TRUE} (default), score only the cells whose anterior
-class has a viable transition in \link{trans_meta_t}. The cells of other classes cannot
-change, and every forecast, the reference included, gets them right.}
+class has a transition that is viable in the reference run, see \link{trans_viability_t}. The
+cells of other classes cannot change, and every forecast, the reference included, gets
+them right. The reference run's viability applies to every ensemble, so that all of them
+are scored on the same cells, even where members allow or disallow other transitions.}
 
 \item{exclude_id_lulc}{Integer vector of classes; cells whose class in the reference run,
 at \code{id_period_anterior} or \code{id_period_post}, is one of them are ignored. Default none.}

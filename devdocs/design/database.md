@@ -31,7 +31,8 @@ Grouped by the [workflow](workflow.md) phase that writes them:
   - `pred_meta_t` + `pred_data_t`: predictor metadata and values
   - `neighbors_t`: neighbor relationships between coordinates, for neighborhood predictors
 - Calibration
-  - `trans_meta_t`: the transitions between classes and whether each is viable for modelling
+  - `trans_meta_t`: the transitions between classes and how often each was observed
+  - `trans_viability_t`: whether each transition is viable for modelling, per run
   - `trans_preds_t`: which predictors each transition's model may use
   - `trans_models_t`: fitted transition potential models and their scores
 - Allocation
@@ -123,7 +124,6 @@ erDiagram
         int cardinality
         float frequency_rel
         float frequency_abs
-        bool is_viable
     }
     trans_models_t {
         int id_run PK, FK
@@ -155,6 +155,11 @@ erDiagram
         int count
         float rate
     }
+    trans_viability_t {
+        int id_run PK, FK
+        int id_trans PK, FK
+        bool is_viable
+    }
 
     alloc_params_t }o--|| runs_t : "id_run"
     alloc_params_t }o--|| trans_meta_t : "id_trans"
@@ -183,6 +188,8 @@ erDiagram
     trans_rates_t }o--|| runs_t : "id_run"
     trans_rates_t }o--|| periods_t : "id_period"
     trans_rates_t }o--|| trans_meta_t : "id_trans"
+    trans_viability_t }o--|| runs_t : "id_run"
+    trans_viability_t }o--|| trans_meta_t : "id_trans"
 ```
 <!-- END GENERATED ER DIAGRAM -->
 
@@ -268,7 +275,7 @@ A slice that holds `id_period` falls back to the static period 0 where the perio
 Users add columns to `runs_t` to document how a run was made (allocator, model selection, anything else); the package does not record these itself.
 `rng_seed` and `id_period_eval_start`, `NA` where unset and not inherited, are read by `allocate()`.
 Given several runs, `allocate()` goes period by period, each for every run that has reached its `id_period_eval_start`, so that a branch finds the maps of the run it branches off.
-At its branching period, a run uses its parent's potentials, and shares its parent's allocation context if it holds no inputs of its own.
+At its branching period, a run uses its parent's potentials unless it holds inputs of its own (predictors, the anterior map, potentials or `trans_viability_t` overrides), and shares its parent's allocation context if it also holds no rates or allocation parameters of its own.
 
 ### `lulc_meta_t` + `lulc_data_t`
 
@@ -343,28 +350,55 @@ The table is partitioned by `(id_run, id_period)`.
 
 ### `trans_meta_t`
 
-Relates _anterior_ and _posterior_ classes to each other as _transitions_, with statistics about their frequency in the observed data and an indicator of whether each is viable for modelling.
+Relates _anterior_ and _posterior_ classes to each other as _transitions_, with statistics about their frequency in the observed data.
 `create_trans_meta_t()` derives it from the observed transitions (`db$trans_v`).
+The table is the same for every run: `id_trans` identifies a pair of classes everywhere it is referenced.
 
 <!-- BEGIN GENERATED COLUMNS trans_meta_t: run `Rscript devdocs/er_diagram.R`, do not edit -->
-| uniqueness | colname           | type  | description                                                        |
-| ---------- | ----------------- | ----- | ------------------------------------------------------------------ |
-| alternate  | id_trans          | int   | Unique ID for each transition                                      |
-| \*         | id_lulc_anterior  | int   | Foreign key to `lulc_meta_t`, the class before the transition      |
-| \*         | id_lulc_posterior | int   | Foreign key to `lulc_meta_t`, the class after the transition       |
-|            | cardinality       | int   | How many times this transition was observed                        |
-|            | frequency_rel     | float | Frequency relative to all observed transitions                     |
-|            | frequency_abs     | float | Frequency relative to all coordinate points                        |
-|            | is_viable         | bool  | Whether a transition potential model is fitted for this transition |
+| uniqueness | colname           | type  | description                                                   |
+| ---------- | ----------------- | ----- | ------------------------------------------------------------- |
+| alternate  | id_trans          | int   | Unique ID for each transition                                 |
+| \*         | id_lulc_anterior  | int   | Foreign key to `lulc_meta_t`, the class before the transition |
+| \*         | id_lulc_posterior | int   | Foreign key to `lulc_meta_t`, the class after the transition  |
+|            | cardinality       | int   | How many times this transition was observed                   |
+|            | frequency_rel     | float | Frequency relative to all observed transitions                |
+|            | frequency_abs     | float | Frequency relative to all coordinate points                   |
 <!-- END GENERATED COLUMNS trans_meta_t -->
-
-A transition can be non-viable for conceptual or statistical reasons.
-A model may contain an "other" class that simplifies what a class can turn into; since "other" says nothing about what comes next, transitions out of it cannot be modelled (`exclude_anterior`).
-And a transition may be observed too rarely for statistical inference (`min_cardinality_abs`, `min_frequency_rel`).
 
 > [!NOTE]
 > The previous generation of this model, [evoland-plus-legacy](https://github.com/ethzplus/evoland-plus-legacy), determined the viability of a transition per period.
 > This meant that a single period for training our transition models had to be picked (usually the most recent), which made us lose out on the data provided by previous periods. We could still restrict our training periods in training now, but this only really makes sense if we suppose that different causal mechanisms drove land use change in different periods.
+
+### `trans_viability_t`
+
+<!-- BEGIN GENERATED COLUMNS trans_viability_t: run `Rscript devdocs/er_diagram.R`, do not edit -->
+| uniqueness | colname   | type | description                                                                                  |
+| ---------- | --------- | ---- | -------------------------------------------------------------------------------------------- |
+| \*         | id_run    | int  | Foreign key to `runs_t`                                                                      |
+| \*         | id_trans  | int  | Foreign key to `trans_meta_t`                                                                |
+|            | is_viable | bool | Whether the transition is viable for modelling in this run (and the runs inheriting from it) |
+<!-- END GENERATED COLUMNS trans_viability_t -->
+
+Whether a transition is viable for modelling, per run.
+A transition can be non-viable for conceptual or statistical reasons.
+A model may contain an "other" class that simplifies what a class can turn into; since "other" says nothing about what comes next, transitions out of it cannot be modelled (`exclude_anterior`).
+And a transition may be observed too rarely for statistical inference (`min_cardinality_abs`, `min_frequency_rel`).
+Which transitions are modelled is also a modelling choice: a model may do better or worse when a rare transition is allowed or left out (ethzplus/evoland.plus#142).
+
+The defaults are rows of the root run, derived from the thresholds and exclusions by `create_trans_viability_t()`:
+
+```r
+db$trans_meta_t <- create_trans_meta_t(db$trans_v())
+db$trans_viability_t <- create_trans_viability_t(db$trans_meta_t, min_cardinality_abs = 5L)
+```
+
+A run that allows or disallows transitions differently adds rows of its own.
+The table is read through the lineage per `id_trans`, like any run-dependent table: a transition takes the row of the closest run in the lineage that has one, and a transition without any row is viable.
+`db$trans_meta_v(id_run)` returns `trans_meta_t` with the resolved `is_viable` of a run; predictor selection, model fitting, prediction, allocation parameters and allocation all work on that set.
+A run that branches off its parent and holds rows of its own predicts its own potentials instead of taking its parent's, see `runs_t`.
+
+Viability was a column of `trans_meta_t` until ethzplus/evoland.plus#142; databases written before then are not migrated.
+The alternative of making `trans_meta_t` itself run-dependent was rejected: it duplicates the transition statistics per run and lets `id_trans` drift between runs although every other table refers to it.
 
 ### `trans_preds_t`
 

@@ -45,16 +45,17 @@
 #' Periods are allocated one after the other, and each for all runs that have reached it, so
 #' that a branch finds the maps of the run it branches off. In the period it branches off, a
 #' run allocates on its parent's transition potentials, unless it holds its own: predictors
-#' before that period, the anterior map or potentials. Branches that also hold no
+#' before that period, the anterior map, potentials or overrides of which transitions are
+#' viable ([trans_viability_t]). Branches that also hold no
 #' rates or allocation parameters of their own share their parent's allocation context: it is
 #' built once, and each of them allocated on it in turn. The runs of a period are spread over
 #' the mirai daemons of `compute`, see [map_evoland()], and their maps committed once all are
 #' done; transition potentials are predicted beforehand, on the calling process.
 #'
-#' The demanded quantity of change is the same for every allocator: for each viable transition,
-#' `round(rate * n_anterior)` cells, where `rate` is the transition's rate in `trans_rates_t`
-#' for the posterior period and `n_anterior` the number of cells of its anterior class in the
-#' anterior map. Transitions without a rate change no cells. How closely the allocated map meets
+#' The demanded quantity of change is the same for every allocator: for each transition viable
+#' in the run (see [trans_viability_t]), `round(rate * n_anterior)` cells, where `rate` is the
+#' transition's rate in `trans_rates_t` for the posterior period and `n_anterior` the number of
+#' cells of its anterior class in the anterior map. Transitions without a rate change no cells. How closely the allocated map meets
 #' the demand depends on the allocator: the greedy allocator meets it exactly where enough
 #' candidate cells exist, CLUMPY's uSAM on average and its uPAM to within a patch, see
 #' [alloc_clumpy_spec()].
@@ -296,7 +297,8 @@ allocation_schedule <- function(db, id_periods, id_run) {
     pred_read_expr = own_rows_read_expr(db, "pred_data_t"),
     pot_read_expr = own_rows_read_expr(db, "trans_pot_t"),
     rates_read_expr = own_rows_read_expr(db, "trans_rates_t"),
-    params_read_expr = own_rows_read_expr(db, "alloc_params_t")
+    params_read_expr = own_rows_read_expr(db, "alloc_params_t"),
+    viability_read_expr = own_rows_read_expr(db, "trans_viability_t")
   )
 }
 
@@ -380,7 +382,7 @@ allocation_context <- function(db, id_period_post, id_run, potentials_run) {
   }
 
   viable_trans <-
-    viable_trans_meta(db)[, .(id_trans, id_lulc_anterior, id_lulc_posterior)] |>
+    viable_trans_meta(db, id_run = id_run)[, .(id_trans, id_lulc_anterior, id_lulc_posterior)] |>
     data.table::setorder(id_trans)
   stopifnot("No viable transitions found" = nrow(viable_trans) > 0L)
 

@@ -46,6 +46,7 @@ LinkingTo:
 Collate:
     'RcppExports.R'
     'ducklake_db_utils.R'
+    'trans_viability_t.R'
     'trans_rates_t.R'
     'trans_preds_t.R'
     'trans_pot_t.R'

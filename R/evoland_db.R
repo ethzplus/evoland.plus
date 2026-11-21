@@ -15,7 +15,7 @@
 #' @include ducklake_db.R ducklake_db_utils.R alloc_params_t.R coords_t.R lulc_data_t.R
 #' @include lulc_meta_t.R neighbors_t.R periods_t.R pred_data_t.R pred_meta_t.R reporting_t.R
 #' @include runs_t.R trans_meta_t.R trans_models_t.R trans_pot_t.R trans_preds_t.R
-#' @include trans_rates_t.R
+#' @include trans_rates_t.R trans_viability_t.R
 #' @export
 
 evoland_db <- R6::R6Class(
@@ -179,6 +179,13 @@ evoland_db <- R6::R6Class(
     #' @param id_run Integer, the run whose predictors and anterior map are read
     pred_wide_predict_v = function(id_trans, id_period_anterior, id_run = 0L) {
       create_method_binding(pred_wide_predict_v)
+    },
+
+    #' @description The transition metadata with `is_viable` resolved for a run, see
+    #' [trans_meta_v()] and [trans_viability_t]
+    #' @param id_run Integer, the run whose viability overrides are read, through its lineage
+    trans_meta_v = function(id_run = 0L) {
+      create_method_binding(trans_meta_v)
     },
 
     ### Validation methods ---
@@ -431,6 +438,8 @@ evoland_db <- R6::R6Class(
     pred_meta_t = create_table_binding("pred_meta_t", "upsert"),
     #' @field trans_meta_t Get or upsert [trans_meta_t]
     trans_meta_t = create_table_binding("trans_meta_t", "upsert"),
+    #' @field trans_viability_t Get or upsert [trans_viability_t]
+    trans_viability_t = create_table_binding("trans_viability_t", "upsert"),
     #' @field trans_preds_t Get or upsert [trans_preds_t]; deselect a predictor by setting
     #' its `is_selected` to `FALSE`
     trans_preds_t = create_table_binding("trans_preds_t", "upsert"),
@@ -470,6 +479,7 @@ EVOLAND_SCHEMA <- list(
   TRANS_MODELS_T,
   TRANS_POT_T,
   TRANS_PREDS_T,
-  TRANS_RATES_T
+  TRANS_RATES_T,
+  TRANS_VIABILITY_T
 )
 names(EVOLAND_SCHEMA) <- vapply(EVOLAND_SCHEMA, \(spec) spec[["name"]], character(1))
