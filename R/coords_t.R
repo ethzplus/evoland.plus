@@ -1,3 +1,15 @@
+COORDS_T <- table_spec(
+  "coords_t",
+  columns = c(id_coord = "int", lon = "float", lat = "float"),
+  descriptions = c(
+    id_coord = "Unique ID for each coordinate point",
+    lon = "Longitude/x coordinate, in the unit of the CRS",
+    lat = "Latitude/y coordinate, in the unit of the CRS"
+  ),
+  key_cols = "id_coord",
+  allow_extra_cols = FALSE
+)
+
 #' Coordinate Tables
 #'
 #' Create and validate `coords_t` objects, describing the base set of coordinate points
@@ -14,54 +26,20 @@
 #' `coords_t` object. The unit is that of the epsg.
 #'
 #' @name coords_t
+#' @include table_spec.R
 NULL
 
 #' @describeIn coords_t Cast and validate as coords_t
-#' @return A data.table of class "coords_t" with columns:
-#'   - `id_coord`: Unique ID for each coordinate pair
-#'   - `lon`: Longitude/x coordinate
-#'   - `lat`: Latitude/y coordinate
+#' @eval table_spec_rd(COORDS_T)
 #' @export
 as_coords_t <- function(x) {
-  if (missing(x)) {
-    x <- data.table::data.table(
-      id_coord = integer(0),
-      lon = numeric(0),
-      lat = numeric(0)
-    )
-  }
-
-  data.table::setDT(x) |>
-    cast_dt_col("id_coord", "int") |>
-    cast_dt_col("lon", "float") |>
-    cast_dt_col("lat", "float")
-
-  as_ducklake_db_t(
-    x,
-    class_name = "coords_t",
-    key_cols = "id_coord"
-  )
+  as_table_t(x, COORDS_T)
 }
 
 #' @export
 validate.coords_t <- function(x, ...) {
   NextMethod()
-
-  data.table::setcolorder(
-    x,
-    c(
-      "id_coord",
-      "lon",
-      "lat"
-    )
-  )
-  stop_on_extra_cols(x, c("id_coord", "lon", "lat"))
-
-  stopifnot(
-    is.integer(x[["id_coord"]]),
-    is.numeric(x[["lon"]]),
-    is.numeric(x[["lat"]])
-  )
+  validate_table_spec(x, COORDS_T)
 
   return(x)
 }

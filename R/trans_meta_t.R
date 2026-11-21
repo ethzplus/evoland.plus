@@ -1,3 +1,27 @@
+TRANS_META_T <- table_spec(
+  "trans_meta_t",
+  columns = c(
+    id_trans = "int",
+    id_lulc_anterior = "int",
+    id_lulc_posterior = "int",
+    cardinality = "int",
+    frequency_rel = "float",
+    frequency_abs = "float",
+    is_viable = "bool"
+  ),
+  descriptions = c(
+    id_trans = "Unique ID for each transition",
+    id_lulc_anterior = "Foreign key to [lulc_meta_t], the class before the transition",
+    id_lulc_posterior = "Foreign key to [lulc_meta_t], the class after the transition",
+    cardinality = "How many times this transition was observed",
+    frequency_rel = "Frequency relative to all observed transitions",
+    frequency_abs = "Frequency relative to all coordinate points",
+    is_viable = "Whether a transition potential model is fitted for this transition"
+  ),
+  key_cols = c("id_lulc_anterior", "id_lulc_posterior"),
+  alternate_key_cols = "id_trans"
+)
+
 #' Create Transition Metadata Table
 #'
 #' Creates a trans_meta_t table based on observed land use transitions in the
@@ -9,6 +33,7 @@
 #' table with the viability resolved for a run.
 #'
 #' @name trans_meta_t
+#' @include table_spec.R
 #'
 #' @param x A list or data.frame coercible to a trans_meta_t object.
 #' @param transitions A trans_v table, with columns id_coord, id_lulc_anterior,
@@ -19,44 +44,10 @@
 #' @param exclude_anterior Vector of id_lulc values to exclude as anterior (source) classes
 #' @param exclude_posterior Vector of id_lulc values to exclude as posterior (target) classes
 #'
-#' @return A data.table of class "trans_meta_t" with columns:
-#'   - `id_trans`: Unique ID for each transition
-#'   - `id_lulc_anterior`: Foreign key to lulc_meta_t (before transition)
-#'   - `id_lulc_posterior`: Foreign key to lulc_meta_t (after transition)
-#'   - `cardinality`: How many times this transition occurred
-#'   - `frequency_rel`: Frequency relative to all transitions
-#'   - `frequency_abs`: Frequency relative to all coordinate pairs
-#'   - `is_viable`: Whether this transition is viable for modelling, unless a run overrides
-#'     it in [trans_viability_t]
+#' @eval table_spec_rd(TRANS_META_T)
 #' @export
 as_trans_meta_t <- function(x) {
-  if (missing(x)) {
-    x <- data.table::data.table(
-      id_trans = integer(0),
-      id_lulc_anterior = integer(0),
-      id_lulc_posterior = integer(0),
-      cardinality = integer(0),
-      frequency_rel = numeric(0),
-      frequency_abs = numeric(0),
-      is_viable = logical(0)
-    )
-  }
-
-  data.table::setDT(x) |>
-    cast_dt_col("id_trans", "int") |>
-    cast_dt_col("id_lulc_anterior", "int") |>
-    cast_dt_col("id_lulc_posterior", "int") |>
-    cast_dt_col("cardinality", "int") |>
-    cast_dt_col("frequency_rel", "float") |>
-    cast_dt_col("frequency_abs", "float") |>
-    cast_dt_col("is_viable", "bool")
-
-  as_ducklake_db_t(
-    x,
-    class_name = "trans_meta_t",
-    key_cols = c("id_lulc_anterior", "id_lulc_posterior"),
-    alternate_key_cols = "id_trans"
-  )
+  as_table_t(x, TRANS_META_T)
 }
 
 #' @describeIn trans_meta_t Calculate the transition metadata and mark for modelling
@@ -137,27 +128,9 @@ create_trans_meta_t <- function(
 #' @export
 validate.trans_meta_t <- function(x, ...) {
   NextMethod()
-
-  data.table::setcolorder(
-    x,
-    c(
-      "id_trans",
-      "id_lulc_anterior",
-      "id_lulc_posterior",
-      "cardinality",
-      "frequency_rel",
-      "frequency_abs",
-      "is_viable"
-    )
-  )
+  validate_table_spec(x, TRANS_META_T)
 
   stopifnot(
-    is.integer(x[["id_lulc_anterior"]]),
-    is.integer(x[["id_lulc_posterior"]]),
-    is.integer(x[["cardinality"]]),
-    is.numeric(x[["frequency_rel"]]),
-    is.numeric(x[["frequency_abs"]]),
-    is.logical(x[["is_viable"]]),
     all(x[["cardinality"]] >= 0),
     all(x[["frequency_rel"]] >= 0 & x[["frequency_rel"]] <= 1),
     all(x[["frequency_abs"]] >= 0 & x[["frequency_abs"]] <= 1)

@@ -1,3 +1,22 @@
+TRANS_VIABILITY_T <- table_spec(
+  "trans_viability_t",
+  columns = c(
+    id_run = "int",
+    id_trans = "int",
+    is_viable = "bool"
+  ),
+  descriptions = c(
+    id_run = "Foreign key to [runs_t]",
+    id_trans = "Foreign key to [trans_meta_t]",
+    is_viable = paste(
+      "Whether the transition is viable for modelling in this run (and the runs inheriting",
+      "from it)"
+    )
+  ),
+  key_cols = c("id_run", "id_trans"),
+  inherit_by = "id_trans"
+)
+
 #' Create Transition Viability Table
 #'
 #' Creates a trans_viability_t table, which overrides the viability of transitions for a run.
@@ -19,47 +38,22 @@
 #' is_viable)]`.
 #'
 #' @name trans_viability_t
+#' @include table_spec.R
 #'
 #' @param x A list or data.frame coercible to a data.table
 #'
-#' @return A data.table of class "trans_viability_t" with columns:
-#'   - `id_run`: Foreign key to runs_t
-#'   - `id_trans`: Foreign key to trans_meta_t
-#'   - `is_viable`: Whether the transition is viable for modelling in this run (and the runs
-#'     inheriting from it)
+#' @eval table_spec_rd(TRANS_VIABILITY_T)
 #' @export
 as_trans_viability_t <- function(x) {
-  if (missing(x)) {
-    x <- data.table::data.table(
-      id_run = integer(0),
-      id_trans = integer(0),
-      is_viable = logical(0)
-    )
-  }
-
-  data.table::setDT(x) |>
-    cast_dt_col("id_run", "int") |>
-    cast_dt_col("id_trans", "int") |>
-    cast_dt_col("is_viable", "bool")
-
-  as_ducklake_db_t(
-    x,
-    class_name = "trans_viability_t",
-    key_cols = c("id_run", "id_trans")
-  )
+  as_table_t(x, TRANS_VIABILITY_T)
 }
 
 #' @export
 validate.trans_viability_t <- function(x, ...) {
   NextMethod()
+  validate_table_spec(x, TRANS_VIABILITY_T)
 
-  data.table::setcolorder(x, c("id_run", "id_trans", "is_viable"))
-
-  stopifnot(
-    "id_run is not integer" = is.integer(x[["id_run"]]),
-    "id_trans is not integer" = is.integer(x[["id_trans"]]),
-    "is_viable must be TRUE or FALSE" = is.logical(x[["is_viable"]]) && !anyNA(x[["is_viable"]])
-  )
+  stopifnot("is_viable must be TRUE or FALSE" = !anyNA(x[["is_viable"]]))
 
   return(x)
 }

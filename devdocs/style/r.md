@@ -91,10 +91,11 @@ These use R's own `message()`, `warning()` and `stop()` for now; a logging tool 
 
 Every table follows the shape of `R/periods_t.R`:
 
-1. `as_<entity>_t(x)`: if `x` is missing, build an empty table with the full column set and types (the ER diagram is generated from it); `setDT()`; cast each column with `cast_dt_col()`; compute derived columns; finish with `as_ducklake_db_t(x, class_name =, key_cols =, ...)`, which calls `validate()`.
-2. Optionally `create_<entity>_t(...)`, building the table from a specification and ending with `as_<entity>_t()`.
-3. `validate.<entity>_t(x, ...)`: `NextMethod()`, set the canonical column order with `setcolorder()`, check invariants in one named `stopifnot()`, return `x`.
-4. `print.<entity>_t(x, nrow = 10, ...)`: `cat()` a short summary, then `NextMethod(nrow = nrow, ...)`, then `invisible(x)`.
+1. `<ENTITY>_T <- table_spec(...)`: the table declared once, as data: its columns with their types and descriptions, in the canonical column order, its keys, partitions, and, for a run-scoped table, `inherit_by`, the columns that form one slice of inheritance through the run lineage. Add the spec to `EVOLAND_SCHEMA` (`R/evoland_schema.R`); the ER diagram, the column tables in `devdocs/design/database.md` and the reads through the lineage are derived from the registry.
+2. `as_<entity>_t(x)`: `as_table_t(x, <ENTITY>_T)`, which builds an empty table if `x` is missing, casts every column, adds missing ones, sets the column order and finishes with `as_ducklake_db_t()`, which calls `validate()`. Derived columns are computed in its `derive` function.
+3. Optionally `create_<entity>_t(...)`, building the table from a specification and ending with `as_<entity>_t()`.
+4. `validate.<entity>_t(x, ...)`: `NextMethod()`, `validate_table_spec(x, <ENTITY>_T)` for the declared columns and types, then the invariants specific to the table in one named `stopifnot()`, return `x`.
+5. `print.<entity>_t(x, nrow = 10, ...)`: `cat()` a short summary, then `NextMethod(nrow = nrow, ...)`, then `invisible(x)`.
 
 ## R6 classes and database methods
 
@@ -123,7 +124,7 @@ Check the existing `R/*_t.R` files for a column that already means the same thin
 ## Documentation (roxygen)
 
 - Run `roxygen2::roxygenize()` after changing any `#'` block and commit the resulting `man/` and `NAMESPACE` changes.
-- For tables, `@return` lists every column with its meaning, in the canonical column order.
+- For tables, `@return` lists every column with its meaning, in the canonical column order. It is generated from the table's spec with `#' @eval table_spec_rd(<ENTITY>_T)`; edit the descriptions there.
 - Group a table's functions on one help page with `@name <entity>_t`. Much of the existing documentation uses `@describeIn` for the other functions; treat that as legacy and prefer a manual structure with sections that fit the content, see [prose.md](prose.md#roxygen).
 - Documented internal helpers get `@keywords internal`.
 

@@ -26,18 +26,15 @@ create_pred_meta_t(pred_spec, starting_id = 1L)
 A data.table of class "pred_meta_t" with columns:
 \itemize{
 \item \code{id_pred}: Unique ID for each predictor
-\item \code{name}: Name for use in code and queries
-\item \code{pretty_name}: Name for plots/output
+\item \code{name}: Concise name for use in code and queries, e.g. \code{distance_road}
+\item \code{pretty_name}: Name for plots and output, e.g. \emph{Distance To Closest Road}
 \item \code{description}: Long description / operationalisation
-\item \code{orig_format}: Original format description
-\item \code{sources}: Sources, list column of data.frames with cols \code{url} and \code{md5sum}
-\item \code{unit}: SI units for physical properties, or more complex descriptors
-like "bed nights/year" as a proxy for touristic activity
-\item \code{data_type}: Factor with levels "int", "float", "bool", "factor".
-Used for coercion.
-\item \code{fill_value}: Value to use for missing data for \link{coords_t} coordinate points that
-are not explicitly stored.
-\item \code{factor_levels}: list of character vectors; order matters!
+\item \code{orig_format}: Original format, e.g. "100m raster, daily"
+\item \code{sources}: Where the data were fetched: list column of data.frames with columns \code{url} and \code{md5sum}
+\item \code{unit}: SI units for physical properties, or more complex descriptors like "bed nights/year" as a proxy for touristic activity; \code{NA} for categorical values
+\item \code{factor_levels}: List of character vectors, the ordered level labels when \code{data_type} is "factor" or "ordered"
+\item \code{data_type}: Factor with levels "int", "float", "bool", "factor", "ordered": the type the stored values are cast back to
+\item \code{fill_value}: Value of the \link{coords_t} coordinate points that are not explicitly stored in \link{pred_data_t}
 }
 }
 \description{

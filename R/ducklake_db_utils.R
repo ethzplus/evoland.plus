@@ -166,8 +166,9 @@ read_sql <- function(file) {
 }
 
 #' @describeIn ducklake_db_utils Serialize a named list of atomic vectors into the
-#' single string that [ducklake_db] stores as a comment on the catalog table. Each
-#' entry becomes one line, `key: "value1", "value2"`.
+#' single string that [ducklake_db] stores as a comment on the catalog table: a JSON object
+#' with one array per entry, e.g. `{"key_cols": ["id_run", "id_coord"], "epsg": [2056]}`,
+#' readable by any tool that reads the catalog.
 #' @param metadata Named list of atomic vectors.
 #' @keywords internal
 serialize_metadata <- function(metadata) {
@@ -175,25 +176,170 @@ serialize_metadata <- function(metadata) {
     return("")
   }
 
-  values <- vapply(
-    metadata,
-    function(value) paste0('"', value, '"', collapse = ", "),
+  json_values <- function(value) {
+    if (is.logical(value)) {
+      ifelse(is.na(value), "null", ifelse(value, "true", "false"))
+    } else if (is.numeric(value) && !is.factor(value)) {
+      ifelse(is.finite(value), as.character(value), "null")
+    } else {
+      ifelse(is.na(value), "null", json_string(as.character(value)))
+    }
+  }
+
+  entries <- vapply(
+    names(metadata),
+    function(key) {
+      paste0(json_string(key), ": [", paste(json_values(metadata[[key]]), collapse = ", "), "]")
+    },
     character(1)
   )
 
-  paste0(names(metadata), ": ", values, collapse = "\n")
+  paste0("{", paste(entries, collapse = ", "), "}")
+}
+
+# A JSON string literal: quoted, with backslashes, quotes and control characters escaped
+json_string <- function(x) {
+  # byte-wise, so that no locale conversion mangles the UTF-8 text
+  x[!validUTF8(x)] <- enc2utf8(x[!validUTF8(x)])
+  escapes <- list(
+    c("\\", "\\\\"),
+    c('"', '\\"'),
+    c("\n", "\\n"),
+    c("\r", "\\r"),
+    c("\t", "\\t")
+  )
+  for (escape in escapes) {
+    x <- gsub(escape[1], escape[2], x, fixed = TRUE, useBytes = TRUE)
+  }
+  controls <- gregexpr("[\\x01-\\x1f]", x, perl = TRUE, useBytes = TRUE)
+  regmatches(x, controls) <- lapply(
+    regmatches(x, controls),
+    \(chars) sprintf("\\u%04x", vapply(chars, \(char) as.integer(charToRaw(char)), integer(1)))
+  )
+  Encoding(x) <- "UTF-8"
+  paste0('"', x, '"')
 }
 
 #' @describeIn ducklake_db_utils Recover the named list written by
-#' [serialize_metadata()]. Values are type-converted, so that a numeric
-#' attribute survives the round-trip as a number rather than as a string.
+#' [serialize_metadata()]. Numbers come back as integers where they are whole, as with
+#' [utils::type.convert()]. A comment in the format of earlier versions, one
+#' `key: "value1", "value2"` line per entry, is read as well; [ducklake_db] rewrites such
+#' comments as JSON when it opens a catalog read-write.
 #' @param comment Character scalar, or NA for a table without metadata.
 #' @keywords internal
 deserialize_metadata <- function(comment) {
   if (length(comment) == 0L || is.na(comment) || !nzchar(comment)) {
     return(list())
   }
+  if (!startsWith(trimws(comment), "{")) {
+    return(deserialize_metadata_v0(comment))
+  }
+  comment <- enc2utf8(comment)
 
+  # JSON tokens; the comment holds one object of scalars or arrays of scalars
+  token_pattern <- paste0(
+    '"(?:[^"\\\\]|\\\\.)*"', # string
+    "|-?[0-9]+(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?", # number
+    "|true|false|null|[][{}:,]"
+  )
+  matches <- gregexpr(token_pattern, comment, perl = TRUE)
+  tokens <- regmatches(comment, matches)[[1]]
+  if (nzchar(trimws(paste(regmatches(comment, matches, invert = TRUE)[[1]], collapse = "")))) {
+    stop("Table comment is not a JSON object of scalars and arrays: ", comment, call. = FALSE)
+  }
+
+  pos <- 1L
+  expect <- function(token) {
+    if (!identical(tokens[pos], token)) {
+      stop("Table comment is not a JSON object of scalars and arrays: ", comment, call. = FALSE)
+    }
+    pos <<- pos + 1L
+  }
+  scalar <- function() {
+    token <- tokens[pos]
+    if (is.na(token) || token %in% c("[", "]", "{", "}", ":", ",")) {
+      stop("Table comment is not a JSON object of scalars and arrays: ", comment, call. = FALSE)
+    }
+    pos <<- pos + 1L
+    token
+  }
+  value <- function() {
+    if (!identical(tokens[pos], "[")) {
+      return(json_vector(scalar()))
+    }
+    expect("[")
+    items <- character(0)
+    while (!identical(tokens[pos], "]")) {
+      if (length(items)) {
+        expect(",")
+      }
+      items <- c(items, scalar())
+    }
+    expect("]")
+    json_vector(items)
+  }
+
+  out <- list()
+  expect("{")
+  while (!identical(tokens[pos], "}")) {
+    if (length(out)) {
+      expect(",")
+    }
+    key <- json_vector(scalar())
+    expect(":")
+    out[[key]] <- value()
+  }
+  expect("}")
+  out
+}
+
+# Convert JSON scalar tokens to one atomic vector: strings if any is a string, otherwise
+# numbers or logicals; null is NA
+json_vector <- function(tokens) {
+  if (length(tokens) == 0L) {
+    return(character(0))
+  }
+  is_string <- startsWith(tokens, '"')
+  is_null <- tokens == "null"
+  if (any(is_string)) {
+    out <- rep(NA_character_, length(tokens))
+    out[!is_null] <- vapply(tokens[!is_null], json_unescape, character(1), USE.NAMES = FALSE)
+    return(out)
+  }
+  if (all(tokens %in% c("true", "false", "null"))) {
+    return(c(true = TRUE, false = FALSE, null = NA)[tokens] |> unname())
+  }
+  tokens[is_null] <- NA_character_
+  utils::type.convert(tokens, as.is = TRUE, na.strings = "NA")
+}
+
+# The value of a JSON string literal
+json_unescape <- function(token) {
+  x <- substr(token, 2L, nchar(token) - 1L)
+  escapes <- gregexpr("\\\\(u[0-9a-fA-F]{4}|.)", x, perl = TRUE)
+  regmatches(x, escapes) <- lapply(regmatches(x, escapes), function(escape) {
+    vapply(
+      substring(escape, 2L),
+      function(code) {
+        switch(
+          substr(code, 1L, 1L),
+          u = intToUtf8(strtoi(substring(code, 2L), 16L)),
+          n = "\n",
+          r = "\r",
+          t = "\t",
+          b = "\b",
+          f = "\f",
+          code
+        )
+      },
+      character(1)
+    )
+  })
+  x
+}
+
+# The comment format of earlier versions: one `key: "value1", "value2"` line per entry
+deserialize_metadata_v0 <- function(comment) {
   entries <- strsplit(comment, "\n", fixed = TRUE)[[1]]
   keys <- sub(": .*$", "", entries)
   values <- sub("^[^:]*: ", "", entries)

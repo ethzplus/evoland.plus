@@ -44,10 +44,12 @@ Factored out utility functions and methods specifically used in conjunction with
 \section{Functions}{
 \itemize{
 \item \code{get_evoland_db_read_expr()}: Gets the read expression for a given table, taking into
-account the run lineage and distinctness columns. If the table has no \code{id_run} column
-or is the \code{runs_t} table itself, falls back to the default read expression.
-Otherwise, constructs a read expression that filters for \code{id_run} and its lineage,
-using the distinctness columns to determine which slices of data to include.
+account the run lineage. Whether a table is run-scoped, and which columns form one
+inheritance slice, is the \code{inherit_by} of its \link{table_spec} in \code{EVOLAND_SCHEMA}; a table
+that is not in the registry is run-scoped if its stored metadata carries \code{inherit_by}.
+A table that is not run-scoped, or a read without \code{id_run}, falls back to the default
+read expression. Otherwise, the read expression filters for \code{id_run} and its lineage,
+taking each slice from the closest run in the lineage that holds it.
 
 \item \code{map_evoland()}: Apply a worker function to each item, on mirai daemons when
 they are set and serially otherwise, and return the results once all items are done.

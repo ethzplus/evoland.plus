@@ -20,10 +20,9 @@ as_trans_viability_t(x)
 \value{
 A data.table of class "trans_viability_t" with columns:
 \itemize{
-\item \code{id_run}: Foreign key to runs_t
-\item \code{id_trans}: Foreign key to trans_meta_t
-\item \code{is_viable}: Whether the transition is viable for modelling in this run (and the runs
-inheriting from it)
+\item \code{id_run}: Foreign key to \link{runs_t}
+\item \code{id_trans}: Foreign key to \link{trans_meta_t}
+\item \code{is_viable}: Whether the transition is viable for modelling in this run (and the runs inheriting from it)
 }
 }
 \description{

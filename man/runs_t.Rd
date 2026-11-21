@@ -24,8 +24,7 @@ A data.table of class "runs_t" with columns:
 \item \code{parent_id_run}: The run this run inherits data from; \code{NA} for the base run
 \item \code{description}: Human-readable description of the run
 \item \code{rng_seed}: Seed for the run's allocation, see \code{\link[=allocate]{allocate()}}; \code{NA} for none
-\item \code{id_period_eval_start}: First period the run allocates itself, i.e. where it branches
-off its parent, see \code{\link[=allocate]{allocate()}}; \code{NA} for none
+\item \code{id_period_eval_start}: First period the run allocates itself, i.e. where it branches off its parent, see \code{\link[=allocate]{allocate()}}; \code{NA} for none
 }
 }
 \description{

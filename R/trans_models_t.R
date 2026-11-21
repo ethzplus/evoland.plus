@@ -1,3 +1,49 @@
+TRANS_MODELS_T <- table_spec(
+  "trans_models_t",
+  columns = c(
+    id_run = "int",
+    id_trans = "int",
+    learner_id = "char",
+    learner_params = "map",
+    learner_spec = "list",
+    crossval_score = "map",
+    crossval_predictions = "list",
+    learner_full = "list"
+  ),
+  descriptions = c(
+    id_run = "Foreign key to [runs_t]",
+    id_trans = "Foreign key to [trans_meta_t]",
+    learner_id = paste(
+      "mlr3 twoclass",
+      "[LearnerClassif](https://mlr3.mlr-org.com/reference/LearnerClassif.html) key, e.g.",
+      "`\"classif.ranger\"`"
+    ),
+    learner_params = paste(
+      "MAP of atomic scalar learner hyperparameters for querying; complete hyperparameters",
+      "are captured by `learner_spec`. A fit that failed is recorded as a sentinel row whose",
+      "`learner_params` holds a single `error_message` entry, and whose `learner_full` is",
+      "`NULL`"
+    ),
+    learner_spec = paste(
+      "BLOB of serialized untrained mlr3 `Learner`; for AutoTuners, this is the optimal inner",
+      "learner after tuning"
+    ),
+    crossval_score = paste(
+      "MAP of cross-validation performance scores (from `prediction$score(measures)`)"
+    ),
+    crossval_predictions = paste(
+      "BLOB of serialized mlr3 `PredictionClassif` on the held-out test split"
+    ),
+    learner_full = paste(
+      "BLOB of serialized trained mlr3 `Learner` fitted on the full dataset, used for",
+      "extrapolation"
+    )
+  ),
+  key_cols = c("id_run", "id_trans", "learner_id"),
+  partition_cols = "id_run",
+  inherit_by = "id_trans"
+)
+
 #' Create Transition Models Table
 #'
 #' Creates a trans_models_t table for storing transition model metadata and
@@ -5,52 +51,14 @@
 #' structure for storing fitted models via the mlr3 interface.
 #'
 #' @name trans_models_t
+#' @include table_spec.R
 #'
 #' @param x A list or data.frame coercible to a data.table
 #'
-#' @return A data.table of class "trans_models_t" with columns:
-#'   - `id_run`: Foreign key to runs_t
-#'   - `id_trans`: Foreign key to trans_meta_t
-#'   - `learner_id`: mlr3 twoclass [LearnerClassif](https://mlr3.mlr-org.com/reference/LearnerClassif.html)
-#'     key, e.g. `"classif.ranger"`
-#'   - `learner_params`: MAP of atomic scalar learner hyperparameters for
-#'     querying; complete hyperparameters are captured by `learner_spec`.
-#'     A fit that failed is recorded as a sentinel row whose `learner_params`
-#'     holds a single `error_message` entry, and whose `learner_full` is `NULL`
-#'   - `learner_spec`: BLOB of serialized untrained mlr3 `Learner`; for
-#'     AutoTuners, this is the optimal inner learner after tuning
-#'   - `crossval_score`: MAP of cross-validation performance scores
-#'     (from `prediction$score(measures)`)
-#'   - `crossval_predictions`: BLOB of serialized mlr3 `PredictionClassif`
-#'     on the held-out test split
-#'   - `learner_full`: BLOB of serialized trained mlr3 `Learner` fitted on
-#'     the full dataset, used for extrapolation
+#' @eval table_spec_rd(TRANS_MODELS_T)
 #' @export
 as_trans_models_t <- function(x) {
-  if (missing(x)) {
-    x <- data.table::data.table(
-      id_run = integer(0),
-      id_trans = integer(0),
-      learner_id = character(0),
-      learner_params = list(),
-      learner_spec = list(),
-      crossval_score = list(),
-      crossval_predictions = list(),
-      learner_full = list()
-    )
-  }
-
-  data.table::setDT(x) |>
-    cast_dt_col("id_run", "int") |>
-    cast_dt_col("id_trans", "int")
-
-  as_ducklake_db_t(
-    x,
-    "trans_models_t",
-    key_cols = c("id_run", "id_trans", "learner_id"),
-    map_cols = c("learner_params", "crossval_score"),
-    partition_cols = "id_run"
-  )
+  as_table_t(x, TRANS_MODELS_T)
 }
 
 # Validates that `learner` is an mlr3 Learner that supports twoclass classification,
@@ -523,20 +531,7 @@ fit_full_models <- function(
 #' @export
 validate.trans_models_t <- function(x, ...) {
   NextMethod()
-
-  data.table::setcolorder(
-    x,
-    c(
-      "id_run",
-      "id_trans",
-      "learner_id",
-      "learner_params",
-      "learner_spec",
-      "crossval_score",
-      "crossval_predictions",
-      "learner_full"
-    )
-  )
+  validate_table_spec(x, TRANS_MODELS_T)
 
   # Skip soft checks if empty
   if (nrow(x) == 0L) {
@@ -544,14 +539,6 @@ validate.trans_models_t <- function(x, ...) {
   }
 
   stopifnot(
-    is.integer(x[["id_run"]]),
-    is.integer(x[["id_trans"]]),
-    is.character(x[["learner_id"]]),
-    is.list(x[["learner_params"]]),
-    is.list(x[["learner_spec"]]),
-    is.list(x[["crossval_score"]]),
-    is.list(x[["crossval_predictions"]]),
-    is.list(x[["learner_full"]]),
     all(x[["id_trans"]] > 0),
     !any(x[["learner_id"]] == "")
   )

@@ -70,25 +70,46 @@ expect_error(
 )
 
 # ---- serialize_metadata / deserialize_metadata ----
+# a JSON object of arrays, so that other tools reading the catalog can parse it
 expect_identical(
   evoland.plus:::serialize_metadata(list(existing = "keep", custom_attr = c("a", "b"))),
-  'existing: "keep"\ncustom_attr: "a", "b"'
+  '{"existing": ["keep"], "custom_attr": ["a", "b"]}'
 )
 expect_identical(evoland.plus:::serialize_metadata(list()), "")
-
-# values are type-converted, so numbers do not come back as strings
-expect_identical(
-  evoland.plus:::deserialize_metadata('existing: "keep"\nnum: "42"\nflag: "TRUE"'),
-  list(existing = "keep", num = 42L, flag = TRUE)
-)
 expect_identical(evoland.plus:::deserialize_metadata(NA_character_), list())
 expect_identical(evoland.plus:::deserialize_metadata(""), list())
 
-# a metadata list survives the round-trip unchanged
-roundtrip <- list(epsg = 2056L, resolution = 100.5, key_cols = c("id_run", "id_coord"))
+# a metadata list survives the round-trip unchanged, including values that broke the format
+# of earlier versions: `", "`, newlines, quotes and backslashes
+roundtrip <- list(
+  epsg = 2056L,
+  resolution = 100.5,
+  key_cols = c("id_run", "id_coord"),
+  note = c('a "quoted", comma-separated\nline', "back\\slash\ttab"),
+  flags = c(TRUE, NA),
+  version = "1.0",
+  empty = character(0)
+)
 expect_identical(
   evoland.plus:::deserialize_metadata(evoland.plus:::serialize_metadata(roundtrip)),
   roundtrip
+)
+# JSON written by other tools: scalars, whitespace and escapes
+expect_identical(
+  evoland.plus:::deserialize_metadata(
+    '{ "key_cols" : "id",\n "n": 3, "x": [1.5, null], "s": "\\u0041\\/" }'
+  ),
+  list(key_cols = "id", n = 3L, x = c(1.5, NA), s = "A/")
+)
+expect_error(
+  evoland.plus:::deserialize_metadata('{"a": [1, {"b": 2}]}'),
+  "not a JSON object of scalars and arrays"
+)
+
+# comments in the format of earlier versions are still read, with values type-converted
+expect_identical(
+  evoland.plus:::deserialize_metadata('existing: "keep"\nnum: "42"\nflag: "TRUE"'),
+  list(existing = "keep", num = 42L, flag = TRUE)
 )
 
 # ---- convert_list_cols ----
