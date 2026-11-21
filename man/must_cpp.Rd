@@ -4,7 +4,7 @@
 \alias{must_cpp}
 \title{Multinomial Sampling Test (MuST) in C++}
 \usage{
-must_cpp(P, states, u = NULL)
+must_cpp(P, states)
 }
 \arguments{
 \item{P}{Numeric matrix (n_cells x n_states); each row should sum to ~1
@@ -12,14 +12,11 @@ must_cpp(P, states, u = NULL)
 
 \item{states}{Integer vector of length \code{ncol(P)} giving the state id of each
 column.}
-
-\item{u}{Optional NumericVector of length \code{nrow(P)} of uniform draws in
-[0, 1) to replay instead of drawing from R's RNG.  Lets an external uniform
-stream (e.g. numpy's, from the reference \code{clumpy}) be replayed for an exact
-cross-tool comparison of the pivot test.}
 }
 \value{
 Integer vector of length \code{nrow(P)} with the sampled state per cell.
+One uniform is drawn from R's generator per row, so \code{\link[=set.seed]{set.seed()}} fixes the
+result.
 }
 \description{
 Inverse-CDF multinomial draw of a final state per cell (Mazy 2022,
