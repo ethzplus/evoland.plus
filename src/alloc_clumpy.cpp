@@ -25,6 +25,18 @@
 //                This is the general multi-pixel method (and also covers
 //                mono-pixel patches, with a quota).
 //
+//                Not yet implemented: updating the potentials as the pool
+//                shrinks.  The reference clumpy re-estimates the transition
+//                probabilities on the remaining pool before each pass (thesis
+//                sec. 3.4.2), which is currently too expensive to run here, so
+//                the potentials stay fixed.  Re-drawing pivots from them pass
+//                after pass is successive sampling: the most probable cells
+//                are included slightly less often than their potential, the
+//                others slightly more (about 3 % in the top decile; one pass
+//                over all candidates, batch_size < 0, shows no such shift).
+//                Measured in evoland-experiments
+//                2026-09-paper-figures/010-verify-upam-bias.
+//
 // The R layer auto-selects the method from the patch parameters (all mono-pixel
 // => uSAM, otherwise uPAM); the explicit `method` flag here is kept so the
 // backend can be exercised directly (unit tests / cross-tool comparison).
@@ -37,8 +49,10 @@
 // Aggregation avoidance (`avoid_aggregation`, uPAM only): replicates clumpy's
 // GaussianPatcher.  Patch growth is all-or-nothing and writes nothing until the
 // whole patch is built: if at any growth step (or at the final step) a border
-// cell already belongs to another patch of the same transition, or the patch
-// cannot reach its sampled area, the patch fails and allocates nothing.  Failed
+// cell already belongs to another patch of the same transition allocated in
+// this time step, or the patch cannot reach its sampled area, the patch fails
+// and allocates nothing.  Land that had the target class before the step does
+// not count as a patch: growing next to it is allowed.  Failed
 // (attempted) cells are removed from the pool for the rest of the time step
 // (sampling without replacement), so patches never merge.
 //
@@ -156,7 +170,10 @@ static int draw_lognorm_area(double area_mean, double area_var) {
 }
 
 // Normal patch-area draw: N(area_mean, sd = sqrt(area_var)), clamped to >= 1
-// (matches clumpy's GaussianPatcher).  NA / non-positive mean -> 1.
+// (as clumpy's GaussianPatcher), rounded to the nearest integer.  clumpy grows a
+// patch while it is smaller than the real-valued draw, i.e. to ceiling(draw)
+// cells, half a cell above the prescribed mean on average; rounding keeps the
+// mean.  NA / non-positive mean -> 1.
 static int draw_normal_area(double area_mean, double area_var) {
   if (ISNAN(area_mean) || area_mean <= 0.0) return 1;
   const double sd = (ISNAN(area_var) || area_var <= 0.0) ? 0.0 : std::sqrt(area_var);
@@ -198,16 +215,42 @@ static void shuffle_pair(std::vector<int> &a, std::vector<int> &b) {
 // shared clumpy::elongation_from_raw_moments) towards the target.  Running
 // spatial moments make each candidate's elongation an O(1) update.
 //
+// Differences from Mazy's patch design algorithm (App. 3.I.3) and from the
+// reference clumpy (Patcher.allocate), checked against clumpy on 2000 scenarios
+// in evoland-experiments 2026-09-paper-figures/010-verify-clumpy:
+//   * no connectedness step (3.I.3.2, steps iv-v): clumpy first adds, at random,
+//     a border cell with >= 3 of its 4 rook neighbours in the patch, to avoid
+//     small holes; here every cell is chosen by the score;
+//   * exact elongation: the candidate patch's moments are taken about its own
+//     centroid, as eqs. 3.I.6-3.I.8 define them; the thesis (3.I.3.3) and
+//     clumpy keep the centroid of the patch without the candidate, an
+//     approximation for speed that the running sums make unnecessary;
+//   * ties go to the lowest cell index, as in clumpy, but candidates that tie in
+//     exact arithmetic (mirror images with equal potential) may be separated by
+//     floating-point round-off differently from clumpy; the thesis leaves ties
+//     open;
+//   * the score adds eps = 1e-6 to the distance, so an exact match of the
+//     target elongation does not divide by zero.
+// With the first two aligned in clumpy, both grow the same patch, up to exact
+// ties.  The growth is a greedy, deterministic choice among the cells next to
+// the patch: only the pivot is drawn from the potentials.  The allocated cells
+// follow the potentials as a whole only where these vary slowly over a patch
+// (Mazy App. 3.A.2: patch scale << scale of the explanatory variables).
+//
 // `avoid_aggregation` enforces the no-patch-merging requirement (Mazy sec. 3.2.4
-// "patch merging" / sec. 3.4.2), which is necessary for the post-allocation
-// patch-size distribution to stay unbiased:
+// "patch merging" / sec. 3.4.2, App. 3.D.1.2): merging would reduce the quantity
+// of change and shift the post-allocation patch-size distribution to larger
+// patches.  It concerns only patches of the same time step; growing into or
+// next to land that already had `to_class` before the step is allowed (Mazy
+// 3.I.3.1), which is how patches can extend existing areas:
 //   * if a border cell already belongs to another patch of this transition
 //     (ant == from_class && land == to_class), the patch FAILS (returns 0);
 //   * if no eligible cell remains before reaching the target area, the patch
 //     FAILS (all-or-nothing);
 //   * a final check is applied to the last added cell's neighbours.
 //   With avoid_aggregation == false, the patch grows greedily up to the target
-//   and a short patch is accepted (no merge checks).
+//   and a short patch is accepted (no merge checks); the thesis and clumpy fail
+//   a patch that runs out of neighbours in either case.
 //
 // Returns the number of cells committed (>= 1 on success; 0 on failure / invalid
 // pivot).  `out_cells` always receives the cells that were *attempted* (0-based),
