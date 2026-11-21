@@ -1,67 +1,39 @@
-# Regenerates the ER diagram in devdocs/design/database.md from the table constructors.
+# Regenerates the ER diagram and the column tables in devdocs/design/database.md from the
+# table specifications.
 #
 #   Rscript devdocs/er_diagram.R
 #
-# Every exported `as_*_t()` called without arguments returns an empty table carrying its
-# columns, types and key attributes; the diagram is derived from those. A column is a
-# foreign key if it is named after another table's id: `id_<entity>` for the table
-# `<entity>_t`, `<entity>s_t` or `<entity>_meta_t`, optionally with a role prefix or suffix
-# (`parent_id_run`, `id_lulc_anterior`, `id_period_post`). CI fails if the committed
-# diagram differs from the generated one, see .github/workflows/R-CMD-check.yaml.
+# Every table is declared once as a `table_spec()` next to its `as_*_t()` constructor, and
+# the registry `EVOLAND_SCHEMA` lists them all; the diagram and the column tables are derived
+# from it. A column is a foreign key if it is named after another table's id: `id_<entity>`
+# for the table `<entity>_t`, `<entity>s_t` or `<entity>_meta_t`, optionally with a role
+# prefix or suffix (`parent_id_run`, `id_lulc_anterior`, `id_period_post`). CI fails if the
+# committed document differs from the generated one, see .github/workflows/R-CMD-check.yaml.
 
 if (file.exists("DESCRIPTION") && requireNamespace("pkgload", quietly = TRUE)) {
   pkgload::load_all(quiet = TRUE)
-} else {
-  library(evoland.plus)
 }
+schema <- utils::getFromNamespace("EVOLAND_SCHEMA", "evoland.plus")
+schema <- schema[sort(names(schema))]
+column_type <- \(type) utils::getFromNamespace("TABLE_SPEC_TYPES", "evoland.plus")[[type]][["doc"]]
+table_spec_md <- utils::getFromNamespace("table_spec_md", "evoland.plus")
 
 target_file <- file.path("devdocs", "design", "database.md")
-begin_marker <- paste(
-  "<!-- BEGIN GENERATED ER DIAGRAM:",
-  "run `Rscript devdocs/er_diagram.R`, do not edit -->"
-)
-end_marker <- "<!-- END GENERATED ER DIAGRAM -->"
-
-constructor_names <- setdiff(
-  grep("^as_.*_t$", getNamespaceExports("evoland.plus"), value = TRUE),
-  "as_ducklake_db_t"
-)
-tables <- lapply(sort(constructor_names), \(fn) getExportedValue("evoland.plus", fn)())
-names(tables) <- sub("^as_", "", sort(constructor_names))
-
-column_type <- function(column, column_name, map_cols) {
-  if (column_name %in% map_cols) {
-    return("map")
-  }
-  switch(
-    class(column)[1],
-    integer = "int",
-    numeric = "float",
-    character = "string",
-    logical = "bool",
-    Date = "date",
-    factor = "factor",
-    list = "list",
-    class(column)[1]
-  )
-}
+generated_note <- "run `Rscript devdocs/er_diagram.R`, do not edit"
 
 # id column -> table it identifies, from the naming convention described above
 id_owner <- list()
-for (table_name in names(tables)) {
-  base <- sub("_t$", "", table_name)
+for (spec in schema) {
+  base <- sub("_t$", "", spec[["name"]])
   entities <- unique(c(base, sub("_meta$", "", base), sub("s$", "", base)))
-  key_cols <- c(
-    attr(tables[[table_name]], "key_cols"),
-    attr(tables[[table_name]], "alternate_key_cols")
-  )
+  key_cols <- c(spec[["key_cols"]], spec[["alternate_key_cols"]])
   for (id_col in intersect(paste0("id_", entities), key_cols)) {
-    id_owner[[id_col]] <- table_name
+    id_owner[[id_col]] <- spec[["name"]]
   }
 }
 
-referenced_table <- function(column_name, column) {
-  if (!is.integer(column)) {
+referenced_table <- function(column_name, type) {
+  if (type != "int") {
     return(NA_character_)
   }
   for (id_col in names(id_owner)) {
@@ -75,29 +47,21 @@ referenced_table <- function(column_name, column) {
 
 entity_lines <- character()
 relation_lines <- character()
-for (table_name in names(tables)) {
-  x <- tables[[table_name]]
-  key_cols <- attr(x, "key_cols")
-  alternate_key_cols <- attr(x, "alternate_key_cols")
-  map_cols <- attr(x, "map_cols")
-
+for (spec in schema) {
+  table_name <- spec[["name"]]
   entity_lines <- c(entity_lines, paste0("    ", table_name, " {"))
-  for (column_name in names(x)) {
-    parent <- referenced_table(column_name, x[[column_name]])
+  for (column_name in names(spec[["columns"]])) {
+    type <- spec[["columns"]][[column_name]]
+    parent <- referenced_table(column_name, type)
     is_foreign <- !is.na(parent) && !(parent == table_name && column_name %in% names(id_owner))
     markers <- c(
-      if (column_name %in% key_cols) "PK",
-      if (column_name %in% alternate_key_cols) "UK",
+      if (column_name %in% spec[["key_cols"]]) "PK",
+      if (column_name %in% spec[["alternate_key_cols"]]) "UK",
       if (is_foreign) "FK"
     )
     entity_lines <- c(
       entity_lines,
-      paste(
-        "       ",
-        column_type(x[[column_name]], column_name, map_cols),
-        column_name,
-        paste(markers, collapse = ", ")
-      ) |>
+      paste("       ", column_type(type), column_name, paste(markers, collapse = ", ")) |>
         trimws(which = "right")
     )
     if (is_foreign) {
@@ -111,25 +75,28 @@ for (table_name in names(tables)) {
   entity_lines <- c(entity_lines, "    }")
 }
 
-diagram <- c(
-  begin_marker,
-  "```mermaid",
-  "erDiagram",
-  entity_lines,
-  "",
-  relation_lines,
-  "```",
-  end_marker
-)
+# Replace the lines between a begin and an end marker, each present exactly once
+replace_between <- function(document, begin_marker, end_marker, lines) {
+  begin <- which(document == begin_marker)
+  end <- which(document == end_marker)
+  if (!(length(begin) == 1L && length(end) == 1L && begin < end)) {
+    stop("database.md must contain these markers exactly once, in order: ", begin_marker)
+  }
+  c(document[seq_len(begin)], lines, document[-seq_len(end - 1L)])
+}
 
-document <- readLines(target_file)
-begin <- which(document == begin_marker)
-end <- which(document == end_marker)
-has_one_marker_pair <- length(begin) == 1L && length(end) == 1L && begin < end
-stopifnot(
-  "database.md must contain the begin and end markers exactly once, in order" = has_one_marker_pair
+document <- replace_between(
+  readLines(target_file),
+  paste0("<!-- BEGIN GENERATED ER DIAGRAM: ", generated_note, " -->"),
+  "<!-- END GENERATED ER DIAGRAM -->",
+  c("```mermaid", "erDiagram", entity_lines, "", relation_lines, "```")
 )
-writeLines(
-  c(document[seq_len(begin - 1L)], diagram, document[-seq_len(end)]),
-  target_file
-)
+for (spec in schema) {
+  document <- replace_between(
+    document,
+    glue::glue("<!-- BEGIN GENERATED COLUMNS {spec[['name']]}: {generated_note} -->"),
+    glue::glue("<!-- END GENERATED COLUMNS {spec[['name']]} -->"),
+    table_spec_md(spec)
+  )
+}
+writeLines(document, target_file)

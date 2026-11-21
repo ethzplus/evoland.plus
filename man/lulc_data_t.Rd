@@ -28,10 +28,10 @@ retrieve; returned as layers.}
 \value{
 A data.table of class "lulc_data_t" with columns:
 \itemize{
-\item \code{id_run}: Foreign key to runs_t
-\item \code{id_period}: Foreign key to periods_t
-\item \code{id_lulc}: Foreign key to lulc_meta_t
-\item \code{id_coord}: Foreign key to coords_t
+\item \code{id_run}: Foreign key to \link{runs_t}
+\item \code{id_coord}: Foreign key to \link{coords_t}
+\item \code{id_lulc}: Foreign key to \link{lulc_meta_t}
+\item \code{id_period}: Foreign key to \link{periods_t}
 }
 }
 \description{

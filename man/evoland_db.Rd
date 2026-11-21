@@ -60,7 +60,6 @@ Use \code{\link[=adjusted_trans_pot_v]{adjusted_trans_pot_v()}} for allocation-r
 \section{Methods}{
 \subsection{Public methods}{
   \itemize{
-    \item \href{#method-evoland_db-adjusted_trans_pot_v}{\code{evoland_db$adjusted_trans_pot_v()}}
     \item \href{#method-evoland_db-initialize}{\code{evoland_db$new()}}
     \item \href{#method-evoland_db-get_read_expr}{\code{evoland_db$get_read_expr()}}
     \item \href{#method-evoland_db-print}{\code{evoland_db$print()}}
@@ -83,6 +82,7 @@ Use \code{\link[=adjusted_trans_pot_v]{adjusted_trans_pot_v()}} for allocation-r
     \item \href{#method-evoland_db-predict_trans_pot}{\code{evoland_db$predict_trans_pot()}}
     \item \href{#method-evoland_db-get_obs_trans_rates}{\code{evoland_db$get_obs_trans_rates()}}
     \item \href{#method-evoland_db-trans_v}{\code{evoland_db$trans_v()}}
+    \item \href{#method-evoland_db-adjusted_trans_pot_v}{\code{evoland_db$adjusted_trans_pot_v()}}
     \item \href{#method-evoland_db-clone}{\code{evoland_db$clone()}}
   }
 }
@@ -101,21 +101,6 @@ Use \code{\link[=adjusted_trans_pot_v]{adjusted_trans_pot_v()}} for allocation-r
   <li><span class="pkg-link" data-pkg="evoland.plus" data-topic="ducklake_db" data-id="transaction"><a href='../../evoland.plus/html/ducklake_db.html#method-ducklake_db-transaction'><code>ducklake_db$transaction()</code></a></span></li>
 </ul>
 </details>}}
-\if{html}{\out{<hr>}}
-\if{html}{\out{<a id="method-evoland_db-adjusted_trans_pot_v"></a>}}
-\if{latex}{\out{\hypertarget{method-evoland_db-adjusted_trans_pot_v}{}}}
-\subsection{\code{evoland_db$adjusted_trans_pot_v()}}{
-  \subsection{Usage}{
-    \if{html}{\out{<div class="r">}}
-    \preformatted{evoland_db$adjusted_trans_pot_v(
-  id_period_post,
-  id_run = 0L,
-  id_run_trans_pot = id_run
-)}
-    \if{html}{\out{</div>}}
-  }
-}
-
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-evoland_db-initialize"></a>}}
 \if{latex}{\out{\hypertarget{method-evoland_db-initialize}{}}}
@@ -706,6 +691,21 @@ carry}
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
     \preformatted{evoland_db$trans_v(id_run = 0L)}
+    \if{html}{\out{</div>}}
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-evoland_db-adjusted_trans_pot_v"></a>}}
+\if{latex}{\out{\hypertarget{method-evoland_db-adjusted_trans_pot_v}{}}}
+\subsection{\code{evoland_db$adjusted_trans_pot_v()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{evoland_db$adjusted_trans_pot_v(
+  id_period_post,
+  id_run = 0L,
+  id_run_trans_pot = id_run
+)}
     \if{html}{\out{</div>}}
   }
 }

@@ -57,17 +57,14 @@ its lineage, and whose \code{id_run} they carry.}
 \value{
 A data.table of class "alloc_params_t" with columns:
 \itemize{
-\item \code{id_run}: Foreign key to runs_t
-\item \code{id_trans}: Foreign key to trans_meta_t
-\item \code{mean_patch_size}: Mean area of new patches (in cell units); a patch is a set of cells
-connected by their edges (rook adjacency)
+\item \code{id_run}: Foreign key to \link{runs_t}
+\item \code{id_trans}: Foreign key to \link{trans_meta_t}
+\item \code{mean_patch_size}: Mean area of new patches (in cell units); a patch is a set of cells connected by their edges (rook adjacency)
 \item \code{patch_size_variance}: Variance of patch area (in cell units)
-\item \code{patch_elongation}: Mean patch elongation (\eqn{e = 1 - \sqrt{\lambda_2 / \lambda_1}},
-range 0–1); the raw shape summary from \code{calculate_class_stats_cpp()}
-\item \code{patch_isometry}: Dinamica-specific isometry parameter derived from \code{patch_elongation}
-via \code{\link[=isometry_from_elongation]{isometry_from_elongation()}}
-\item \code{frac_expander}: Fraction of transition cells adjacent to existing patches
-\item \code{frac_patcher}: Fraction of transition cells forming new patches
+\item \code{patch_elongation}: Mean patch elongation, \code{1 - sqrt(lambda_2 / lambda_1)} from the eigenvalues of the patch's covariance, from 0 (isometric) to 1 (linear); the raw shape summary from \code{calculate_class_stats_cpp()}
+\item \code{patch_isometry}: Dinamica-specific isometry parameter derived from \code{patch_elongation} via \code{\link[=isometry_from_elongation]{isometry_from_elongation()}}
+\item \code{frac_expander}: Fraction of transition cells adjacent to existing patches, in [0, 1]
+\item \code{frac_patcher}: Fraction of transition cells forming new patches, in [0, 1]
 }
 
 A named list with allocation parameters:
