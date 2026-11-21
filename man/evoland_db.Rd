@@ -72,6 +72,7 @@ Use \code{\link[=adjusted_trans_pot_v]{adjusted_trans_pot_v()}} for allocation-r
     \item \href{#method-evoland_db-pred_wide_train_v}{\code{evoland_db$pred_wide_train_v()}}
     \item \href{#method-evoland_db-pred_wide_predict_v}{\code{evoland_db$pred_wide_predict_v()}}
     \item \href{#method-evoland_db-figure_of_merit_v}{\code{evoland_db$figure_of_merit_v()}}
+    \item \href{#method-evoland_db-brier_score_v}{\code{evoland_db$brier_score_v()}}
     \item \href{#method-evoland_db-lulc_crosstab_v}{\code{evoland_db$lulc_crosstab_v()}}
     \item \href{#method-evoland_db-create_alloc_params_t}{\code{evoland_db$create_alloc_params_t()}}
     \item \href{#method-evoland_db-lulc_data_as_rast}{\code{evoland_db$lulc_data_as_rast()}}
@@ -95,6 +96,7 @@ Use \code{\link[=adjusted_trans_pot_v]{adjusted_trans_pot_v()}} for allocation-r
   <li><span class="pkg-link" data-pkg="evoland.plus" data-topic="ducklake_db" data-id="fetch"><a href='../../evoland.plus/html/ducklake_db.html#method-ducklake_db-fetch'><code>ducklake_db$fetch()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="evoland.plus" data-topic="ducklake_db" data-id="get_query"><a href='../../evoland.plus/html/ducklake_db.html#method-ducklake_db-get_query'><code>ducklake_db$get_query()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="evoland.plus" data-topic="ducklake_db" data-id="get_table_metadata"><a href='../../evoland.plus/html/ducklake_db.html#method-ducklake_db-get_table_metadata'><code>ducklake_db$get_table_metadata()</code></a></span></li>
+  <li><span class="pkg-link" data-pkg="evoland.plus" data-topic="ducklake_db" data-id="interpolate_sql"><a href='../../evoland.plus/html/ducklake_db.html#method-ducklake_db-interpolate_sql'><code>ducklake_db$interpolate_sql()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="evoland.plus" data-topic="ducklake_db" data-id="list_tables"><a href='../../evoland.plus/html/ducklake_db.html#method-ducklake_db-list_tables'><code>ducklake_db$list_tables()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="evoland.plus" data-topic="ducklake_db" data-id="next_id"><a href='../../evoland.plus/html/ducklake_db.html#method-ducklake_db-next_id'><code>ducklake_db$next_id()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="evoland.plus" data-topic="ducklake_db" data-id="row_count"><a href='../../evoland.plus/html/ducklake_db.html#method-ducklake_db-row_count'><code>ducklake_db$row_count()</code></a></span></li>
@@ -411,6 +413,42 @@ the root run, 0}
       \item{\code{exclude_id_lulc}}{Integer vector of classes; cells whose class in the reference
 run, at \code{id_period_anterior} or \code{id_period_post}, is one of them are ignored. Default
 none.}
+    }
+    \if{html}{\out{</div>}}
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-evoland_db-brier_score_v"></a>}}
+\if{latex}{\out{\hypertarget{method-evoland_db-brier_score_v}{}}}
+\subsection{\code{evoland_db$brier_score_v()}}{
+  Ensembles of simulated maps scored as probabilistic forecasts of the
+observed map, see \code{\link[=brier_score_v]{brier_score_v()}}
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{evoland_db$brier_score_v(
+  id_period_anterior,
+  id_period_post,
+  id_run_reference,
+  ensembles,
+  by_anterior = FALSE,
+  changeable_only = TRUE,
+  exclude_id_lulc = integer(0)
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{id_period_anterior}}{Integer, period of the initial map}
+      \item{\code{id_period_post}}{Integer, period of the observed and simulated maps}
+      \item{\code{id_run_reference}}{Integer, run holding the initial and observed maps}
+      \item{\code{ensembles}}{Named list of integer vectors, the runs of each ensemble, each holding
+a map of its own for \code{id_period_post}; or an integer vector for a single ensemble}
+      \item{\code{by_anterior}}{Logical; if \code{TRUE}, report per anterior class instead of overall.}
+      \item{\code{changeable_only}}{Logical; if \code{TRUE} (default), score only the cells whose
+anterior class has a viable transition.}
+      \item{\code{exclude_id_lulc}}{Integer vector of classes to ignore, see \code{\link[=brier_score_v]{brier_score_v()}}.}
     }
     \if{html}{\out{</div>}}
   }
