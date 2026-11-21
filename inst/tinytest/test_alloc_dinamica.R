@@ -79,12 +79,3 @@ expect_equal(
   if (getOption("evoland.plus.dinamica_fallback")) 0L else 20L
 )
 expect_equal(list.files(tempdir(), pattern = "^dinamica_"), dirs_before)
-
-# replayable: with a real Dinamica, the same inputs give the exact same allocation twice
-if (!getOption("evoland.plus.dinamica_fallback")) {
-  replayable_spec <- alloc_dinamica_spec(replayable = TRUE)
-  expect_identical(
-    replayable_spec$one_period(dinamica_ctx),
-    replayable_spec$one_period(dinamica_ctx)
-  )
-}

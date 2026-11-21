@@ -4,11 +4,7 @@
 \alias{alloc_dinamica_spec}
 \title{Dinamica EGO allocator}
 \usage{
-alloc_dinamica_spec(
-  work_dir = NULL,
-  keep_intermediate = FALSE,
-  replayable = FALSE
-)
+alloc_dinamica_spec(work_dir = NULL, keep_intermediate = FALSE)
 }
 \arguments{
 \item{work_dir}{Character or \code{NULL}; directory under which each period gets its own working
@@ -17,16 +13,6 @@ directory.}
 
 \item{keep_intermediate}{Logical; keep the working directories after each period (default
 \code{FALSE}, remove them).}
-
-\item{replayable}{Logical; defaults to \code{FALSE}, making Dinamica use its default
-time-based seed, leading to stochastic behaviour. For perfect reproducibility,
-DinamicaConsole cannot be given a seed value. Its only seed option,
-\code{-predefined-seed}, takes no value: every run uses the same built-in seed.
-\code{replayable = TRUE} passes that option and runs Dinamica single-threaded
-(\code{-processors=1 -disable-parallel-functors -disable-parallel-map-load}), because
-parallel execution makes some Dinamica functors non-deterministic. A replayable run
-reproduces one single realisation; it cannot produce an ensemble of distinct ones,
-since all runs share the seed.}
 }
 \value{
 An allocator specification for \code{\link[=allocate]{allocate()}}.
@@ -40,4 +26,12 @@ expansion and patcher tables from \code{alloc_params_t} (\code{frac_expander}, \
 \code{patch_size_variance}, \code{patch_isometry}).
 
 \code{\link[=check_dinamica]{check_dinamica()}} runs before anything is predicted or written.
+
+Dinamica draws its own random seed, so its realisations cannot be replayed (see
+ethzplus/evoland.plus#104). DinamicaConsole cannot be given a seed value; its only seed
+option, \code{-predefined-seed}, makes it use a built-in seed instead of a time-based one.
+Together with running single-threaded (\code{-processors=1}, \code{-disable-parallel-functors},
+\code{-disable-parallel-map-load}, \code{-disable-parallel-steps}), it still does not make a run
+reproducible: as of Dinamica 8.14.1, the same inputs give a different allocation on each
+run. These options can be passed to \code{\link[=exec_dinamica]{exec_dinamica()}} as \code{additional_args}.
 }

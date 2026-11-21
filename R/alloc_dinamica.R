@@ -10,32 +10,30 @@
 #'
 #' [check_dinamica()] runs before anything is predicted or written.
 #'
+#' Dinamica draws its own random seed, so its realisations cannot be replayed (see
+#' ethzplus/evoland.plus#104). DinamicaConsole cannot be given a seed value; its only seed
+#' option, `-predefined-seed`, makes it use a built-in seed instead of a time-based one.
+#' Together with running single-threaded (`-processors=1`, `-disable-parallel-functors`,
+#' `-disable-parallel-map-load`, `-disable-parallel-steps`), it still does not make a run
+#' reproducible: as of Dinamica 8.14.1, the same inputs give a different allocation on each
+#' run. These options can be passed to [exec_dinamica()] as `additional_args`.
+#'
 #' @param work_dir Character or `NULL`; directory under which each period gets its own working
 #'   directory, `run_<id_run>_period_<id_period_post>`. `NULL` (default) uses a temporary
 #'   directory.
 #' @param keep_intermediate Logical; keep the working directories after each period (default
 #'   `FALSE`, remove them).
-#' @param replayable Logical; defaults to `FALSE`, making Dinamica use its default
-#'   time-based seed, leading to stochastic behaviour. For perfect reproducibility,
-#'   DinamicaConsole cannot be given a seed value. Its only seed option,
-#'   `-predefined-seed`, takes no value: every run uses the same built-in seed.
-#'   `replayable = TRUE` passes that option and runs Dinamica single-threaded
-#'   (`-processors=1 -disable-parallel-functors -disable-parallel-map-load`), because
-#'   parallel execution makes some Dinamica functors non-deterministic. A replayable run
-#'   reproduces one single realisation; it cannot produce an ensemble of distinct ones,
-#'   since all runs share the seed.
 #'
 #' @return An allocator specification for [allocate()].
 #'
 #' @include allocate.R util_dinamica.R
 #' @export
-alloc_dinamica_spec <- function(work_dir = NULL, keep_intermediate = FALSE, replayable = FALSE) {
+alloc_dinamica_spec <- function(work_dir = NULL, keep_intermediate = FALSE) {
   stopifnot(
     "work_dir must be NULL or a single string" = is.null(work_dir) || is_scalar_character(work_dir),
-    "keep_intermediate must be TRUE or FALSE" = is_scalar_logical(keep_intermediate),
-    "replayable must be TRUE or FALSE" = is_scalar_logical(replayable)
+    "keep_intermediate must be TRUE or FALSE" = is_scalar_logical(keep_intermediate)
   )
-  args <- list(work_dir = work_dir, keep_intermediate = keep_intermediate, replayable = replayable)
+  args <- list(work_dir = work_dir, keep_intermediate = keep_intermediate)
 
   new_allocator_spec(
     name = "Dinamica EGO",
@@ -61,24 +59,7 @@ alloc_dinamica_one_period <- function(ctx, args) {
 
   write_dinamica_inputs(ctx, work_dir)
 
-  # replayable: Dinamica's built-in seed, and no multithreading
-  additional_args <- if (args[["replayable"]]) {
-    c(
-      "-predefined-seed",
-      "-processors=1",
-      "-disable-parallel-functors",
-      "-disable-parallel-map-load"
-    )
-  } else {
-    NULL
-  }
-
-  run_alloc_dinamica(
-    work_dir = work_dir,
-    additional_args = additional_args,
-    echo = FALSE,
-    write_logfile = TRUE
-  )
+  run_alloc_dinamica(work_dir = work_dir, echo = FALSE, write_logfile = TRUE)
 
   posterior <- rast_to_grid(ctx$grid, terra::rast(file.path(work_dir, "posterior.tif")))
   posterior[ctx$anterior[, .(id_coord)], on = "id_coord"][

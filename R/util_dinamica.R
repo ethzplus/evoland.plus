@@ -7,11 +7,11 @@ NULL
 
 #' @describeIn util_dinamica Check that Dinamica EGO is installed and configured as the
 #' `install-dinamica` vignette describes. Problems that stop evoland.plus from running Dinamica
-#' at all (platform, `DinamicaConsole` on the `PATH`, `DINAMICA_EGO_8_HOME` and its
-#' libraries) are *required*; those that make a run fail inside Dinamica (configuration
-#' file, Dinamica's R package) are *recommended*. `DINAMICA_EGO_8_TEMP_DIR` is not checked:
-#' Dinamica sets it for each R process it starts, and a value set by the user breaks that
-#' coupling.
+#' at all (platform, `DinamicaConsole` on the `PATH`, `DINAMICA_EGO_8_HOME`, its libraries
+#' and their loader) are *required*; those that make a run fail inside Dinamica
+#' (configuration file, Dinamica's R package) are *recommended*. `DINAMICA_EGO_8_TEMP_DIR`
+#' is not checked: Dinamica sets it for each R process it starts, and a value set by the user
+#' breaks that coupling.
 #' @param quiet bool, suppress the message summarising the result?
 #' @return `check_dinamica()`: a list with character vectors `required` and `recommended`
 #' naming the problems found, invisibly; both are empty for a complete setup.
@@ -30,6 +30,10 @@ check_dinamica <- function(quiet = FALSE) {
     },
     "Dinamica's libraries are not in `$DINAMICA_EGO_8_HOME/usr/lib`" = {
       nzchar(home) && dir.exists(file.path(home, "usr", "lib"))
+    },
+    "Dinamica's loader `$DINAMICA_EGO_8_HOME/usr/lib/ld-linux-x86-64.so.2` is not executable" = {
+      loader <- file.path(home, "usr", "lib", "ld-linux-x86-64.so.2")
+      !file.exists(loader) || file.access(loader, 1L) == 0L
     }
   )
   recommended <- c(
@@ -76,14 +80,22 @@ require_dinamica <- function(allow_fallback = TRUE, warn = TRUE) {
   invisible(NULL)
 }
 
-#' @describeIn util_dinamica Execute a Dinamica .ego file using `DinamicaConsole`
+#' @describeIn util_dinamica Execute a Dinamica .ego file using `DinamicaConsole`. Dinamica's
+#' AppImage bundles its own libraries, including a glibc newer than most systems'. Where it
+#' ships its dynamic loader (`$DINAMICA_EGO_8_HOME/usr/lib/ld-linux-x86-64.so.2`),
+#' `DinamicaConsole` is run through that loader, so that only Dinamica uses the bundled
+#' libraries; on `LD_LIBRARY_PATH` they would break every system binary started alongside it.
 #' @param model_path Path to the .ego model file to run. Any submodels must be included
 #' in a directory of the exact form `basename(modelpath)_ego_Submodels`, [see
 #' wiki](https://csr.ufmg.br/dinamica/dokuwiki/doku.php?id=submodels)
-#' @param disable_parallel Whether to disable parallel steps (default TRUE)
 #' @param log_level Logging level (1-7, default NULL)
 #' @param additional_args Additional arguments to pass to DinamicaConsole, see
-#' `DinamicaConsole -help`
+#' `DinamicaConsole -help`. Options that control randomness and parallelism include
+#' `-predefined-seed` (use a built-in seed instead of a time-based one), `-processors=1`,
+#' `-disable-parallel-functors`, `-disable-parallel-map-load` and
+#' `-disable-parallel-steps`. Even all of these together do not make a run reproducible: as
+#' of Dinamica 8.14.1, the same model with the same inputs still allocates differently on
+#' each run (see ethzplus/evoland.plus#104).
 #' @param write_logfile bool, write stdout&stderr to a file?
 #' @param echo bool, direct echo to console?
 #'
@@ -91,7 +103,6 @@ require_dinamica <- function(allow_fallback = TRUE, warn = TRUE) {
 
 exec_dinamica <- function(
   model_path,
-  disable_parallel = TRUE,
   log_level = NULL,
   additional_args = NULL,
   write_logfile = TRUE,
@@ -101,9 +112,6 @@ exec_dinamica <- function(
   # the entry points have warned about recommended settings already
   require_dinamica(allow_fallback = FALSE, warn = FALSE)
   args <- character()
-  if (disable_parallel) {
-    args <- c(args, "-disable-parallel-steps")
-  }
   if (!is.null(log_level)) {
     args <- c(args, paste0("-log-level ", log_level))
   }
@@ -111,9 +119,7 @@ exec_dinamica <- function(
     args <- c(args, additional_args)
   }
   args <- c(args, model_path)
-
-  dinamica_home <- Sys.getenv("DINAMICA_EGO_8_HOME")
-  new_ld <- file.path(dinamica_home, "usr", "lib")
+  command <- c(dinamica_console_command(), args)
 
   if (write_logfile) {
     logfile_path <- file.path(
@@ -131,42 +137,30 @@ exec_dinamica <- function(
           paste(
             "set -o pipefail;", # propagate dinamica fails to end of pipe
             "stdbuf -oL", # force flush - dinamica does not always flush its buffer before crashing
-            "DinamicaConsole %s 2>&1 |", # redirect stderr to stdout
+            "%s 2>&1 |", # redirect stderr to stdout
             "sed 's/\\x1b\\[[0-9;]*m//g' |", # strip ansi codes
             "tee '%s';", # write to stdout and file
             "exit ${PIPESTATUS[0]}"
           ),
-          paste(shQuote(args), collapse = " "),
+          paste(shQuote(command), collapse = " "),
           logfile_path
         )
       ),
       error_on_status = FALSE,
       echo = echo,
       spinner = TRUE,
-      env = c(
-        "current",
-        DINAMICA_HOME = dirname(model_path),
-        LD_LIBRARY_PATH = new_ld
-      )
+      env = c("current", DINAMICA_HOME = dirname(model_path))
     )
   } else {
     res <- processx::run(
       # If called directly, DinamicaConsole does not flush its buffer upon SIGTERM.
       # stdbuf -oL forces flushing the stdout buffer after every line.
       command = "stdbuf",
-      args = c(
-        "-oL",
-        "DinamicaConsole", # assume that $PATH is complete
-        args
-      ),
+      args = c("-oL", command),
       error_on_status = FALSE,
       echo = echo,
       spinner = TRUE,
-      env = c(
-        "current",
-        DINAMICA_HOME = dirname(model_path),
-        LD_LIBRARY_PATH = new_ld
-      )
+      env = c("current", DINAMICA_HOME = dirname(model_path))
     )
   }
 
@@ -181,6 +175,26 @@ exec_dinamica <- function(
   }
 
   invisible(res)
+}
+
+# The command that starts DinamicaConsole. With the bundled dynamic loader, Dinamica runs
+# against its bundled libraries while the processes around it (bash, sed, tee) and the ones it
+# starts (Rscript, g++, python) keep the system's; without it, as in older AppImages,
+# DinamicaConsole is taken from the PATH with the bundled libraries on LD_LIBRARY_PATH.
+# R's own LD_LIBRARY_PATH is dropped either way: Dinamica's Python finds its libpython next to
+# it, and the system directories on R's LD_LIBRARY_PATH would take precedence.
+dinamica_console_command <- function() {
+  home <- Sys.getenv("DINAMICA_EGO_8_HOME")
+  lib_dir <- file.path(home, "usr", "lib")
+  loader <- file.path(lib_dir, "ld-linux-x86-64.so.2")
+  if (file.exists(loader)) {
+    c(
+      "env", "-u", "LD_LIBRARY_PATH",
+      loader, "--library-path", lib_dir, file.path(home, "usr", "bin", "DinamicaConsole")
+    )
+  } else {
+    c("env", paste0("LD_LIBRARY_PATH=", lib_dir), "DinamicaConsole")
+  }
 }
 
 #' @describeIn util_dinamica Set up evoland-specific Dinamica EGO files; execute using
