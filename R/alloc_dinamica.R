@@ -64,9 +64,21 @@ alloc_dinamica_one_period <- function(ctx, args) {
 
   write_dinamica_inputs(ctx, work_dir)
 
+  # replayable: Dinamica's built-in seed, and no multithreading
+  additional_args <- if (args[["replayable"]]) {
+    c(
+      "-predefined-seed",
+      "-processors=1",
+      "-disable-parallel-functors",
+      "-disable-parallel-map-load"
+    )
+  } else {
+    NULL
+  }
+
   run_alloc_dinamica(
     work_dir = work_dir,
-    additional_args = dinamica_replay_args(args[["replayable"]]),
+    additional_args = additional_args,
     echo = FALSE,
     write_logfile = TRUE
   )
@@ -132,17 +144,4 @@ write_dinamica_inputs <- function(ctx, work_dir) {
   }
 
   invisible(work_dir)
-}
-
-# DinamicaConsole flags for a replayable run: its built-in seed, and no multithreading
-dinamica_replay_args <- function(replayable) {
-  if (!replayable) {
-    return(NULL)
-  }
-  c(
-    "-predefined-seed",
-    "-processors=1",
-    "-disable-parallel-functors",
-    "-disable-parallel-map-load"
-  )
 }

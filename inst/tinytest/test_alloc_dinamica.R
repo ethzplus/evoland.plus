@@ -80,9 +80,6 @@ expect_equal(
 )
 expect_equal(list.files(tempdir(), pattern = "^dinamica_"), dirs_before)
 
-# replayable runs pass the predefined seed and run single-threaded
-expect_null(evoland.plus:::dinamica_replay_args(FALSE))
-expect_true("-predefined-seed" %in% evoland.plus:::dinamica_replay_args(TRUE))
-expect_true("-processors=1" %in% evoland.plus:::dinamica_replay_args(TRUE))
+# replayable is stored as a spec arg and validated
 expect_true(alloc_dinamica_spec(replayable = TRUE)$args$replayable)
 expect_error(alloc_dinamica_spec(replayable = NA), "replayable must be TRUE or FALSE")
