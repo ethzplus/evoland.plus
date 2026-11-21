@@ -44,7 +44,7 @@ lulc_of <- function(id_run, id_period) {
      where id_period = {id_period} order by id_coord"
   )
 }
-viable <- db$trans_meta_t[is_viable == TRUE]
+viable <- db$trans_meta_v()[is_viable == TRUE]
 # the cells that changed between an anterior and a posterior map, by transition; the anterior
 # map is the observed period 3 unless given
 changes_of <- function(posterior, anterior = lulc_of(0L, 3L)) {
@@ -531,7 +531,7 @@ expect_true(ctx_21$quota[id_trans == 2L, quota] > 0L)
 expect_equal(changes_by_trans(lulc_of(21L, 4L)), ctx_21$quota[, .(id_trans, N = quota)])
 
 # the parent and the siblings keep the default set
-expect_true(all(db$trans_meta_t[["is_viable"]]))
+expect_true(all(db$trans_meta_v()[["is_viable"]]))
 for (run in c(0L, 1L, 3L)) {
   expect_equal(
     evoland.plus:::allocation_context(db, 4L, run, run)$viable_trans[["id_trans"]],

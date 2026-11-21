@@ -19,33 +19,90 @@ TRANS_VIABILITY_T <- table_spec(
 
 #' Create Transition Viability Table
 #'
-#' Creates a trans_viability_t table, which overrides the viability of transitions for a run.
-#' [trans_meta_t] identifies the transitions and gives each a default viability, `is_viable`.
-#' A run that allows or disallows transitions differently, e.g. to compare model performance
-#' with and without a rare transition, stores a row per transition it changes here. Like every
-#' run-dependent table, it is read through the run's lineage: a run without rows of its own
-#' takes those of its closest ancestor that has them, and a transition without an override in
-#' the lineage keeps the default of [trans_meta_t]. A run's resolved set of transitions is
-#' returned by `db$trans_meta_v(id_run)`, and it is the set that the run's predictor
-#' selection, model fitting, prediction, allocation parameters and allocation work on.
+#' Creates a trans_viability_t table, which says whether a transition of [trans_meta_t] is
+#' viable for modelling in a run. A transition can be non-viable for conceptual or statistical
+#' reasons: transitions out of an "other" class say nothing about what comes next
+#' (`exclude_anterior`), and a transition may be observed too rarely for statistical inference
+#' (`min_cardinality_abs`, `min_frequency_rel`). Which transitions are modelled is also a
+#' modelling choice that runs may vary, e.g. to compare model performance with and without a
+#' rare transition.
 #'
-#' A run that branches off its parent (see [allocate()]) and overrides viability predicts its
-#' own transition potentials instead of taking its parent's.
+#' The default viability is stored as rows of the root run, 0, usually derived with
+#' `create_trans_viability_t()`. A run that allows or disallows transitions differently
+#' stores a row per transition it changes. Like every run-dependent table, the table is read
+#' through the run's lineage, per transition: a transition takes the row of the closest run in
+#' the lineage that has one, and a transition without any row is viable. A run's resolved set
+#' of transitions is returned by `db$trans_meta_v(id_run)`, and it is the set that the run's
+#' predictor selection, model fitting, prediction, allocation parameters and allocation work
+#' on. A run that branches off its parent (see [allocate()]) and holds rows of its own
+#' predicts its own transition potentials instead of taking its parent's.
 #'
-#' To derive a run's overrides from other thresholds, take `is_viable` of
-#' [create_trans_meta_t()] for the same transitions, e.g.
-#' `create_trans_meta_t(db$trans_v(), min_cardinality_abs = 20L)[, .(id_run = 1L, id_trans,
-#' is_viable)]`.
+#' ```r
+#' # the defaults, as rows of run 0
+#' db$trans_viability_t <- create_trans_viability_t(db$trans_meta_t, min_cardinality_abs = 5L)
+#' # run 1 also disallows transition 3
+#' db$trans_viability_t <- as_trans_viability_t(list(id_run = 1L, id_trans = 3L, is_viable = FALSE))
+#' ```
+#'
+#' Databases written before this table existed kept `is_viable` as a column of [trans_meta_t].
+#' Opening such a database read-write moves the column into rows of the root run; opened
+#' read-only, the column is read in their place.
 #'
 #' @name trans_viability_t
 #' @include table_spec.R
 #'
 #' @param x A list or data.frame coercible to a data.table
+#' @param trans_meta A [trans_meta_t] table
+#' @param min_cardinality_abs Minimum absolute number of transitions for viability (optional)
+#' @param min_frequency_rel Minimum relative frequency of transitions for viability (optional)
+#' @param exclude_anterior Vector of id_lulc values to exclude as anterior (source) classes
+#' @param exclude_posterior Vector of id_lulc values to exclude as posterior (target) classes
+#' @param id_run Integer, the run the rows are for; 0, the root run, for the defaults
 #'
 #' @eval table_spec_rd(TRANS_VIABILITY_T)
 #' @export
 as_trans_viability_t <- function(x) {
   as_table_t(x, TRANS_VIABILITY_T)
+}
+
+#' @describeIn trans_viability_t Mark each transition of `trans_meta` as viable unless it is
+#' excluded or falls below the thresholds; with both thresholds, a transition is non-viable
+#' only if it falls below both.
+#' @export
+create_trans_viability_t <- function(
+  trans_meta,
+  min_cardinality_abs = NULL,
+  min_frequency_rel = NULL,
+  exclude_anterior = NULL,
+  exclude_posterior = NULL,
+  id_run = 0L
+) {
+  stopifnot(
+    "trans_meta must be a trans_meta_t" = inherits(trans_meta, "trans_meta_t"),
+    "id_run must be a single integer" = is_scalar_integerish(id_run)
+  )
+  below_cardinality <- if (is.null(min_cardinality_abs)) {
+    NULL
+  } else {
+    trans_meta[["cardinality"]] < min_cardinality_abs
+  }
+  below_frequency <- if (is.null(min_frequency_rel)) {
+    NULL
+  } else {
+    trans_meta[["frequency_rel"]] < min_frequency_rel
+  }
+  # with both thresholds given, meeting either one suffices
+  thresholds <- Filter(Negate(is.null), list(below_cardinality, below_frequency))
+  below_threshold <- if (length(thresholds) > 0L) Reduce(`&`, thresholds) else FALSE
+
+  data.table::data.table(
+    id_run = id_run,
+    id_trans = trans_meta[["id_trans"]],
+    is_viable = !(trans_meta[["id_lulc_anterior"]] %in% exclude_anterior |
+      trans_meta[["id_lulc_posterior"]] %in% exclude_posterior |
+      below_threshold)
+  ) |>
+    as_trans_viability_t()
 }
 
 #' @export
@@ -75,4 +132,28 @@ print.trans_viability_t <- function(x, nrow = 10, ...) {
   }
   NextMethod(nrow = nrow, ...)
   invisible(x)
+}
+
+# A database written before trans_viability_t existed kept is_viable in trans_meta_t. Move it
+# into rows of the root run, except where the root run already has a row, and drop the column.
+# Called on a read-write open, inside its transaction.
+migrate_legacy_viability <- function(self) {
+  if (!has_legacy_is_viable(self)) {
+    return(invisible(FALSE))
+  }
+  legacy <- self$get_query(
+    "select 0::integer as id_run, id_trans, is_viable
+     from dl_db.trans_meta_t
+     where is_viable is not null"
+  )
+  if ("trans_viability_t" %in% self$list_tables()) {
+    root_rows <- self$get_query("select id_trans from dl_db.trans_viability_t where id_run = 0")
+    legacy <- legacy[!root_rows, on = "id_trans"]
+  }
+  if (nrow(legacy) > 0L) {
+    self$commit(as_trans_viability_t(legacy), "trans_viability_t", method = "upsert")
+  }
+  self$execute("alter table dl_db.trans_meta_t drop column is_viable")
+  message("Moved is_viable from trans_meta_t to the root run's rows of trans_viability_t")
+  invisible(TRUE)
 }

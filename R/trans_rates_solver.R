@@ -70,6 +70,9 @@ trans_rate_bounds <- function(
     inherits(obs_rates, "trans_rates_t"),
     inherits(periods, "periods_t"),
     inherits(trans_meta, "trans_meta_t"),
+    "trans_meta needs an is_viable column, e.g. from db$trans_meta_v()" = {
+      "is_viable" %in% names(trans_meta)
+    },
     "must have at least 2 non-0 periods" = nrow(periods) > 2,
     "obs_rates must contain exactly one id_run" = {
       length(unique(obs_rates[["id_run"]])) == 1L
