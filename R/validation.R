@@ -174,18 +174,16 @@ figure_of_merit_v <- function(
   reference_read_expr <- lulc_read_expr(id_run_reference)
   simulated_read_expr <- glue::glue_sql_collapse(
     lapply(id_run_simulated, function(id_run) {
-      glue::glue_sql(
+      self$interpolate_sql(
         "select {id_run}::integer as id_run, id_coord, id_lulc
-        from {lulc_read_expr(id_run)} where id_period = {id_period_post}",
-        .con = self$connection
+        from {lulc_read_expr(id_run)} where id_period = {id_period_post}"
       )
     }),
     sep = " union all "
   )
   exclude_filter <- if (length(exclude_id_lulc) > 0L) {
-    glue::glue_sql(
-      "and a.id_lulc not in ({exclude_id_lulc*}) and o.id_lulc not in ({exclude_id_lulc*})",
-      .con = self$connection
+    self$interpolate_sql(
+      "and a.id_lulc not in ({exclude_id_lulc*}) and o.id_lulc not in ({exclude_id_lulc*})"
     )
   } else {
     DBI::SQL("")
@@ -286,12 +284,11 @@ brier_score_v <- function(
     "exclude_id_lulc must be a vector of integers" = is_integerish(exclude_id_lulc)
   )
 
-  sql <- function(...) glue::glue_sql(..., .con = self$connection, .envir = parent.frame())
   lulc_read_expr <- function(id_run) self$get_read_expr("lulc_data_t", id_run = id_run)
   simulated_read_expr <- glue::glue_sql_collapse(
     unlist(lapply(names(ensembles), function(ensemble) {
       lapply(ensembles[[ensemble]], function(id_run) {
-        sql(
+        self$interpolate_sql(
           "select {ensemble}::varchar as ensemble, {id_run}::integer as id_run, id_coord, id_lulc
           from {lulc_read_expr(id_run)} where id_period = {id_period_post}"
         )
@@ -303,12 +300,14 @@ brier_score_v <- function(
   conditions <- list(DBI::SQL("true"))
   if (changeable_only) {
     changeable <- unique(viable_trans_meta(self)[["id_lulc_anterior"]])
-    conditions <- c(conditions, sql("a.id_lulc in ({changeable*})"))
+    conditions <- c(conditions, self$interpolate_sql("a.id_lulc in ({changeable*})"))
   }
   if (length(exclude_id_lulc) > 0L) {
     conditions <- c(
       conditions,
-      sql("a.id_lulc not in ({exclude_id_lulc*}) and o.id_lulc not in ({exclude_id_lulc*})")
+      self$interpolate_sql(
+        "a.id_lulc not in ({exclude_id_lulc*}) and o.id_lulc not in ({exclude_id_lulc*})"
+      )
     )
   }
 

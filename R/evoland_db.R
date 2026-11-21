@@ -175,7 +175,7 @@ evoland_db <- R6::R6Class(
     #' @param id_period_anterior Integer ID of period to retrieve data for
     #' @param id_run Integer, the run whose predictors and anterior map are read
     pred_wide_predict_v = function(id_trans, id_period_anterior, id_run = 0L) {
-      create_method_binding(pred_wide_predict_v, with_private = TRUE)
+      create_method_binding(pred_wide_predict_v)
     },
 
     ### Validation methods ---
@@ -257,7 +257,7 @@ evoland_db <- R6::R6Class(
     #'   NULL (default), all periods are included.
     #' @param id_run Integer; the run whose land use is read
     lulc_data_as_rast = function(id_period = NULL, id_run = 0L) {
-      create_method_binding(lulc_data_as_rast, with_private = TRUE)
+      create_method_binding(lulc_data_as_rast)
     },
 
     #' @description

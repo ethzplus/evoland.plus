@@ -89,11 +89,11 @@ print.lulc_data_t <- function(x, nrow = 10, ...) {
 #' retrieve; returned as layers.
 #' @keywords internal
 #' @param id_run Integer; the run whose land use is read, through its lineage
-lulc_data_as_rast <- function(self, private, id_period = NULL, id_run = 0L) {
+lulc_data_as_rast <- function(self, id_period = NULL, id_run = 0L) {
   # Build query to join lulc_data_t with coords_t
   where_clause <- NULL
   if (!is.null(id_period)) {
-    where_clause <- private$sql("id_period in ({id_period*})")
+    where_clause <- self$interpolate_sql("id_period in ({id_period*})")
   }
 
   data <- self$fetch("lulc_data_t", where = where_clause, id_run = id_run)
