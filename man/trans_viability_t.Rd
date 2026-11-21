@@ -72,10 +72,6 @@ db$trans_viability_t <- create_trans_viability_t(db$trans_meta_t, min_cardinalit
 # run 1 also disallows transition 3
 db$trans_viability_t <- as_trans_viability_t(list(id_run = 1L, id_trans = 3L, is_viable = FALSE))
 }\if{html}{\out{</div>}}
-
-Databases written before this table existed kept \code{is_viable} as a column of \link{trans_meta_t}.
-Opening such a database read-write moves the column into rows of the root run; opened
-read-only, the column is read in their place.
 }
 \section{Methods (by generic)}{
 \itemize{

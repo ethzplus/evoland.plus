@@ -69,7 +69,6 @@ evoland_db <- R6::R6Class(
           if (self$row_count("runs_t", where = "id_run = 0") == 0L) {
             self$commit(as_runs_t(), "runs_t", method = "upsert")
           }
-          migrate_legacy_viability(self)
         })
       }
       invisible(self)

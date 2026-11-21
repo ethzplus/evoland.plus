@@ -44,10 +44,6 @@ TRANS_VIABILITY_T <- table_spec(
 #' db$trans_viability_t <- as_trans_viability_t(list(id_run = 1L, id_trans = 3L, is_viable = FALSE))
 #' ```
 #'
-#' Databases written before this table existed kept `is_viable` as a column of [trans_meta_t].
-#' Opening such a database read-write moves the column into rows of the root run; opened
-#' read-only, the column is read in their place.
-#'
 #' @name trans_viability_t
 #' @include ducklake_db_utils.R
 #'
@@ -134,26 +130,3 @@ print.trans_viability_t <- function(x, nrow = 10, ...) {
   invisible(x)
 }
 
-# A database written before trans_viability_t existed kept is_viable in trans_meta_t. Move it
-# into rows of the root run, except where the root run already has a row, and drop the column.
-# Called on a read-write open, inside its transaction.
-migrate_legacy_viability <- function(self) {
-  if (!has_legacy_is_viable(self)) {
-    return(invisible(FALSE))
-  }
-  legacy <- self$get_query(
-    "select 0::integer as id_run, id_trans, is_viable
-     from dl_db.trans_meta_t
-     where is_viable is not null"
-  )
-  if ("trans_viability_t" %in% self$list_tables()) {
-    root_rows <- self$get_query("select id_trans from dl_db.trans_viability_t where id_run = 0")
-    legacy <- legacy[!root_rows, on = "id_trans"]
-  }
-  if (nrow(legacy) > 0L) {
-    self$commit(as_trans_viability_t(legacy), "trans_viability_t", method = "upsert")
-  }
-  self$execute("alter table dl_db.trans_meta_t drop column is_viable")
-  message("Moved is_viable from trans_meta_t to the root run's rows of trans_viability_t")
-  invisible(TRUE)
-}

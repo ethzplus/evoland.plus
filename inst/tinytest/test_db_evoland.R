@@ -160,43 +160,6 @@ db$delete_from("trans_viability_t", where = "id_trans = 4")
 expect_equal(viable_ids(2L), 1:4)
 db$trans_viability_t <- as_trans_viability_t(list(id_run = 0L, id_trans = 4L, is_viable = TRUE))
 
-# a database written before trans_viability_t existed kept is_viable in trans_meta_t. Opened
-# read-only, the column is read in place of the root run's rows; opened read-write, it is
-# moved there, except where the root run already has a row
-legacy_dir <- tempfile("legacy_evolanddb_")
-legacy_db <- evoland_db$new(legacy_dir)
-legacy_db$commit(
-  as_trans_meta_t(data.table::data.table(
-    id_trans = 1:3,
-    id_lulc_anterior = c(1L, 1L, 2L),
-    id_lulc_posterior = c(2L, 3L, 1L),
-    cardinality = c(10L, 1L, 5L),
-    frequency_rel = c(0.625, 0.0625, 0.3125),
-    frequency_abs = c(0.1, 0.01, 0.05),
-    is_viable = c(TRUE, FALSE, FALSE)
-  )),
-  "trans_meta_t",
-  method = "upsert"
-)
-legacy_db$trans_viability_t <- as_trans_viability_t(list(
-  id_run = 0L,
-  id_trans = 3L,
-  is_viable = TRUE
-))
-legacy_reader <- evoland_db$new(legacy_dir, read_only = TRUE)
-expect_true("is_viable" %in% names(legacy_reader$trans_meta_t))
-expect_equal(legacy_reader$trans_meta_v()[["is_viable"]], c(TRUE, FALSE, TRUE))
-expect_message(legacy_db <- evoland_db$new(legacy_dir), "Moved is_viable")
-expect_false("is_viable" %in% names(legacy_db$trans_meta_t))
-expect_equal(
-  legacy_db$fetch("trans_viability_t")[order(id_trans), .(id_run, id_trans, is_viable)],
-  data.table::data.table(id_run = 0L, id_trans = 1:3, is_viable = c(TRUE, FALSE, TRUE)),
-  check.attributes = FALSE
-)
-expect_equal(legacy_db$trans_meta_v()[["is_viable"]], c(TRUE, FALSE, TRUE))
-# opening it again finds nothing to migrate
-expect_silent(evoland_db$new(legacy_dir))
-
 # fetch back as rast
 expect_equal(
   db$lulc_data_as_rast()["id_run_0_id_period_1"],

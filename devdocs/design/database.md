@@ -397,8 +397,7 @@ The table is read through the lineage per `id_trans`, like any run-dependent tab
 `db$trans_meta_v(id_run)` returns `trans_meta_t` with the resolved `is_viable` of a run; predictor selection, model fitting, prediction, allocation parameters and allocation all work on that set.
 A run that branches off its parent and holds rows of its own predicts its own potentials instead of taking its parent's, see `runs_t`.
 
-Viability was a column of `trans_meta_t` until ethzplus/evoland.plus#142.
-Opening such a database read-write moves the column into rows of the root run of `trans_viability_t` (keeping any root-run rows already there) and drops it; opened read-only, the column is read in place of the root run's rows.
+Viability was a column of `trans_meta_t` until ethzplus/evoland.plus#142; databases written before then are not migrated.
 The alternative of making `trans_meta_t` itself run-dependent was rejected: it duplicates the transition statistics per run and lets `id_trans` drift between runs although every other table refers to it.
 
 ### `trans_preds_t`

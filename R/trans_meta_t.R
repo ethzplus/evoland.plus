@@ -126,33 +126,19 @@ print.trans_meta_t <- function(x, nrow = 10, ...) {
 }
 
 # trans_meta_t with is_viable resolved for `id_run`: the row in trans_viability_t of the
-# closest run in the lineage that has one; a transition without any is viable. A database
-# written before trans_viability_t existed, and not yet migrated (i.e. opened read-only), still
-# carries is_viable in trans_meta_t, which then serves as the root run's rows.
+# closest run in the lineage that has one; a transition without any is viable
 trans_meta_read_expr <- function(self, id_run) {
-  meta_read_expr <- self$get_read_expr("trans_meta_t")
-  legacy <- has_legacy_is_viable(self)
   viability_read_expr <- if ("trans_viability_t" %in% self$list_tables()) {
     self$get_read_expr("trans_viability_t", id_run = id_run)
   } else {
     DBI::SQL("(select null::integer as id_trans, null::boolean as is_viable where false)")
   }
   glue::glue_sql(
-    "(select m.* {exclude}, coalesce(v.is_viable, {fallback}true) as is_viable
-      from {meta_read_expr} m
+    "(select m.*, coalesce(v.is_viable, true) as is_viable
+      from {self$get_read_expr('trans_meta_t')} m
       left join {viability_read_expr} v using (id_trans))",
-    exclude = DBI::SQL(if (legacy) "exclude (is_viable)" else ""),
-    fallback = DBI::SQL(if (legacy) "m.is_viable, " else ""),
     .con = self$connection
   )
-}
-
-# Whether trans_meta_t still has the is_viable column it had before trans_viability_t
-has_legacy_is_viable <- function(self) {
-  "trans_meta_t" %in%
-    self$list_tables() &&
-    "is_viable" %in%
-      self$get_query("select column_name from (describe dl_db.trans_meta_t)", as_atomic = TRUE)
 }
 
 #' @describeIn trans_meta_t The transition metadata with `is_viable` resolved for a run,
