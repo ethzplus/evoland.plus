@@ -206,8 +206,8 @@ evoland_db <- R6::R6Class(
     #' @param id_period_anterior Integer, period of the initial map
     #' @param id_period_post Integer, period of the observed and simulated maps
     #' @param id_run_reference Integer, run holding the initial and observed maps
-    #' @param ensembles Named list of integer vectors, the runs of each ensemble; or an
-    #' integer vector for a single ensemble
+    #' @param ensembles Named list of integer vectors, the runs of each ensemble, each holding
+    #' a map of its own for `id_period_post`; or an integer vector for a single ensemble
     #' @param by_anterior Logical; if `TRUE`, report per anterior class instead of overall.
     #' @param changeable_only Logical; if `TRUE` (default), score only the cells whose
     #' anterior class has a viable transition.

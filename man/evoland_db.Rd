@@ -443,8 +443,8 @@ observed map, see \code{\link[=brier_score_v]{brier_score_v()}}
       \item{\code{id_period_anterior}}{Integer, period of the initial map}
       \item{\code{id_period_post}}{Integer, period of the observed and simulated maps}
       \item{\code{id_run_reference}}{Integer, run holding the initial and observed maps}
-      \item{\code{ensembles}}{Named list of integer vectors, the runs of each ensemble; or an
-integer vector for a single ensemble}
+      \item{\code{ensembles}}{Named list of integer vectors, the runs of each ensemble, each holding
+a map of its own for \code{id_period_post}; or an integer vector for a single ensemble}
       \item{\code{by_anterior}}{Logical; if \code{TRUE}, report per anterior class instead of overall.}
       \item{\code{changeable_only}}{Logical; if \code{TRUE} (default), score only the cells whose
 anterior class has a viable transition.}

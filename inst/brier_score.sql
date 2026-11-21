@@ -1,6 +1,7 @@
 /*
 Multi-category Brier score of ensembles of simulated maps, scored as probabilistic forecasts of
-the observed map, per ensemble and anterior class; R aggregates over the classes.
+the observed map, per ensemble and, optionally, per anterior class; and the coverage of the
+scored cells by each member run, which the scores rely on.
 
 Per cell, an ensemble of m runs forecasts each class with the share of its runs that put the
 cell in that class. The Brier score of a cell is the squared distance between that forecast
@@ -11,17 +12,44 @@ The reference forecast is the uniform one: each cell of an anterior class foreca
 observed shares of that class's transitions, i.e. the observed quantity of change placed at
 random within the class.
 
+Members are read from their own rows of lulc_data_t, not through their lineage: a member
+without a map of its own for id_period_post would otherwise read the observed map. The scores
+are only valid if every member covers every scored cell, which "coverage" reports.
+
 Interpolated by `ducklake_db$get_query()`, requiring
 Filters:
 - {id_period_anterior}
 - {id_period_post}
-- {cell_filter}: a condition on a.id_lulc (anterior class) and o.id_lulc (observed class)
+- {changeable_only}: if true, only cells whose anterior class has a viable transition
+- {exclude_id_lulc*}: classes whose cells, as anterior or observed class, are left out
+Ensembles, one element per member run:
+- {ensemble*}: name of the ensemble
+- {ensemble_position*}: position of the ensemble in the order given, for the output
+- {id_run*}: the member run
 Data sources:
 - {reference_read_expr}: lulc_data_t of the reference run, holding the anterior and observed map
-- {simulated_read_expr}: rows (ensemble, id_run, id_coord, id_lulc) of each simulated run's map
-  at id_period_post
+- {lulc_data_read_expr}: lulc_data_t as stored, every run's own rows
+- {trans_meta_read_expr}: trans_meta_t
+Output:
+- {`result`}: "coverage", "overall" or "per_anterior"
 */
 with
+  members as (
+    select
+      unnest([{ensemble*}]) as ensemble,
+      unnest([{ensemble_position*}]::integer[]) as ensemble_position,
+      unnest([{id_run*}]::integer[]) as id_run
+  ),
+  ensembles as (
+    select
+      ensemble,
+      any_value(ensemble_position) as ensemble_position,
+      count(*) as m
+    from
+      members
+    group by
+      ensemble
+  ),
   cells as (
     select
       a.id_coord,
@@ -33,17 +61,58 @@ with
     where
       a.id_period = {id_period_anterior}
       and o.id_period = {id_period_post}
-      and {cell_filter}
+      and (
+        not {changeable_only}
+        or a.id_lulc in (
+          select
+            id_lulc_anterior
+          from
+            {trans_meta_read_expr}
+          where
+            is_viable
+        )
+      )
+      -- an empty exclusion arrives as [NULL], which contains no class
+      and not list_contains([{exclude_id_lulc*}]::integer[], a.id_lulc)
+      and not list_contains([{exclude_id_lulc*}]::integer[], o.id_lulc)
   ),
-  simulated as ({simulated_read_expr}),
-  members as (
+  simulated as (
+    -- each member's own map at id_period_post
     select
-      ensemble,
-      count(distinct id_run) as m
+      m.ensemble,
+      s.id_coord,
+      s.id_lulc
     from
-      simulated
+      members m
+      inner join {lulc_data_read_expr} s on s.id_run = m.id_run
+      and s.id_period = {id_period_post}
+  ),
+  coverage as (
+    -- n_rows = 0: no map of its own; n_cells_covered < n_cells: a map with gaps
+    select
+      r.id_run,
+      count(s.id_coord) as n_rows,
+      count(c.id_coord) as n_cells_covered,
+      (
+        select
+          count(*)
+        from
+          cells
+      ) as n_cells
+    from
+      (
+        select distinct
+          id_run
+        from
+          members
+      ) r
+      left join {lulc_data_read_expr} s on s.id_run = r.id_run
+      and s.id_period = {id_period_post}
+      left join cells c on c.id_coord = s.id_coord
     group by
-      ensemble
+      r.id_run
+    order by
+      r.id_run
   ),
   forecast as (
     -- the share of an ensemble's runs that put each scored cell in each class
@@ -51,10 +120,10 @@ with
       s.ensemble,
       s.id_coord,
       s.id_lulc,
-      count(*) / any_value(m.m) as p
+      count(*) / any_value(e.m) as p
     from
       simulated s
-      inner join members m using (ensemble)
+      inner join ensembles e using (ensemble)
       semi join cells using (id_coord)
     group by
       s.ensemble,
@@ -66,10 +135,14 @@ with
       f.ensemble,
       f.id_coord,
       c.anterior,
+      c.observed,
       sum(f.p * f.p) as sum_p2,
-      sum(f.p) filter(
-        where
-          f.id_lulc = c.observed
+      coalesce(
+        sum(f.p) filter (
+          where
+            f.id_lulc = c.observed
+        ),
+        0
       ) as p_observed
     from
       forecast f
@@ -77,13 +150,14 @@ with
     group by
       f.ensemble,
       f.id_coord,
-      c.anterior
+      c.anterior,
+      c.observed
   ),
   rates as (
     -- observed shares of each anterior class's transitions, persistence included
     select
       anterior,
-      observed as id_lulc,
+      observed,
       count(*) / sum(count(*)) over (
         partition by
           anterior
@@ -95,45 +169,91 @@ with
       observed
   ),
   reference as (
+    -- the reference forecast's score on a cell, by its anterior and observed class
     select
-      c.anterior,
-      avg(r.sum_p2 - 2 * coalesce(r_obs.p, 0) + 1) as brier_reference
-    from
-      cells c
-      inner join (
-        select
-          anterior,
-          sum(p * p) as sum_p2
-        from
-          rates
-        group by
+      anterior,
+      observed,
+      sum(p * p) over (
+        partition by
           anterior
-      ) r using (anterior)
-      left join rates r_obs on r_obs.anterior = c.anterior
-      and r_obs.id_lulc = c.observed
+      ) - 2 * p + 1 as brier_reference
+    from
+      rates
+  ),
+  cell_scores as (
+    select
+      f.ensemble,
+      e.ensemble_position,
+      e.m,
+      f.anterior,
+      f.sum_p2 - 2 * f.p_observed + 1 as brier,
+      f.sum_p2 - 2 * f.p_observed + 1 - case
+        when e.m > 1 then (1 - f.sum_p2) / (e.m - 1)
+        else 0
+      end as brier_fair,
+      r.brier_reference
+    from
+      forecast_cell f
+      inner join ensembles e using (ensemble)
+      inner join reference r using (anterior, observed)
+  ),
+  scores as (
+    -- per ensemble, and per ensemble and anterior class; a skill score is undefined where
+    -- the reference is perfect, i.e. nothing changed
+    select
+      ensemble,
+      any_value(ensemble_position) as ensemble_position,
+      any_value(m)::integer as n_members,
+      anterior as id_lulc_anterior,
+      grouping(anterior) = 1 as is_overall,
+      count(*)::integer as n_cells,
+      avg(brier) as brier,
+      avg(brier_fair) as brier_fair,
+      avg(brier_reference) as brier_reference,
+      1 - avg(brier) / nullif(avg(brier_reference), 0) as skill,
+      1 - avg(brier_fair) / nullif(avg(brier_reference), 0) as skill_fair
+    from
+      cell_scores
     group by
-      c.anterior
+      grouping sets ((ensemble), (ensemble, anterior))
+  ),
+  overall as (
+    select
+      ensemble,
+      n_members,
+      n_cells,
+      brier,
+      brier_fair,
+      brier_reference,
+      skill,
+      skill_fair
+    from
+      scores
+    where
+      is_overall
+    order by
+      ensemble_position
+  ),
+  per_anterior as (
+    select
+      ensemble,
+      n_members,
+      id_lulc_anterior,
+      n_cells,
+      brier,
+      brier_fair,
+      brier_reference,
+      skill,
+      skill_fair
+    from
+      scores
+    where
+      not is_overall
+    order by
+      ensemble_position,
+      id_lulc_anterior
   )
 select
-  f.ensemble,
-  any_value(m.m)::integer as n_members,
-  f.anterior as id_lulc_anterior,
-  count(*)::integer as n_cells,
-  avg(f.sum_p2 - 2 * coalesce(f.p_observed, 0) + 1) as brier,
-  avg(
-    f.sum_p2 - 2 * coalesce(f.p_observed, 0) + 1 - case
-      when m.m > 1 then (1 - f.sum_p2) / (m.m - 1)
-      else 0
-    end
-  ) as brier_fair,
-  any_value(r.brier_reference) as brier_reference
+  *
 from
-  forecast_cell f
-  inner join members m using (ensemble)
-  inner join reference r using (anterior)
-group by
-  f.ensemble,
-  f.anterior
-order by
-  f.ensemble,
-  f.anterior
+  {`result`}

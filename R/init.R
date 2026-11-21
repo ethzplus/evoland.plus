@@ -45,9 +45,6 @@ utils::globalVariables(c(
   ".SD",
   ".stop", # mirai_map() collection option
   "area",
-  "brier",
-  "brier_fair",
-  "brier_reference",
   "cardinality",
   "catalog", # set on mirai daemons by map_evoland()
   "cell",
@@ -60,7 +57,6 @@ utils::globalVariables(c(
   "distance",
   "distance_class",
   "end_date",
-  "ensemble",
   "error_message",
   "found_files",
   "frac_expander",
@@ -99,8 +95,9 @@ utils::globalVariables(c(
   "N",
   "n_anterior",
   "n_cells",
+  "n_cells_covered",
   "n_daemons", # set on mirai daemons by map_evoland()
-  "n_members",
+  "n_rows",
   "no_found_files",
   "parent_id_run",
   "patch_elongation",
@@ -116,8 +113,6 @@ utils::globalVariables(c(
   "rate_annual",
   "rng_seed",
   "shape",
-  "skill",
-  "skill_fair",
   "sources",
   "start_date",
   "to_download",

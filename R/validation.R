@@ -223,13 +223,18 @@ figure_of_merit_v <- function(
 #' of that class's transitions, the cell-wise expectation of placing the observed quantity of
 #' each transition at random within its class, as `figure_of_merit_null` does.
 #'
+#' Every run of an ensemble must hold a map of its own for `id_period_post`, covering every
+#' scored cell; a run that does not is an error. The members are read from their own rows of
+#' [lulc_data_t] and not through their lineage, through which a run that was never allocated
+#' would read the observed map and score as perfect. The reference run's maps are read through
+#' its lineage.
+#'
 #' @param self An [evoland_db] instance
 #' @param id_period_anterior Integer, period of the initial map
 #' @param id_period_post Integer, period of the observed and simulated maps
 #' @param id_run_reference Integer, run holding the initial and observed maps
-#' @param ensembles Named list of integer vectors, the runs of each ensemble, read through
-#'   their own lineages; or an integer vector for a single ensemble. Unnamed ensembles are
-#'   numbered.
+#' @param ensembles Named list of integer vectors, the runs of each ensemble, each listed once;
+#'   or an integer vector for a single ensemble. Unnamed ensembles are numbered.
 #' @param by_anterior Logical; if `TRUE`, report per anterior class instead of overall.
 #' @param changeable_only Logical; if `TRUE` (default), score only the cells whose anterior
 #'   class has a viable transition in [trans_meta_t]. The cells of other classes cannot
@@ -239,8 +244,9 @@ figure_of_merit_v <- function(
 #'
 #' @return A [data.table::data.table()] with one row per ensemble (and anterior class):
 #'   `ensemble`, `n_members`, (`id_lulc_anterior`), `n_cells`, `brier`, `brier_fair`,
-#'   `brier_reference`, `skill` and `skill_fair`. Cells that a run's map does not cover are
-#'   scored on the runs that do.
+#'   `brier_reference`, `skill` and `skill_fair`. The skill scores are `NA` where
+#'   `brier_reference` is 0: in an anterior class that did not change at all, the reference
+#'   forecast is perfect and no forecast can improve on it.
 #'
 #' @references
 #' Brier, G. W. (1950). Verification of forecasts expressed in terms of probability. Monthly
@@ -279,65 +285,48 @@ brier_score_v <- function(
         all(vapply(ensembles, function(x) length(x) >= 1L && is_integerish(x), logical(1)))
     },
     "ensembles must have unique names" = !anyDuplicated(names(ensembles)),
+    "an ensemble must not list a run twice" = !any(vapply(ensembles, anyDuplicated, integer(1))),
     "by_anterior must be TRUE or FALSE" = is_scalar_logical(by_anterior),
     "changeable_only must be TRUE or FALSE" = is_scalar_logical(changeable_only),
     "exclude_id_lulc must be a vector of integers" = is_integerish(exclude_id_lulc)
   )
 
-  lulc_read_expr <- function(id_run) self$get_read_expr("lulc_data_t", id_run = id_run)
-  simulated_read_expr <- glue::glue_sql_collapse(
-    unlist(lapply(names(ensembles), function(ensemble) {
-      lapply(ensembles[[ensemble]], function(id_run) {
-        self$interpolate_sql(
-          "select {ensemble}::varchar as ensemble, {id_run}::integer as id_run, id_coord, id_lulc
-          from {lulc_read_expr(id_run)} where id_period = {id_period_post}"
-        )
-      })
-    })),
-    sep = " union all "
-  )
-
-  conditions <- list(DBI::SQL("true"))
-  if (changeable_only) {
-    changeable <- unique(viable_trans_meta(self)[["id_lulc_anterior"]])
-    conditions <- c(conditions, self$interpolate_sql("a.id_lulc in ({changeable*})"))
-  }
-  if (length(exclude_id_lulc) > 0L) {
-    conditions <- c(
-      conditions,
-      self$interpolate_sql(
-        "a.id_lulc not in ({exclude_id_lulc*}) and o.id_lulc not in ({exclude_id_lulc*})"
-      )
+  query <- function(result) {
+    self$get_query(
+      read_sql("brier_score.sql"),
+      ensemble = rep(names(ensembles), lengths(ensembles)),
+      ensemble_position = rep(seq_along(ensembles), lengths(ensembles)),
+      id_run = unlist(ensembles, use.names = FALSE),
+      # the reference run's maps may be inherited; the members' are read from their own rows
+      reference_read_expr = self$get_read_expr("lulc_data_t", id_run = id_run_reference),
+      lulc_data_read_expr = self$get_read_expr("lulc_data_t"),
+      trans_meta_read_expr = self$get_read_expr("trans_meta_t"),
+      result = result
     )
   }
 
-  per_class <- self$get_query(
-    read_sql("brier_score.sql"),
-    reference_read_expr = lulc_read_expr(id_run_reference),
-    simulated_read_expr = simulated_read_expr,
-    cell_filter = glue::glue_sql_collapse(conditions, sep = " and ")
-  )
-
-  scores <- if (by_anterior) {
-    per_class
-  } else {
-    # the overall mean is the mean of the per-class means, weighted by their cells
-    per_class[,
-      .(
-        n_cells = sum(n_cells),
-        brier = stats::weighted.mean(brier, n_cells),
-        brier_fair = stats::weighted.mean(brier_fair, n_cells),
-        brier_reference = stats::weighted.mean(brier_reference, n_cells)
+  coverage <- query("coverage")
+  without_map <- coverage[n_rows == 0L, id_run]
+  if (length(without_map) > 0L) {
+    stop(
+      glue::glue(
+        "runs {toString(without_map)} have no map of their own for period {id_period_post}"
       ),
-      by = .(ensemble, n_members)
-    ]
+      call. = FALSE
+    )
   }
-  scores[, `:=`(
-    skill = 1 - brier / brier_reference,
-    skill_fair = 1 - brier_fair / brier_reference
-  )]
-  # in the order the ensembles were given
-  scores[order(match(ensemble, names(ensembles)))]
+  with_gaps <- coverage[n_cells_covered < n_cells, id_run]
+  if (length(with_gaps) > 0L) {
+    stop(
+      glue::glue(
+        "the maps of runs {toString(with_gaps)} for period {id_period_post} do not cover ",
+        "all {coverage[['n_cells']][1L]} scored cells"
+      ),
+      call. = FALSE
+    )
+  }
+
+  query(if (by_anterior) "per_anterior" else "overall")
 }
 
 #' Compute fuzzy similarity of differences for transition validation

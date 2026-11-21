@@ -437,6 +437,90 @@ expect_equal(
   1
 )
 
+# brier_score_v against an independent computation in R, on a random fixture: run 20 holds the
+# initial and observed maps of 300 cells in 3 classes, runs 21-25 a simulated map each. Class 3
+# never changes, so its reference forecast is perfect and its skill undefined.
+set.seed(138)
+n_oracle <- 300L
+m_oracle <- 5L
+anterior <- sample(1:3, n_oracle, replace = TRUE)
+observed <- ifelse(anterior == 3L, 3L, sample(1:3, n_oracle, replace = TRUE))
+simulated <- matrix(sample(1:3, n_oracle * m_oracle, replace = TRUE), ncol = m_oracle)
+db$runs_t <- as_runs_t(rbind(
+  db$runs_t,
+  list(id_run = 20:27, parent_id_run = 0L, description = "Brier oracle"),
+  fill = TRUE
+)[id_run > 20L, parent_id_run := 20L])
+oracle_lulc <- function(id_run, id_period, id_lulc, id_coord = seq_len(n_oracle)) {
+  as_lulc_data_t(data.table::data.table(id_run, id_period, id_coord, id_lulc))
+}
+db$lulc_data_t <- oracle_lulc(20L, 1L, anterior)
+db$lulc_data_t <- oracle_lulc(20L, 2L, observed)
+for (i in seq_len(m_oracle)) {
+  db$lulc_data_t <- oracle_lulc(20L + i, 2L, simulated[, i])
+}
+
+# forecast: the share of members per class; reference: the observed shares of each anterior
+# class's posterior classes
+forecast <- sapply(1:3, \(k) rowMeans(simulated == k))
+outcome <- outer(observed, 1:3, "==") * 1
+reference <- prop.table(table(anterior, factor(observed, levels = 1:3)), 1)[anterior, ]
+oracle_cells <- data.table::data.table(
+  id_lulc_anterior = anterior,
+  brier = rowSums((forecast - outcome)^2),
+  brier_fair = rowSums((forecast - outcome)^2) -
+    rowSums(forecast * (1 - forecast)) / (m_oracle - 1),
+  brier_reference = rowSums((reference - outcome)^2)
+)[order(id_lulc_anterior)]
+oracle <- function(group = NULL) {
+  oracle_cells[,
+    .(
+      n_cells = .N,
+      brier = mean(brier),
+      brier_fair = mean(brier_fair),
+      brier_reference = mean(brier_reference)
+    ),
+    by = group
+  ][,
+    `:=`(
+      skill = data.table::fifelse(brier_reference == 0, NA_real_, 1 - brier / brier_reference),
+      skill_fair = data.table::fifelse(
+        brier_reference == 0,
+        NA_real_,
+        1 - brier_fair / brier_reference
+      )
+    )
+  ][,
+    c(list(ensemble = "1", n_members = m_oracle), .SD)
+  ]
+}
+expect_equal(
+  db$brier_score_v(1L, 2L, 20L, ensembles = 21:25, changeable_only = FALSE),
+  oracle()
+)
+expect_equal(
+  db$brier_score_v(1L, 2L, 20L, ensembles = 21:25, by_anterior = TRUE, changeable_only = FALSE),
+  oracle("id_lulc_anterior")
+)
+expect_true(all(is.na(oracle("id_lulc_anterior")[id_lulc_anterior == 3L, .(skill, skill_fair)])))
+
+# a run listed twice would count twice
+expect_error(
+  db$brier_score_v(1L, 2L, 20L, ensembles = c(21L, 21L, 22L), changeable_only = FALSE),
+  "must not list a run twice"
+)
+# run 26 was never allocated: through its lineage it would read the observed map
+expect_error(
+  db$brier_score_v(1L, 2L, 20L, ensembles = list(a = 21L, b = c(22L, 26L))),
+  "runs 26 have no map of their own for period 2"
+)
+# run 27 misses a cell
+db$lulc_data_t <- oracle_lulc(27L, 2L, simulated[-1L, 1L], id_coord = seq_len(n_oracle)[-1L])
+expect_error(
+  db$brier_score_v(1L, 2L, 20L, ensembles = c(21L, 27L), changeable_only = FALSE),
+  "runs 27 for period 2 do not cover all 300 scored cells"
+)
+
 # lulc_crosstab_v: observed change within run 10, simulated change of run 11 from the initial map
 # it inherits, and observed against simulated at period 2
 expect_equal(

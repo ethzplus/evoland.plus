@@ -24,9 +24,8 @@ brier_score_v(
 
 \item{id_run_reference}{Integer, run holding the initial and observed maps}
 
-\item{ensembles}{Named list of integer vectors, the runs of each ensemble, read through
-their own lineages; or an integer vector for a single ensemble. Unnamed ensembles are
-numbered.}
+\item{ensembles}{Named list of integer vectors, the runs of each ensemble, each listed once;
+or an integer vector for a single ensemble. Unnamed ensembles are numbered.}
 
 \item{by_anterior}{Logical; if \code{TRUE}, report per anterior class instead of overall.}
 
@@ -40,8 +39,9 @@ at \code{id_period_anterior} or \code{id_period_post}, is one of them are ignore
 \value{
 A \code{\link[data.table:data.table]{data.table::data.table()}} with one row per ensemble (and anterior class):
 \code{ensemble}, \code{n_members}, (\code{id_lulc_anterior}), \code{n_cells}, \code{brier}, \code{brier_fair},
-\code{brier_reference}, \code{skill} and \code{skill_fair}. Cells that a run's map does not cover are
-scored on the runs that do.
+\code{brier_reference}, \code{skill} and \code{skill_fair}. The skill scores are \code{NA} where
+\code{brier_reference} is 0: in an anterior class that did not change at all, the reference
+forecast is perfect and no forecast can improve on it.
 }
 \description{
 Scores ensembles of simulated maps as probabilistic forecasts of the observed map. The
@@ -68,6 +68,12 @@ The \strong{skill scores} compare against a reference forecast, \code{1 - brier 
 uniform forecast (Murphy 1988): each cell of an anterior class forecasts the observed shares
 of that class's transitions, the cell-wise expectation of placing the observed quantity of
 each transition at random within its class, as \code{figure_of_merit_null} does.
+
+Every run of an ensemble must hold a map of its own for \code{id_period_post}, covering every
+scored cell; a run that does not is an error. The members are read from their own rows of
+\link{lulc_data_t} and not through their lineage, through which a run that was never allocated
+would read the observed map and score as perfect. The reference run's maps are read through
+its lineage.
 }
 \references{
 Brier, G. W. (1950). Verification of forecasts expressed in terms of probability. Monthly
