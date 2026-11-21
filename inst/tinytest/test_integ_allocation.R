@@ -481,6 +481,9 @@ expect_equal(
   sort(unique(db$fetch("trans_preds_t", where = "id_run = 20")[["id_trans"]])),
   c(1L, 3L, 4L)
 )
+# run 20 still inherits run 0's predictor set of transition 2, which scoring skips
+run_20_scores <- suppressMessages(db$get_pred_filter_score("correlation", id_run = 20L))
+expect_equal(sort(unique(run_20_scores[["id_trans"]])), c(1L, 3L, 4L))
 expect_message(
   db$trans_models_t <- db$fit_partial_models(
     learner = test_learner,

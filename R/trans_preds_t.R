@@ -230,17 +230,14 @@ get_pred_filter_score <- function(
   }
   # the scores are for id_run; the predictor sets may be inherited from an ancestor, so they
   # are labelled with id_run here. Only the key columns: scores of earlier filters are not
-  # passed on to the workers
+  # passed on to the workers. A run's own sets cover its viable transitions only, but it may
+  # inherit the sets of transitions it disallows from an ancestor, which are skipped
+  viable_ids <- viable_trans_meta(self, id_trans, id_run)[["id_trans"]]
   items <-
     self$get_query(
       "select {id_run}::integer as id_run, id_pred, id_trans, is_selected
        from {self$get_read_expr('trans_preds_t', id_run = id_run)}
-       where is_selected {id_trans_filter}",
-      id_trans_filter = if (is.null(id_trans)) {
-        DBI::SQL("")
-      } else {
-        glue::glue_sql("and id_trans in ({id_trans*})", .con = self$connection)
-      }
+       where is_selected and id_trans in ({viable_ids*})"
     ) |>
     split(by = "id_trans")
 
