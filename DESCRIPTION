@@ -25,7 +25,6 @@ Imports:
     methods,
     mirai (>= 2.3.0),
     mlr3filters,
-    paradox,
     qs2,
     stats,
     terra (>= 1.8-42),
@@ -59,7 +58,6 @@ Collate:
     'coords_t.R'
     'evoland_db_util.R'
     'evoland_db_views.R'
-    'grrf_learner.r'
     'init.R'
     'lp_problem.R'
     'lulc_data_t.R'

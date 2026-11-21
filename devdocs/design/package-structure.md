@@ -69,7 +69,7 @@ Owing to the complexity of this software, there are quite some dependencies. The
 | `DBI`, `duckdb`       | Database access; DuckDB provides the DuckLake extension                 |
 | `R6`                  | Reference semantics for the database classes                            |
 | `terra`               | Raster and vector I/O and processing                                    |
-| `mlr3`, `mlr3filters`, `paradox` | Model fitting, tuning and feature selection behind one interface |
+| `mlr3`, `mlr3filters` | Model fitting, tuning and feature selection behind one interface |
 | `qs2`                 | Fast serialization of model objects into blob columns                   |
 | `Rcpp`                | C++ for the neighbor search and allocation loops                        |
 | `glue`                | String and SQL interpolation                                            |
