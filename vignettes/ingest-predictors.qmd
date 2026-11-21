@@ -83,6 +83,7 @@ The domain holds 1600 coordinate points.
 `db$extent` spans the points themselves, i.e. the cell centers from 50 m to 3950 m, not the cell edges.
 
 Rasters must be brought onto this grid before we read values at the points, so we build an empty raster template whose cells are centered on the coordinate points.
+Because `db$extent` spans the cell centers, we widen it by half a cell on each side to get the cell edges.
 
 ```{r}
 #| label: grid-template
@@ -103,7 +104,8 @@ We now write three files, each deliberately off the model grid in a different wa
 - `soils.tif`, a categorical raster in EPSG:3857 at 50 m, whose cell edges are shifted by 30 m against the model grid;
 - `infrastructure.gpkg`, a GeoPackage with a polygon layer of protected areas and a line layer of roads.
 
-Like many real categorical rasters, `soils.tif` only holds integer codes; their meaning is documented separately.
+`soils.tif` holds integer codes with a label for each code.
+GDAL stores such labels in a sidecar file next to the GeoTIFF, `soils.tif.aux.xml`, so the soil data consists of two files.
 
 ```{r}
 #| label: write-rasters
@@ -133,6 +135,7 @@ soils <-
   terra::classify(soils, stats::quantile(values(soils), 0:4 / 4), include.lowest = TRUE) |>
   (\(x) x + 1)() |>
   stats::setNames("soil")
+levels(soils) <- data.frame(id = 1:4, soil = c("gravel", "loam", "clay", "peat"))
 terra::writeRaster(
   soils,
   file.path(source_dir, "soils.tif"),
@@ -181,14 +184,26 @@ Each predictor in `pred_meta_t` can list its `sources`: a URL and the MD5 checks
 `download_and_verify()` takes such a table, downloads every file into a cache directory with one folder per checksum, and warns if a file no longer matches its checksum.
 Files that are already in the cache are not downloaded again.
 
+`download_and_verify()` fetches exactly the URLs it is given.
+A sidecar file such as `soils.tif.aux.xml` is not fetched along with its GeoTIFF, so we list it as a source of its own; a predictor can have any number of sources.
+
 Our files are local, so their URLs use the `file://` scheme, which `download_and_verify()` handles like any other.
-In a real project, the URL points to a persistent archive, ideally one with a DOI.
+In a real project, the URLs point to a persistent archive, ideally one with a DOI, and are written out by hand together with the checksums the provider publishes, as the comments show.
 
 ```{r}
 #| label: fetch-sources
-source_files <- file.path(source_dir, c("elevation.tif", "soils.tif", "infrastructure.gpkg"))
+source_files <- file.path(
+  source_dir,
+  c("elevation.tif", "soils.tif", "soils.tif.aux.xml", "infrastructure.gpkg")
+)
 sources <- data.table(
   url = paste0("file://", source_files),
+  # url = c(
+  #   "https://example.org/archive/elevation.tif",
+  #   "ftp://ftp.example.org/soils/soils.tif",
+  #   "ftp://ftp.example.org/soils/soils.tif.aux.xml",
+  #   "https://example.org/archive/infrastructure.gpkg"
+  # ),
   md5sum = unname(tools::md5sum(source_files))
 )
 
@@ -196,7 +211,7 @@ fetched <- download_and_verify(sources, target_dir = file.path(tempdir(), "evola
 fetched[, .(local_filename, checksum_matches = md5sum == md5sum_actual)]
 ```
 
-All three checksums match, and `local_path` in `fetched` points to the cached copies we read below.
+All four checksums match, and `local_path` in `fetched` points to the cached copies we read below.
 
 ```{r}
 #| label: local-paths
@@ -243,19 +258,28 @@ There is no meaningful value to fill in for a missing elevation, so `fill_value`
 For the soil codes, averaging makes no sense.
 `terra::resample()` with `method = "mode"` takes the most frequent code among the source cells that overlap a model cell, which handles both the coarser grid and the shifted cell edges.
 
-The meaning of the codes comes from the data's documentation, so we attach it as factor levels in R.
-`add_predictor()` stores the factor's integer codes and its levels in `pred_meta_t`, so that the codes can be turned back into a factor later.
+GDAL only finds the labels if the sidecar sits next to the GeoTIFF.
+The cache keeps every file in a folder named after its checksum, so the two cached files are in different folders.
+We copy them into one working directory rather than into either cache folder, because `download_and_verify()` refuses a checksum folder that holds more than one file.
+
+`extract_using_coords_t()` returns the labels of a categorical raster as text.
+We turn them into a factor whose levels follow the codes in the file; `add_predictor()` stores the factor's integer codes and its levels in `pred_meta_t`, so that the codes can be turned back into a factor later.
 
 ```{r}
 #| label: ingest-soils
+soils_dir <- file.path(tempdir(), "soils")
+dir.create(soils_dir, showWarnings = FALSE)
+file.copy(c(local_path("soils.tif"), local_path("soils.tif.aux.xml")), soils_dir, overwrite = TRUE) |>
+  invisible()
+soils_rast <- terra::rast(file.path(soils_dir, "soils.tif"))
+terra::levels(soils_rast)[[1]]
+
 soils_at_coords <-
-  terra::rast(local_path("soils.tif")) |>
-  terra::resample(template, method = "mode") |>
+  terra::resample(soils_rast, template, method = "mode") |>
   extract_using_coords_t(db$coords_t)
 
-soils_at_coords[,
-  value := factor(value, levels = 1:4, labels = c("gravel", "loam", "clay", "peat"))
-]
+# the codes run from 1 to 4, so the factor codes equal the codes in the file
+soils_at_coords[, value := factor(value, levels = terra::levels(soils_rast)[[1]]$soil)]
 
 db$add_predictor(
   pred_data_raw = soils_at_coords[, .(id_coord, id_period = 0L, value)],
@@ -263,14 +287,15 @@ db$add_predictor(
   fill_value = NA,
   pretty_name = "Soil type",
   description = "Most frequent soil type within each cell",
-  orig_format = "GeoTIFF, EPSG:3857, 50 m, integer codes",
+  orig_format = "GeoTIFF with labels in an .aux.xml sidecar, EPSG:3857, 50 m",
   sources = sources[grepl("soils", url)]
 )
 
 soils_at_coords[, .N, by = value]
 ```
 
-All four soil types occur in the domain, in roughly equal shares, as the quartile breaks above intend.
+The labels survived the cache, and all four soil types occur in the domain, in roughly equal shares, as the quartile breaks above intend.
+The `soil` predictor lists both files as its sources.
 
 # Vector predictors
 
