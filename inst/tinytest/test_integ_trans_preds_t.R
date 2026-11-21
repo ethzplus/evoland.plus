@@ -30,20 +30,28 @@ expect_message(
     # with minimize TRUE so we expect scores in [-1,0]
     filter = mlr3filters::FilterPerformance$new(resampling = mlr3::rsmp("cv", folds = 2))
   ),
-  "Processing 2 transitions"
+  "Processing 4 transitions"
 )
 
 perf_expected <-
   as_trans_preds_t(data.table::rowwiseDT( # nolint start
       id_run=, id_pred=, id_trans=, performance=,
-      0,       1,        1,         -0.4639329  ,
-      0,       1,        2,         -0.4515716  ,
-      0,       2,        1,         -0.4639329  ,
-      0,       2,        2,         -0.4515716  ,
-      0,       3,        1,         -0.4639329  ,
-      0,       3,        2,         -0.4515716  ,
-      0,       4,        1,         -0.4639329  ,
-      0,       4,        2,         -0.4515716
+      0,       1,        1,         -0.12       ,
+      0,       1,        2,         -0.02428571 ,
+      0,       1,        3,         -0.02073171 ,
+      0,       1,        4,         -0.03658537 ,
+      0,       2,        1,         -0.12       ,
+      0,       2,        2,         -0.02428571 ,
+      0,       2,        3,         -0.02073171 ,
+      0,       2,        4,         -0.03658537 ,
+      0,       3,        1,         -0.12       ,
+      0,       3,        2,         -0.02428571 ,
+      0,       3,        3,         -0.02073171 ,
+      0,       3,        4,         -0.03658537 ,
+      0,       4,        1,         -0.12       ,
+      0,       4,        2,         -0.02428571 ,
+      0,       4,        3,         -0.02073171 ,
+      0,       4,        4,         -0.03658537
   )) # nolint end
 expect_equal(perf_results, perf_expected, tol = 1e-6)
 
@@ -56,20 +64,28 @@ expect_message(
   importance_results <- db$get_pred_filter_score(
     filter = mlr3filters::FilterImportance$new(learner = grrf_learner)
   ),
-  "Processing 2 transitions"
+  "Processing 4 transitions"
 )
 
 importance_expected <-
   as_trans_preds_t(data.table::rowwiseDT( # nolint start
       id_run=, id_pred=, id_trans=, importance=,
-      0,       1,        1,         175.322855 ,
-      0,       1,        2,         129.138887 ,
-      0,       2,        1,         168.299098 ,
-      0,       2,        2,         137.339063 ,
-      0,       3,        1,          15.719198 ,
-      0,       3,        2,          14.312763 ,
-      0,       4,        1,          39.324345 ,
-      0,       4,        2,          27.297686
+      0,       1,        1,         171.6725   ,
+      0,       1,        2,         106.7404   ,
+      0,       1,        3,         172.4148   ,
+      0,       1,        4,         153.7845   ,
+      0,       2,        1,         122.8782   ,
+      0,       2,        2,         207.0797   ,
+      0,       2,        3,         179.3533   ,
+      0,       2,        4,         189.1901   ,
+      0,       3,        1,         6.200304   ,
+      0,       3,        2,         0          ,
+      0,       3,        3,         9.580801   ,
+      0,       3,        4,         8.896425   ,
+      0,       4,        1,         19.28339   ,
+      0,       4,        2,         21.6032    ,
+      0,       4,        3,         35.10494   ,
+      0,       4,        4,         38.36991   
   )) # nolint end
 expect_equal(importance_results, importance_expected, tol = 1e-6)
 
@@ -101,7 +117,7 @@ expect_message(
   perf_refined <- db$get_pred_filter_score(
     filter = mlr3filters::FilterPerformance$new(resampling = mlr3::rsmp("cv", folds = 2))
   ),
-  "Processing 2 transitions"
+  "Processing 4 transitions"
 )
 expect_equal(perf_refined[id_trans == 1L, id_pred], 1:2)
 expect_equal(perf_refined[id_trans == 2L, id_pred], 1:4)

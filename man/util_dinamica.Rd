@@ -12,7 +12,6 @@ check_dinamica(quiet = FALSE)
 
 exec_dinamica(
   model_path,
-  disable_parallel = TRUE,
   log_level = NULL,
   additional_args = NULL,
   write_logfile = TRUE,
@@ -32,12 +31,15 @@ process_dinamica_script(infile, outfile, mode = "encode", check = TRUE)
 \item{model_path}{Path to the .ego model file to run. Any submodels must be included
 in a directory of the exact form \verb{basename(modelpath)_ego_Submodels}, \href{https://csr.ufmg.br/dinamica/dokuwiki/doku.php?id=submodels}{see wiki}}
 
-\item{disable_parallel}{Whether to disable parallel steps (default TRUE)}
-
 \item{log_level}{Logging level (1-7, default NULL)}
 
 \item{additional_args}{Additional arguments to pass to DinamicaConsole, see
-\code{DinamicaConsole -help}}
+\code{DinamicaConsole -help}. Options that control randomness and parallelism include
+\code{-predefined-seed} (use a built-in seed instead of a time-based one), \code{-processors=1},
+\code{-disable-parallel-functors}, \code{-disable-parallel-map-load} and
+\code{-disable-parallel-steps}. Even all of these together do not make a run reproducible: as
+of Dinamica 8.14.1, the same model with the same inputs still allocates differently on
+each run (see ethzplus/evoland.plus#104).}
 
 \item{write_logfile}{bool, write stdout&stderr to a file?}
 
@@ -66,13 +68,17 @@ Interact with Dinamica from R, see \strong{Functions} section below.
 \itemize{
 \item \code{check_dinamica()}: Check that Dinamica EGO is installed and configured as the
 \code{install-dinamica} vignette describes. Problems that stop evoland.plus from running Dinamica
-at all (platform, \code{DinamicaConsole} on the \code{PATH}, \code{DINAMICA_EGO_8_HOME} and its
-libraries) are \emph{required}; those that make a run fail inside Dinamica (configuration
-file, Dinamica's R package) are \emph{recommended}. \code{DINAMICA_EGO_8_TEMP_DIR} is not checked:
-Dinamica sets it for each R process it starts, and a value set by the user breaks that
-coupling.
+at all (platform, \code{DinamicaConsole} on the \code{PATH}, \code{DINAMICA_EGO_8_HOME}, its libraries
+and their loader) are \emph{required}; those that make a run fail inside Dinamica
+(configuration file, Dinamica's R package) are \emph{recommended}. \code{DINAMICA_EGO_8_TEMP_DIR}
+is not checked: Dinamica sets it for each R process it starts, and a value set by the user
+breaks that coupling.
 
-\item \code{exec_dinamica()}: Execute a Dinamica .ego file using \code{DinamicaConsole}
+\item \code{exec_dinamica()}: Execute a Dinamica .ego file using \code{DinamicaConsole}. Dinamica's
+AppImage bundles its own libraries, including a glibc newer than most systems'. Where it
+ships its dynamic loader (\verb{$DINAMICA_EGO_8_HOME/usr/lib/ld-linux-x86-64.so.2}),
+\code{DinamicaConsole} is run through that loader, so that only Dinamica uses the bundled
+libraries; on \code{LD_LIBRARY_PATH} they would break every system binary started alongside it.
 
 \item \code{run_alloc_dinamica()}: Set up evoland-specific Dinamica EGO files; execute using
 \code{\link[=exec_dinamica]{exec_dinamica()}}

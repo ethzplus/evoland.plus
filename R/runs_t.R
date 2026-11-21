@@ -7,6 +7,10 @@
 #' (e.g. a given allocation of land use change given a set of transition potential
 #' models and allocation parameters).
 #'
+#' Like any evoland.plus table, `runs_t` takes columns beyond the ones listed below, e.g. to
+#' document how a run was made (its allocator, model selection, ...): add them to the table
+#' you assign or commit.
+#'
 #' @name runs_t
 #'
 #' @param x A list or data.frame coercible to a data.table
@@ -15,6 +19,9 @@
 #'   - `id_run`: Unique ID for each run; 0 is the base run
 #'   - `parent_id_run`: The run this run inherits data from; `NA` for the base run
 #'   - `description`: Human-readable description of the run
+#'   - `rng_seed`: Seed for the run's allocation, see [allocate()]; `NA` for none
+#'   - `id_period_eval_start`: First period the run allocates itself, i.e. where it branches
+#'     off its parent, see [allocate()]; `NA` for none
 #' @export
 as_runs_t <- function(x) {
   if (missing(x)) {
@@ -25,9 +32,12 @@ as_runs_t <- function(x) {
     )
   }
 
+  # a missing column is cast from NULL, which data.table fills with NA
   data.table::setDT(x) |>
     cast_dt_col("id_run", "int") |>
-    cast_dt_col("parent_id_run", "int")
+    cast_dt_col("parent_id_run", "int") |>
+    cast_dt_col("rng_seed", "int") |>
+    cast_dt_col("id_period_eval_start", "int")
 
   as_ducklake_db_t(
     x,
@@ -45,13 +55,17 @@ validate.runs_t <- function(x, ...) {
     c(
       "id_run",
       "parent_id_run",
-      "description"
+      "description",
+      "rng_seed",
+      "id_period_eval_start"
     )
   )
 
   stopifnot(
     "id_run is not integer" = is.integer(x[["id_run"]]),
     "parent_id_run is not integer" = is.integer(x[["parent_id_run"]]),
+    "rng_seed is not integer" = is.integer(x[["rng_seed"]]),
+    "id_period_eval_start is not integer" = is.integer(x[["id_period_eval_start"]]),
     "all parent_id_run must be in id_run or NA" = all(
       is.na(x[["parent_id_run"]]) | x[["parent_id_run"]] %in% x[["id_run"]]
     ),
@@ -77,32 +91,6 @@ print.runs_t <- function(x, nrow = 10, ...) {
   }
   NextMethod(nrow = nrow, ...)
   invisible(x)
-}
-
-#' @describeIn runs_t Get or set the active run ID; error if no lineage is found
-#' @param self an evoland_db instance
-#' @param private an evoland_db private environment
-#' @param y (optional) scalar integerish or NULL; if provided, sets the active run ID and lineage
-db_active_id_run <- function(self, private, y) {
-  if (missing(y)) {
-    return(private$active_id_run)
-  }
-  if (is.null(y)) {
-    private$active_id_run <- NULL
-    private$active_run_lineage <- NULL
-    return(invisible(NULL))
-  }
-  stopifnot(
-    "id_run must be scalar integerish or NULL" = is_scalar_integerish(y)
-  )
-
-  y <- as.integer(y)
-  lineage <- get_lineage(self$runs_t, y)
-
-  private$active_id_run <- y
-  private$active_run_lineage <- lineage
-
-  invisible(y)
 }
 
 # lineage is ordered from most recent to oldest (i.e. id_run, parent_id_run,

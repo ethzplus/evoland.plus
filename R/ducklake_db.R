@@ -79,6 +79,11 @@ ducklake_db <- R6::R6Class(
     #' faster than `retry_timeout` can measure.
     retry_max = 2000L,
 
+    #' @field binding_timeout Numeric or `NULL`, how long in seconds a read through a table
+    #' binding may take before it is interrupted with an error; `NULL` never interrupts. See
+    #' `initialize()`.
+    binding_timeout = NULL,
+
     #' @description
     #' Initialize a new ducklake_db object
     #' @param path Character string. Path to the data folder. Only needed for
@@ -104,6 +109,11 @@ ducklake_db <- R6::R6Class(
     #' expired, and how old an unreferenced file must be before it is deleted. Stored in
     #' the catalog but can be overwritten by passing. Default to NULL, discarding
     #' nothing.
+    #' @param binding_timeout Numeric or `NULL`, how long in seconds a read through a table
+    #' binding (`db$<table>`) may take before it is interrupted with an error; default 2.
+    #' Table bindings are an interactive view into the database, so a read that takes longer
+    #' is most likely a large table read whole by accident. `$fetch()` has no limit. `NULL`
+    #' never interrupts.
     #'
     #' @return A new `ducklake_db` object
     initialize = function(
@@ -114,15 +124,19 @@ ducklake_db <- R6::R6Class(
       data_path = NULL,
       sqlite_journal_mode = "wal",
       expire_older_than = NULL,
-      delete_older_than = NULL
+      delete_older_than = NULL,
+      binding_timeout = 2
     ) {
       # `path` is only the place the defaults are derived from, so naming both
       # halves leaves nothing for it to do
       derives_from_path <- is.null(catalog) || is.null(data_path)
       stopifnot(
         "`path` is required unless both `catalog` and `data_path` are given" = !derives_from_path ||
-          is_scalar_character(path)
+          is_scalar_character(path),
+        "binding_timeout must be NULL or a positive number" = is.null(binding_timeout) ||
+          (is_scalar_numeric(binding_timeout) && binding_timeout > 0)
       )
+      self$binding_timeout <- binding_timeout
 
       if (derives_from_path) {
         ensure_dir(path)
@@ -293,13 +307,15 @@ ducklake_db <- R6::R6Class(
     #' @param where Character string. Optional WHERE clause for the SQL query (e.g.
     #' `id_pred in (0,4,5)`)
     #' @param limit Integer. Optional limit on number of rows to return.
+    #' @param ... Passed to `$get_read_expr()`, e.g. a subclass's own filters.
     #'
     #' @return A data.table
     fetch = function(
       table_name,
       cols = NULL,
       where = NULL,
-      limit = NULL
+      limit = NULL,
+      ...
     ) {
       if (!table_name %in% self$list_tables()) {
         stop("Table `", table_name, "` does not exist in `", self$catalog, "`")
@@ -310,7 +326,7 @@ ducklake_db <- R6::R6Class(
       if (!is.null(cols)) {
         map_cols <- intersect(cols, map_cols)
       }
-      read_expr <- self$get_read_expr(table_name)
+      read_expr <- self$get_read_expr(table_name, ...)
 
       no_clause <- DBI::SQL("")
 
@@ -972,6 +988,7 @@ ducklake_db <- R6::R6Class(
         # temp, because a transaction that has written to the catalog may not
         # also write to `memory`, and a plain view would land there
         self$execute("create or replace temp view new_data_v as from {`x`}")
+        private$new_data_v_kind <- "view"
         return(self$get_query("select column_name from (describe {`x`})", as_atomic = TRUE))
       }
 
@@ -988,6 +1005,7 @@ ducklake_db <- R6::R6Class(
 
       if (length(map_cols) == 0) {
         duckdb::duckdb_register(self$connection, "new_data_v", x)
+        private$new_data_v_kind <- "registered"
         return(names(x))
       }
 
@@ -1007,19 +1025,31 @@ ducklake_db <- R6::R6Class(
       self$execute(
         "create or replace temp table new_data_v as select {select_expr} from new_data_raw"
       )
+      private$new_data_v_kind <- "table"
 
       names(x)
     },
 
     # cleanup new_data_v and related tables
     cleanup_new_data_v = function() {
-      try(duckdb::duckdb_unregister(self$connection, "new_data_v"), silent = TRUE)
-      try(duckdb::duckdb_unregister(self$connection, "new_data_raw"), silent = TRUE)
-      try(self$execute("drop table if exists new_data_v"), silent = TRUE)
-      try(self$execute("drop view if exists new_data_v"), silent = TRUE)
+      kind <- private$new_data_v_kind
+      private$new_data_v_kind <- NULL
+      switch(
+        kind %||% "none",
+        registered = duckdb::duckdb_unregister(self$connection, "new_data_v"),
+        view = self$execute("drop view if exists new_data_v"),
+        table = {
+          self$execute("drop table if exists new_data_v")
+          duckdb::duckdb_unregister(self$connection, "new_data_raw")
+        },
+        none = NULL
+      )
 
       invisible(NULL)
     },
+
+    # how register_new_data_v() made new_data_v: "registered", "view" or "table"
+    new_data_v_kind = NULL,
 
     ### Column and Metadata Resolution ----
 

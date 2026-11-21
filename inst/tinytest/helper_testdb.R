@@ -34,7 +34,7 @@ make_test_db <- function(
   db$pred_data_t <- evoland.plus:::test_pred_data_t
 
   # derived tables
-  db$trans_meta_t <- create_trans_meta_t(db$trans_v, min_cardinality_abs = 5L)
+  db$trans_meta_t <- create_trans_meta_t(db$trans_v(), min_cardinality_abs = 5L)
 
   if (include_neighbors) {
     suppressMessages(db$set_neighbors(quiet = TRUE))
@@ -56,9 +56,7 @@ make_test_db <- function(
     as_runs_t()
 
   if (include_alloc_params) {
-    db$id_run <- 1L
-    best_estimate <- suppressMessages(db$create_alloc_params_t())
-    db$id_run <- 0L
+    best_estimate <- suppressMessages(db$create_alloc_params_t(id_run = 1L))
     # runs 2 and 3 jitter frac_expander around the best estimate on run 1
     perturbed <- lapply(2:3, function(perturbed_run) {
       jittered <- best_estimate[["frac_expander"]] + stats::rnorm(nrow(best_estimate), sd = 0.1)

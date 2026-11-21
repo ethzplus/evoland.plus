@@ -54,10 +54,6 @@ Use \code{\link[=adjusted_trans_pot_v]{adjusted_trans_pot_v()}} for allocation-r
     \item{\code{reporting_t}}{Get or upsert \link{reporting_t}}
 
     \item{\code{runs_t}}{Get or upsert \link{runs_t}}
-
-    \item{\code{id_run}}{Get or set active id_run, see \link{runs_t}}
-
-    \item{\code{run_lineage}}{Get id_run, see \link{runs_t}}
   }
   \if{html}{\out{</div>}}
 }
@@ -87,6 +83,7 @@ Use \code{\link[=adjusted_trans_pot_v]{adjusted_trans_pot_v()}} for allocation-r
     \item \href{#method-evoland_db-get_pred_filter_score}{\code{evoland_db$get_pred_filter_score()}}
     \item \href{#method-evoland_db-predict_trans_pot}{\code{evoland_db$predict_trans_pot()}}
     \item \href{#method-evoland_db-get_obs_trans_rates}{\code{evoland_db$get_obs_trans_rates()}}
+    \item \href{#method-evoland_db-trans_v}{\code{evoland_db$trans_v()}}
     \item \href{#method-evoland_db-clone}{\code{evoland_db$clone()}}
   }
 }
@@ -113,7 +110,7 @@ Use \code{\link[=adjusted_trans_pot_v]{adjusted_trans_pot_v()}} for allocation-r
     \if{html}{\out{<div class="r">}}
     \preformatted{evoland_db$adjusted_trans_pot_v(
   id_period_post,
-  id_run = self$id_run,
+  id_run = 0L,
   id_run_trans_pot = id_run
 )}
     \if{html}{\out{</div>}}
@@ -129,13 +126,13 @@ Use \code{\link[=adjusted_trans_pot_v]{adjusted_trans_pot_v()}} for allocation-r
     \if{html}{\out{<div class="r">}}
     \preformatted{evoland_db$new(
   path = NULL,
-  id_run = 0L,
   read_only = FALSE,
   catalog = NULL,
   data_path = NULL,
   sqlite_journal_mode = "wal",
   expire_older_than = NULL,
   delete_older_than = NULL,
+  binding_timeout = 2,
   ...
 )}
     \if{html}{\out{</div>}}
@@ -145,13 +142,13 @@ Use \code{\link[=adjusted_trans_pot_v]{adjusted_trans_pot_v()}} for allocation-r
     \describe{
       \item{\code{path}}{Character. Path to the data folder; may be omitted
 when both \code{catalog} and \code{data_path} are given, see \link{ducklake_db}.}
-      \item{\code{id_run}}{Atomic integer run ID, defaults to 0. Can be set to NULL}
       \item{\code{read_only}}{Logical. Whether to update the reporting table upon
 initialization; if TRUE, the catalog is attached read-only.}
       \item{\code{catalog}}{Character. DuckLake catalog connection, see \link{ducklake_db}.}
       \item{\code{data_path}}{Character. DuckLake data files location, see \link{ducklake_db}.}
       \item{\code{sqlite_journal_mode}}{Character. Journal mode for a SQLite catalog, see \link{ducklake_db}.}
       \item{\code{expire_older_than, delete_older_than}}{Retention for \verb{$checkpoint()}, see \link{ducklake_db}.}
+      \item{\code{binding_timeout}}{Seconds a read through a table binding may take, see \link{ducklake_db}.}
       \item{\code{...}}{passed on to \code{set_report}}
     }
     \if{html}{\out{</div>}}
@@ -165,19 +162,19 @@ initialization; if TRUE, the catalog is attached read-only.}
 \if{html}{\out{<a id="method-evoland_db-get_read_expr"></a>}}
 \if{latex}{\out{\hypertarget{method-evoland_db-get_read_expr}{}}}
 \subsection{\code{evoland_db$get_read_expr()}}{
-  Get SQL expression to read a table, respecting active run hierarchy. For each
+  Get SQL expression to read a table, respecting the run hierarchy. For each
 data slice, returns data from the closest ancestor run that has it.
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
-    \preformatted{evoland_db$get_read_expr(table_name, id_run = self$id_run)}
+    \preformatted{evoland_db$get_read_expr(table_name, id_run = NULL)}
     \if{html}{\out{</div>}}
   }
   \subsection{Arguments}{
     \if{html}{\out{<div class="arguments">}}
     \describe{
       \item{\code{table_name}}{Character string table name}
-      \item{\code{id_run}}{Integer, the run whose lineage is read; defaults to the active run. Another
-run can be read without changing the active one.}
+      \item{\code{id_run}}{Integer, the run whose lineage is read. \code{NULL} (default) reads the rows
+of every run as stored, which is what the table bindings and \verb{$fetch()} return.}
     }
     \if{html}{\out{</div>}}
   }
@@ -262,7 +259,14 @@ as its key}
 distance X are of type Y", see \code{\link[=generate_neighbor_predictors]{generate_neighbor_predictors()}}
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
-    \preformatted{evoland_db$generate_neighbor_predictors()}
+    \preformatted{evoland_db$generate_neighbor_predictors(id_run = 0L)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{id_run}}{Run whose map is counted and under which the predictors are written}
+    }
     \if{html}{\out{</div>}}
   }
 }
@@ -275,7 +279,7 @@ distance X are of type Y", see \code{\link[=generate_neighbor_predictors]{genera
 generate_neighbor_predictors() having been run.
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
-    \preformatted{evoland_db$upsert_new_neighbors(id_period, id_run = self$id_run)}
+    \preformatted{evoland_db$upsert_new_neighbors(id_period, id_run = 0L)}
     \if{html}{\out{</div>}}
   }
   \subsection{Arguments}{
@@ -292,7 +296,7 @@ generate_neighbor_predictors() having been run.
 \if{html}{\out{<a id="method-evoland_db-add_predictor"></a>}}
 \if{latex}{\out{\hypertarget{method-evoland_db-add_predictor}{}}}
 \subsection{\code{evoland_db$add_predictor()}}{
-  Add a predictor using the currently active id_run, see \code{\link[=add_predictor]{add_predictor()}}
+  Add a predictor, see \code{\link[=add_predictor]{add_predictor()}}
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
     \preformatted{evoland_db$add_predictor(
@@ -303,7 +307,8 @@ generate_neighbor_predictors() having been run.
   description = NA_character_,
   orig_format = NA_character_,
   sources = list(),
-  unit = NA_character_
+  unit = NA_character_,
+  id_run = 0L
 )}
     \if{html}{\out{</div>}}
   }
@@ -321,6 +326,7 @@ not have an explicit associated value}
 underlying raw data, see \code{\link[=download_and_verify]{download_and_verify()}}}
       \item{\code{unit}}{char, SI unit for physical predictors, or descriptions like
 "bed nights/year" as a proxy for touristic activity}
+      \item{\code{id_run}}{Integer; the run the predictor data are written under}
     }
     \if{html}{\out{</div>}}
   }
@@ -334,7 +340,12 @@ underlying raw data, see \code{\link[=download_and_verify]{download_and_verify()
 data.table, see \code{\link[=pred_wide_train_v]{pred_wide_train_v()}}
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
-    \preformatted{evoland_db$pred_wide_train_v(id_trans, id_pred, id_period_anterior = NULL)}
+    \preformatted{evoland_db$pred_wide_train_v(
+  id_trans,
+  id_pred,
+  id_period_anterior = NULL,
+  id_run = 0L
+)}
     \if{html}{\out{</div>}}
   }
   \subsection{Arguments}{
@@ -344,6 +355,7 @@ data.table, see \code{\link[=pred_wide_train_v]{pred_wide_train_v()}}
       \item{\code{id_pred}}{Optional integer vector of predictor IDs to include}
       \item{\code{id_period_anterior}}{Optional integer vector of anterior periods to train on;
 \code{NULL} (default) uses every observed anterior period}
+      \item{\code{id_run}}{Integer, the run whose land use and predictors are read}
     }
     \if{html}{\out{</div>}}
   }
@@ -356,11 +368,7 @@ data.table, see \code{\link[=pred_wide_train_v]{pred_wide_train_v()}}
   Retrieve a wide view of the predictor data, see \code{\link[=pred_wide_predict_v]{pred_wide_predict_v()}}
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
-    \preformatted{evoland_db$pred_wide_predict_v(
-  id_trans,
-  id_period_anterior,
-  id_run = self$id_run
-)}
+    \preformatted{evoland_db$pred_wide_predict_v(id_trans, id_period_anterior, id_run = 0L)}
     \if{html}{\out{</div>}}
   }
   \subsection{Arguments}{
@@ -386,7 +394,7 @@ data.table, see \code{\link[=pred_wide_train_v]{pred_wide_train_v()}}
   id_period_anterior,
   id_period_post,
   id_run_reference,
-  id_run_simulated = self$id_run,
+  id_run_simulated = 0L,
   by_transition = FALSE,
   exclude_id_lulc = integer(0)
 )}
@@ -399,7 +407,7 @@ data.table, see \code{\link[=pred_wide_train_v]{pred_wide_train_v()}}
       \item{\code{id_period_post}}{Integer, period of the observed and simulated maps}
       \item{\code{id_run_reference}}{Integer, run holding the initial and observed maps}
       \item{\code{id_run_simulated}}{Integer vector, runs holding the simulated maps; defaults to
-the active run}
+the root run, 0}
       \item{\code{by_transition}}{Logical; if \code{TRUE}, report per transition instead of overall.}
       \item{\code{exclude_id_lulc}}{Integer vector of classes; cells whose class in the reference
 run, at \code{id_period_anterior} or \code{id_period_post}, is one of them are ignored. Default
@@ -455,7 +463,7 @@ anterior class has a viable transition.}
     \preformatted{evoland_db$lulc_crosstab_v(
   id_period_anterior,
   id_period_post,
-  id_run_anterior = self$id_run,
+  id_run_anterior = 0L,
   id_run_post = id_run_anterior
 )}
     \if{html}{\out{</div>}}
@@ -465,7 +473,7 @@ anterior class has a viable transition.}
     \describe{
       \item{\code{id_period_anterior, id_period_post}}{Integer, the two periods to compare}
       \item{\code{id_run_anterior}}{Integer, run to read \code{id_period_anterior} from; defaults to the
-active run}
+root run, 0}
       \item{\code{id_run_post}}{Integer, run to read \code{id_period_post} from; defaults to
 \code{id_run_anterior}}
     }
@@ -477,11 +485,11 @@ active run}
 \if{html}{\out{<a id="method-evoland_db-create_alloc_params_t"></a>}}
 \if{latex}{\out{\hypertarget{method-evoland_db-create_alloc_params_t}{}}}
 \subsection{\code{evoland_db$create_alloc_params_t()}}{
-  Estimates allocation parameters for all viable transitions under the active \code{id_run},
-see \code{\link[=create_alloc_params_t]{create_alloc_params_t()}}
+  Estimates allocation parameters for all viable transitions, see
+\code{\link[=create_alloc_params_t]{create_alloc_params_t()}}
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
-    \preformatted{evoland_db$create_alloc_params_t(id_period_post = NULL)}
+    \preformatted{evoland_db$create_alloc_params_t(id_period_post = NULL, id_run = 0L)}
     \if{html}{\out{</div>}}
   }
   \subsection{Arguments}{
@@ -489,6 +497,8 @@ see \code{\link[=create_alloc_params_t]{create_alloc_params_t()}}
     \describe{
       \item{\code{id_period_post}}{Optional integer vector; estimate only from the period pairs
 ending in these periods. \code{NULL} (default) uses every observed pair.}
+      \item{\code{id_run}}{Integer; the run whose land use is read and whose \code{id_run} the
+parameters carry}
     }
     \if{html}{\out{</div>}}
   }
@@ -502,7 +512,7 @@ ending in these periods. \code{NULL} (default) uses every observed pair.}
 period. See \code{\link[=lulc_data_as_rast]{lulc_data_as_rast()}}
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
-    \preformatted{evoland_db$lulc_data_as_rast(id_period = NULL)}
+    \preformatted{evoland_db$lulc_data_as_rast(id_period = NULL, id_run = 0L)}
     \if{html}{\out{</div>}}
   }
   \subsection{Arguments}{
@@ -510,6 +520,7 @@ period. See \code{\link[=lulc_data_as_rast]{lulc_data_as_rast()}}
     \describe{
       \item{\code{id_period}}{Optional integer vector of period IDs to include. If
 NULL (default), all periods are included.}
+      \item{\code{id_run}}{Integer; the run whose land use is read}
     }
     \if{html}{\out{</div>}}
   }
@@ -528,9 +539,10 @@ directly, or pass \code{select_score} to pick the best partial model by score.
   learner = NULL,
   select_score = NULL,
   select_maximize = TRUE,
-  cluster = NULL,
+  compute = "default",
   id_trans = NULL,
-  id_period_anterior = NULL
+  id_period_anterior = NULL,
+  id_run = 0L
 )}
     \if{html}{\out{</div>}}
   }
@@ -542,10 +554,12 @@ when \code{select_score} is used).}
       \item{\code{select_score}}{Measure ID string for score-select mode, e.g. \code{"classif.auc"}
 (\code{NULL} when \code{learner} is used).}
       \item{\code{select_maximize}}{Logical; maximize (\code{TRUE}) or minimize (\code{FALSE}) the score.}
-      \item{\code{cluster}}{Optional cluster object for parallel processing}
+      \item{\code{compute}}{Name of the mirai compute profile to run on, see \code{\link[=map_evoland]{map_evoland()}}}
       \item{\code{id_trans}}{Optional integer vector; fit only these transitions.}
       \item{\code{id_period_anterior}}{Optional integer vector; train only on transitions
 observed from these anterior periods. \code{NULL} (default) uses all observed periods.}
+      \item{\code{id_run}}{Integer; the run to fit for. Its predictor selection is read through its
+lineage, and the models are labelled with it.}
     }
     \if{html}{\out{</div>}}
   }
@@ -565,9 +579,10 @@ sampling. Models are trained on a subsample and evaluated on held-out data, see
   measures,
   sample_frac = 0.7,
   seed = NULL,
-  cluster = NULL,
+  compute = "default",
   id_trans = NULL,
-  id_period_anterior = NULL
+  id_period_anterior = NULL,
+  id_run = 0L
 )}
     \if{html}{\out{</div>}}
   }
@@ -579,11 +594,13 @@ sampling. Models are trained on a subsample and evaluated on held-out data, see
 \code{Measure} objects for scoring the held-out split.}
       \item{\code{sample_frac}}{Fraction in \(0, 1\) for stratified sampling.}
       \item{\code{seed}}{Random seed for reproducible sampling}
-      \item{\code{cluster}}{Optional cluster object for parallel processing}
+      \item{\code{compute}}{Name of the mirai compute profile to run on, see \code{\link[=map_evoland]{map_evoland()}}}
       \item{\code{id_trans}}{Optional integer vector; fit only these transitions.}
       \item{\code{id_period_anterior}}{Optional integer vector; train and score only on
 transitions observed from these anterior periods. \code{NULL} (default) uses all
 observed periods.}
+      \item{\code{id_run}}{Integer; the run to fit for. Its predictor selection is read through its
+lineage, and the models are labelled with it.}
     }
     \if{html}{\out{</div>}}
   }
@@ -614,18 +631,19 @@ observed periods.}
 \if{html}{\out{<a id="method-evoland_db-set_full_trans_preds"></a>}}
 \if{latex}{\out{\hypertarget{method-evoland_db-set_full_trans_preds}{}}}
 \subsection{\code{evoland_db$set_full_trans_preds()}}{
-  Set an initial full set of transition / predictor relations for the active run, see
+  Set an initial full set of transition / predictor relations for a run, see
 \code{\link[=set_full_trans_preds]{set_full_trans_preds()}}
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
-    \preformatted{evoland_db$set_full_trans_preds(reset = FALSE)}
+    \preformatted{evoland_db$set_full_trans_preds(reset = FALSE, id_run = 0L)}
     \if{html}{\out{</div>}}
   }
   \subsection{Arguments}{
     \if{html}{\out{<div class="arguments">}}
     \describe{
-      \item{\code{reset}}{Logical, start the active run's selection over, removing its rows and
-their scores? Default FALSE.}
+      \item{\code{reset}}{Logical, start the run's selection over, removing its rows and their
+scores? Default FALSE.}
+      \item{\code{id_run}}{Integer; the run to write the predictor sets for}
     }
     \if{html}{\out{</div>}}
   }
@@ -642,7 +660,8 @@ See \code{\link[=get_pred_filter_score]{get_pred_filter_score()}}.
     \preformatted{evoland_db$get_pred_filter_score(
   filter = "correlation",
   id_trans = NULL,
-  cluster = NULL,
+  compute = "default",
+  id_run = 0L,
   ...
 )}
     \if{html}{\out{</div>}}
@@ -654,7 +673,9 @@ See \code{\link[=get_pred_filter_score]{get_pred_filter_score()}}.
 \link[mlr3filters:Filter]{mlr3filters::Filter} object specifying the filter method to use for
 feature selection.}
       \item{\code{id_trans}}{Optional integer vector; score only these transitions.}
-      \item{\code{cluster}}{Optional cluster object for parallel processing}
+      \item{\code{compute}}{Name of the mirai compute profile to run on, see \code{\link[=map_evoland]{map_evoland()}}}
+      \item{\code{id_run}}{Integer; the run whose selected predictors are scored, and whose
+\code{id_run} the scores carry}
       \item{\code{...}}{Additional arguments passed to \code{flt}.}
     }
     \if{html}{\out{</div>}}
@@ -676,7 +697,7 @@ to obtain column-scaled, row-closed values.
   select_score,
   select_maximize,
   force = FALSE,
-  id_run = self$id_run
+  id_run = 0L
 )}
     \if{html}{\out{</div>}}
   }
@@ -702,7 +723,26 @@ to select model for extrapolation}
   Get the transition rates that were observed, see \link{trans_rates_t}
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
-    \preformatted{evoland_db$get_obs_trans_rates()}
+    \preformatted{evoland_db$get_obs_trans_rates(id_run = 0L)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{id_run}}{Integer; the run whose land use is read and whose \code{id_run} the rates
+carry}
+    }
+    \if{html}{\out{</div>}}
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-evoland_db-trans_v"></a>}}
+\if{latex}{\out{\hypertarget{method-evoland_db-trans_v}{}}}
+\subsection{\code{evoland_db$trans_v()}}{
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{evoland_db$trans_v(id_run = 0L)}
     \if{html}{\out{</div>}}
   }
 }

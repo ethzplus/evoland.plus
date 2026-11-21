@@ -17,7 +17,6 @@ method. These provide computed views on the database without storing additional 
 \itemize{
 \item \code{lulc_meta_long_v} - Unrolled LULC metadata with one row per source class
 \item \code{pred_sources_v} - Distinct predictor URLs and their MD5 checksums
-\item \code{trans_v} - Land use transitions derived from lulc_data_t
 \item \code{extent} - Spatial extent of coords_t as terra::SpatExtent
 \item \code{coords_minimal} - Minimal coordinate representation (id_coord, lon, lat)
 }
@@ -26,6 +25,8 @@ method. These provide computed views on the database without storing additional 
 \section{Methods Added}{
 
 \itemize{
+\item \code{trans_v(id_run = 0L)} - Land use transitions derived from lulc_data_t, through the lineage
+of \code{id_run}; a parametrized view, because it joins every period of the land use with itself.
 \item \code{pred_wide_train_v(id_trans)} - Returns wide table of transition results and predictor data for
 a specific transition. Used as input to covariance filtering.
 \item \code{adjusted_trans_pot_v(id_period_post)} - Returns allocation-ready transition potentials:

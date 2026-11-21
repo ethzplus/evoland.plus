@@ -5,7 +5,7 @@ library(tinytest)
 source(file.path(system.file("tinytest", package = "evoland.plus"), "helper_testdb.R"))
 expect_silent(db <- make_test_db())
 expect_inherits(db, c("evoland_db", "ducklake_db"))
-expect_stdout(print(db), "Active Run: 0")
+expect_stdout(print(db), "<evoland_db> Object")
 expect_identical(
   db$list_tables(),
   c(
@@ -25,13 +25,11 @@ expect_identical(
 )
 expect_equal(db$reporting_t["report_name", value], "evoland_scenario")
 
-# create_alloc_params_t() returns one best estimate per viable transition, on the active run
-db$id_run <- 1L
+# create_alloc_params_t() returns one best estimate per viable transition, for run 1
 expect_equal(
-  sort(db$alloc_params_t[["id_trans"]]),
+  sort(db$fetch("alloc_params_t", id_run = 1L)[["id_trans"]]),
   sort(db$trans_meta_t[is_viable == TRUE, id_trans])
 )
-db$id_run <- 0L
 # id_period_post restricts the estimate to the given period pairs; an empty selection errors
 expect_error(
   suppressMessages(db$create_alloc_params_t(id_period_post = -1L)),
@@ -63,25 +61,23 @@ db$runs_t <- as_runs_t(list(
 ))
 
 # test that we can overwrite a slice of data within a run
-expect_silent(db$id_run <- 0L)
 pred_run_0 <- db$pred_data_t
-
-expect_silent(db$id_run <- 2L)
-expect_equal(db$id_run, 2L)
-expect_equal(db$run_lineage, 2:0)
+expect_equal(evoland.plus:::get_lineage(db$runs_t, 2L), 2:0)
 
 db$pred_data_t <- added_run_2 <- db$pred_data_t[
   id_pred == 1L,
   .(id_run = 2L, id_period, id_pred, id_coord, value = value + 100L)
 ]
 
-pred_run_2 <- db$pred_data_t
+pred_run_2 <- as_pred_data_t(db$fetch("pred_data_t", id_run = 2L))
 # check that the total number of rows across all pred_data_t is increased by added_run_2
 expect_equal(
   nrow(pred_run_2) + nrow(added_run_2),
   db$row_count("pred_data_t")
 )
 expect_equal(nrow(pred_run_0), nrow(pred_run_2))
+# the table binding reads every run's rows as stored
+expect_equal(nrow(db$pred_data_t), db$row_count("pred_data_t"))
 
 # cannot check equality because of weird class/attribute changes due to
 # data.table operations, but we can check that the added rows in run 2 are
@@ -105,14 +101,10 @@ pots <- function(id_run, value) {
     value = value
   ))
 }
-db$id_run <- 0L
 db$trans_pot_t <- pots(0L, 0.5)
-db$id_run <- 2L
 db$trans_pot_t <- pots(2L, 0)
-expect_equal(db$trans_pot_t[["value"]], c(0, 0, 0))
-db$id_run <- 1L
-expect_equal(db$trans_pot_t[["value"]], c(0.5, 0.5, 0.5))
-db$id_run <- 2L
+expect_equal(db$fetch("trans_pot_t", id_run = 2L)[["value"]], c(0, 0, 0))
+expect_equal(db$fetch("trans_pot_t", id_run = 1L)[["value"]], c(0.5, 0.5, 0.5))
 
 # fetch back as rast
 expect_equal(
@@ -145,7 +137,7 @@ db$add_predictor(
 expect_equivalent(
   as.list(db$pred_meta_t[name == "somethingelse"]),
   list(
-    id_pred = 11L,
+    id_pred = 13L,
     name = "somethingelse",
     pretty_name = "somethingelse",
     description = NA_character_,
@@ -158,7 +150,7 @@ expect_equivalent(
   )
 )
 
-somethingelse_data_roundtrip <- db$pred_data_t[id_pred == 11L]
+somethingelse_data_roundtrip <- db$pred_data_t[id_pred == 13L]
 expect_equal(nrow(somethingelse_data_roundtrip), 900L)
 expect_inherits(somethingelse_data_roundtrip$value, "numeric")
 expect_length(unique(somethingelse_data_roundtrip$value), 5L)
@@ -170,10 +162,10 @@ db$add_predictor(
   fill_value = "a",
   unit = "letters, updated"
 )
-expect_equal(db$pred_meta_t[name == "somethingelse", id_pred], 11L)
+expect_equal(db$pred_meta_t[name == "somethingelse", id_pred], 13L)
 expect_equal(db$pred_meta_t[name == "somethingelse", unit], "letters, updated")
-expect_equal(db$pred_data_t[id_pred == 11L, unique(value)], 5) # "e", the fifth level
-expect_false(12L %in% db$pred_data_t[["id_pred"]])
+expect_equal(db$pred_data_t[id_pred == 13L, unique(value)], 5) # "e", the fifth level
+expect_false(14L %in% db$pred_data_t[["id_pred"]])
 
 # try adding predictor to DB without pred_meta_t
 empty_db <- evoland_db$new(tempfile("empty_evolanddb_"))
@@ -240,7 +232,9 @@ n_lulc_ant <-
   ][
     precedence_db$trans_meta_t,
     .(id_trans, id_lulc),
-    on = c(id_lulc = "id_lulc_anterior")
+    on = c(id_lulc = "id_lulc_anterior"),
+    # an anterior class has several transitions
+    allow.cartesian = TRUE
   ][,
     .N,
     by = "id_trans"
@@ -279,26 +273,26 @@ expect_equal(
   n_lulc_ant[id_trans == 1L, N] - 1L # all rows but 1 should be NA
 )
 
-# get predictor data for the transition starting at id_lulc=2
+# get predictor data for a transition starting at id_lulc=2 (3: arable -> forest)
 expect_equal(
   precedence_db$pred_wide_predict_v(
-    id_trans = 2L,
+    id_trans = 3L,
     id_period_anterior = 1L
   )[
     is.na(id_pred_1),
     .N
   ],
-  n_lulc_ant[id_trans == 2L, N] # all rows should be NA
+  n_lulc_ant[id_trans == 3L, N] # all rows should be NA
 )
 expect_equal(
   precedence_db$pred_wide_train_v(
-    id_trans = 2L,
+    id_trans = 3L,
     id_pred = 1L
   )[
     is.na(id_pred_1),
     .N
   ],
-  n_lulc_ant[id_trans == 2L, N] # all rows should be NA
+  n_lulc_ant[id_trans == 3L, N] # all rows should be NA
 )
 
 # figure_of_merit_v: run 10 holds the initial (period 1) and observed (period 2) maps, runs 11
@@ -320,9 +314,18 @@ db$lulc_data_t <- fom_lulc(10L, 2L, c(2L, 2L, 1L, 1L, 1L, 2L))
 db$lulc_data_t <- fom_lulc(11L, 2L, c(2L, 1L, 2L, 1L, 3L, 2L))
 db$lulc_data_t <- fom_lulc(12L, 2L, c(2L, 2L, 1L, 1L, 1L, 2L))
 
-db$id_run <- 11L
 fom <- db$figure_of_merit_v(1L, 2L, id_run_reference = 10L, id_run_simulated = 11:12)
-expect_equal(db$id_run, 11L) # restored after reading each run's lineage
+
+# trans_v reads one run's lineage: run 11's period 2 against the period 1 it inherits from run 10
+expect_equal(
+  db$trans_v(id_run = 11L)[id_period == 2L][order(id_coord)],
+  data.table::data.table(
+    id_period = 2L,
+    id_lulc_anterior = c(1L, 1L, 1L, 1L, 2L, 2L),
+    id_lulc_posterior = c(2L, 1L, 2L, 1L, 3L, 2L),
+    id_coord = 1:6
+  )
+)
 # random allocation within class 1 (4 cells, 2 observed and 2 simulated 1 -> 2) expects one
 # hit over a union of 3; class 2 (2 cells, 2 -> 1 observed, 2 -> 3 simulated) no hit over 1.5.
 # Run 12 expects 0.5 hits in class 2 (2 -> 1 observed and simulated once each) over 1.5.
@@ -341,7 +344,13 @@ expect_equal(
   )
 )
 
-fom_trans <- db$figure_of_merit_v(1L, 2L, id_run_reference = 10L, by_transition = TRUE)
+fom_trans <- db$figure_of_merit_v(
+  1L,
+  2L,
+  id_run_reference = 10L,
+  id_run_simulated = 11L,
+  by_transition = TRUE
+)
 expect_equal(
   fom_trans,
   data.table::data.table(
@@ -439,7 +448,7 @@ expect_equal(
   )
 )
 expect_equal(
-  db$lulc_crosstab_v(1L, 2L), # active run 11, inheriting period 1 from run 10
+  db$lulc_crosstab_v(1L, 2L, id_run_anterior = 11L), # run 11 inherits period 1 from run 10
   data.table::data.table(
     id_lulc_anterior = c(1L, 1L, 2L, 2L),
     id_lulc_posterior = c(1L, 2L, 2L, 3L),
@@ -454,8 +463,6 @@ expect_equal(
     n_cells = c(1L, 1L, 1L, 1L, 2L)
   )
 )
-expect_equal(db$id_run, 11L)
-db$id_run <- 0L
 
 # no pairs within max_distance still leaves an empty table
 expect_message(db$set_neighbors(max_distance = 1, overwrite = TRUE, quiet = TRUE), "Computed 0")
@@ -470,36 +477,38 @@ expect_message(
 # readers skip it, and the transition's other pairs are still inherited
 base_preds <- db$trans_preds_t
 child_trans <- base_preds[["id_trans"]][1L]
-expect_equal(nrow(base_preds), 20L)
+expect_equal(nrow(base_preds), 48L)
 db$runs_t <- as_runs_t(rbind(
   db$runs_t,
-  list(id_run = 13L, parent_id_run = 10L, description = "fewer predictors")
+  list(id_run = 13L, parent_id_run = 10L, description = "fewer predictors"),
+  fill = TRUE
 ))
-db$id_run <- 13L
 expect_message(
   db$trans_preds_t <- base_preds[id_trans == child_trans][-(1:2)][,
     `:=`(id_run = 13L, is_selected = FALSE, score = 1)
   ],
   "Added column\\(s\\) to `trans_preds_t`: score"
 )
-child_preds <- db$trans_preds_t
-expect_equal(nrow(child_preds), 20L)
+child_preds <- as_trans_preds_t(db$fetch("trans_preds_t", id_run = 13L))
+expect_equal(nrow(child_preds), 48L)
 expect_equal(child_preds[id_trans == child_trans & is_selected == TRUE, .N], 2L)
 expect_equal(
   child_preds[id_trans != child_trans, .(id_run, id_pred, id_trans, is_selected)],
   base_preds[id_trans != child_trans, .(id_run, id_pred, id_trans, is_selected)]
 )
 expect_equal(
-  grep("^id_pred_", names(db$pred_wide_predict_v(child_trans, 1L)), value = TRUE),
+  grep("^id_pred_", names(db$pred_wide_predict_v(child_trans, 1L, id_run = 13L)), value = TRUE),
   paste0("id_pred_", base_preds[id_trans == child_trans][1:2, id_pred])
 )
 
 # set_full_trans_preds() refuses a run that holds predictor sets; reset = TRUE starts the run's
 # selection over, its scores included, and leaves the parent's rows alone
-expect_error(db$set_full_trans_preds(), "already holds predictor sets for this run")
-db$set_full_trans_preds(reset = TRUE)
+expect_error(
+  db$set_full_trans_preds(id_run = 13L),
+  "already holds predictor sets for this run"
+)
+db$set_full_trans_preds(reset = TRUE, id_run = 13L)
 run_13 <- db$fetch("trans_preds_t", where = "id_run = 13")
 expect_true(all(run_13[["is_selected"]]))
 expect_true(all(is.na(run_13[["score"]])))
-expect_equal(db$row_count("trans_preds_t", where = "id_run = 0"), 20L)
-db$id_run <- 0L
+expect_equal(db$row_count("trans_preds_t", where = "id_run = 0"), 48L)

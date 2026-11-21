@@ -8,8 +8,15 @@
 #' expansion and patcher tables from `alloc_params_t` (`frac_expander`, `mean_patch_size`,
 #' `patch_size_variance`, `patch_isometry`).
 #'
-#' [check_dinamica()] runs before anything is predicted or written. Dinamica draws its own
-#' random seed, so its realisations cannot be replayed (see ethzplus/evoland.plus#104).
+#' [check_dinamica()] runs before anything is predicted or written.
+#'
+#' Dinamica draws its own random seed, so its realisations cannot be replayed (see
+#' ethzplus/evoland.plus#104). DinamicaConsole cannot be given a seed value; its only seed
+#' option, `-predefined-seed`, makes it use a built-in seed instead of a time-based one.
+#' Together with running single-threaded (`-processors=1`, `-disable-parallel-functors`,
+#' `-disable-parallel-map-load`, `-disable-parallel-steps`), it still does not make a run
+#' reproducible: as of Dinamica 8.14.1, the same inputs give a different allocation on each
+#' run. These options can be passed to [exec_dinamica()] as `additional_args`.
 #'
 #' @param work_dir Character or `NULL`; directory under which each period gets its own working
 #'   directory, `run_<id_run>_period_<id_period_post>`. `NULL` (default) uses a temporary

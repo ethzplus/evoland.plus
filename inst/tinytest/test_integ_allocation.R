@@ -13,11 +13,7 @@ source(file.path(system.file("tinytest", package = "evoland.plus"), "helper_test
 db <- make_test_db()
 
 db$trans_rates_t <- db$get_obs_trans_rates()
-db$trans_rates_t <- extrapolate_trans_rates(
-  db$trans_rates_t,
-  db$periods_t,
-  coord_count = nrow(db$coords_t)
-)
+db$trans_rates_t <- extrapolate_trans_rates(db$trans_rates_t, db$periods_t)
 
 test_learner <- mlr3::lrn("classif.featureless", predict_type = "prob")
 test_measures <- c("classif.auc")
@@ -29,7 +25,7 @@ expect_message(
     measures = test_measures,
     seed = 1244244
   ),
-  "Fitting partial models for 2 transitions..."
+  "Fitting partial models for 4 transitions..."
 )
 
 # Score-select mode: pick best partial model by classif.auc and retrain on full data
@@ -57,6 +53,11 @@ changes_of <- function(posterior, anterior = lulc_of(0L, 3L)) {
     .N,
     by = .(id_lulc_anterior = id_lulc, id_lulc_posterior = i.id_lulc)
   ]
+}
+# the number of potentials predicted from an anterior map: one per viable transition and cell
+# of its anterior class
+n_potentials <- function(anterior) {
+  nrow(anterior[viable, on = .(id_lulc = id_lulc_anterior), nomatch = NULL, allow.cartesian = TRUE])
 }
 # the changes per viable transition, to compare with the quota of the allocation context
 changes_by_trans <- function(posterior, anterior = lulc_of(0L, 3L)) {
@@ -88,15 +89,14 @@ expect_equal(nrow(lulc_of(1L, 4L)), 900L)
 expect_true(all(
   changes_of(lulc_of(1L, 4L))[!viable, on = .(id_lulc_anterior, id_lulc_posterior), .N] == 0L
 ))
-# the active run is left alone; the potentials were predicted under the allocated run
-expect_equal(db$id_run, 0L)
-expect_equal(db$row_count("trans_pot_t"), 900L)
+# the potentials were predicted under the allocated run
+expect_equal(db$row_count("trans_pot_t"), n_potentials(lulc_of(0L, 3L)))
 expect_equal(
   db$get_query("select distinct id_run from dl_db.trans_pot_t", as_atomic = TRUE),
   1L
 )
 adj_pots <- db$adjusted_trans_pot_v(4L, id_run = 1L)
-expect_equal(nrow(adj_pots), 900L)
+expect_equal(nrow(adj_pots), n_potentials(lulc_of(0L, 3L)))
 expect_true(all(adj_pots$value >= 0 & adj_pots$value <= 1))
 
 # a run with its own models does not take an ancestor's potentials; run 3 predicts its own
@@ -165,7 +165,10 @@ expect_equal(
     "select id_period_post, count(*) as n from dl_db.trans_pot_t where id_run = 2
      group by all order by all"
   ),
-  data.table::data.table(id_period_post = 3:4, n = c(900, 900))
+  data.table::data.table(
+    id_period_post = 3:4,
+    n = c(n_potentials(lulc_of(0L, 2L)), n_potentials(lulc_of(2L, 3L)))
+  )
 )
 expect_equal(
   db$get_query(
@@ -176,11 +179,13 @@ expect_equal(
 )
 
 # --------------------------------------------------------------------------
-# potentials_ancestor = 1: run 4 allocates on its parent's potentials without predicting
+# a branch: run 4 branches off run 3 at period 4, and allocates on its parent's potentials
+# without predicting
 # --------------------------------------------------------------------------
 db$runs_t <- as_runs_t(rbind(
   db$runs_t,
-  list(id_run = 4, parent_id_run = 3, description = "stochastic alloc")
+  list(id_run = 4, parent_id_run = 3, description = "stochastic alloc", id_period_eval_start = 4),
+  fill = TRUE
 ))
 alloc_messages <- character()
 withCallingHandlers(
@@ -190,8 +195,7 @@ withCallingHandlers(
     allocator = alloc_greedy_spec(),
     select_score = "classif.auc",
     select_maximize = TRUE,
-    id_run = 4L,
-    potentials_ancestor = 1L
+    id_run = 4L
   ),
   message = function(m) {
     alloc_messages <<- c(alloc_messages, conditionMessage(m))
@@ -236,7 +240,13 @@ expect_equal(
 # --------------------------------------------------------------------------
 db$runs_t <- as_runs_t(rbind(
   db$runs_t,
-  list(id_run = 5, parent_id_run = 3, description = "no neighbour update")
+  list(
+    id_run = 5,
+    parent_id_run = 3,
+    description = "no neighbour update",
+    id_period_eval_start = 4
+  ),
+  fill = TRUE
 ))
 count_run_5_preds <- function() {
   db$get_query(
@@ -244,7 +254,7 @@ count_run_5_preds <- function() {
     as_atomic = TRUE
   )
 }
-alloc_run_5 <- function(update_neighbors) {
+alloc_run_5 <- function(update_neighbors, checkpoint = FALSE) {
   allocate(
     db,
     id_periods = 4L,
@@ -252,37 +262,225 @@ alloc_run_5 <- function(update_neighbors) {
     select_score = "classif.auc",
     select_maximize = TRUE,
     id_run = 5L,
-    potentials_ancestor = 1L,
-    update_neighbors = update_neighbors
+    update_neighbors = update_neighbors,
+    checkpoint = checkpoint
   )
 }
 expect_message(alloc_run_5(update_neighbors = FALSE), "Allocating with greedy")
 expect_equal(count_run_5_preds(), 0)
 expect_message(alloc_run_5(update_neighbors = TRUE), "Allocating with greedy")
-expect_equal(count_run_5_preds(), 3600)
+expect_true(count_run_5_preds() > 0)
+
+# checkpoint = TRUE checkpoints once after the last period: with a retention of zero, every
+# older snapshot is expired. DuckLake cannot unset the option again; nothing below checkpoints
+count_snapshots <- function() {
+  db$get_query("select count(*) from ducklake_snapshots(dl_db)", as_atomic = TRUE)
+}
+db$execute("call dl_db.set_option('expire_older_than', '0 seconds')")
+# allocating one period commits once
+snapshots_before <- count_snapshots()
+expect_message(alloc_run_5(update_neighbors = FALSE), "Allocating with greedy")
+expect_equal(count_snapshots(), snapshots_before + 1)
+# the allocation commits once more, then the checkpoint expires every snapshot before its own
+# two: one flushes the inlined rows to files, one merges adjacent files
+expect_message(
+  alloc_run_5(update_neighbors = FALSE, checkpoint = TRUE),
+  "Allocating with greedy"
+)
+expect_equal(count_snapshots(), 2)
 
 # --------------------------------------------------------------------------
-# Argument checks
+# several runs: run 7 branches off run 6 at period 4, which allocate() reads from runs_t
 # --------------------------------------------------------------------------
-expect_error(
-  allocate(db, id_periods = c(1L, 3L), select_score = "classif.auc", select_maximize = TRUE),
-  "id_periods must be contiguous"
+db$runs_t <- as_runs_t(rbind(
+  db$runs_t,
+  data.table::data.table(
+    id_run = 6:7,
+    parent_id_run = c(0L, 6L),
+    description = c("trunk", "branch"),
+    id_period_eval_start = c(NA, 4L)
+  ),
+  fill = TRUE
+))
+expect_message(
+  allocate(
+    db,
+    id_periods = 3:4,
+    allocator = alloc_greedy_spec(),
+    select_score = "classif.auc",
+    select_maximize = TRUE,
+    id_run = 6:7
+  ),
+  "run 7, periods 4\n",
+  fixed = TRUE
+)
+own_periods <- function(id_run) {
+  db$get_query(
+    "select distinct id_period from dl_db.lulc_data_t where id_run = {id_run} order by all",
+    as_atomic = TRUE
+  )
+}
+expect_equal(own_periods(6L), 3:4)
+expect_equal(own_periods(7L), 4L)
+# the branch starts from the trunk's period 3; greedy then allocates the same period 4
+expect_identical(evoland.plus:::allocation_context(db, 4L, 7L, 7L)$anterior, lulc_of(6L, 3L))
+expect_equal(lulc_of(7L, 4L), lulc_of(6L, 4L))
+# where it branches off, run 7 shares run 6's potentials and allocation context
+expect_equal(
+  evoland.plus:::allocation_schedule(db, 3:4, 6:7)[, .(
+    id_period,
+    id_run,
+    potentials_run,
+    context_run
+  )],
+  data.table::data.table(
+    id_period = c(3L, 4L, 4L),
+    id_run = c(6L, 6L, 7L),
+    potentials_run = 6L,
+    context_run = 6L
+  )
+)
+expect_equal(
+  db$get_query("select count(*) from dl_db.trans_pot_t where id_run = 7", as_atomic = TRUE),
+  0
 )
 expect_error(
   allocate(
     db,
-    id_periods = 3:4,
+    id_periods = 3L,
+    allocator = alloc_greedy_spec(),
     select_score = "classif.auc",
     select_maximize = TRUE,
-    id_run = 4L,
-    potentials_ancestor = 1L
+    id_run = 7L
   ),
-  "potentials_ancestor above 0 works for a single period only"
+  "Runs 7 branch off after the last of id_periods"
+)
+
+# --------------------------------------------------------------------------
+# rng_seed: a seeded run replays its maps whichever runs it is allocated with, and the
+# caller's generator is left alone
+# --------------------------------------------------------------------------
+db$runs_t <- as_runs_t(rbind(
+  db$runs_t,
+  data.table::data.table(
+    id_run = 8:11,
+    parent_id_run = 3L,
+    description = "clumpy realisation",
+    rng_seed = c(42L, 42L, 43L, 42L),
+    id_period_eval_start = 4L
+  ),
+  fill = TRUE
+))
+alloc_clumpy <- function(id_run) {
+  suppressMessages(allocate(
+    db,
+    id_periods = 4L,
+    allocator = alloc_clumpy_spec(),
+    select_score = "classif.auc",
+    select_maximize = TRUE,
+    id_run = id_run,
+    update_neighbors = FALSE
+  ))
+}
+set.seed(1)
+caller_state <- .Random.seed
+alloc_clumpy(8:10)
+expect_identical(.Random.seed, caller_state)
+# the same seed gives the same map, a different one another map
+expect_equal(lulc_of(9L, 4L), lulc_of(8L, 4L))
+expect_false(isTRUE(all.equal(lulc_of(10L, 4L), lulc_of(8L, 4L))))
+# on its own, a run replays the map it got within the batch
+alloc_clumpy(11L)
+expect_equal(lulc_of(11L, 4L), lulc_of(8L, 4L))
+
+# allocate_one_period() allocates several runs on their parent's context, with their seeds
+shared <- suppressMessages(allocate_one_period(
+  db,
+  id_period_post = 4L,
+  allocator = alloc_clumpy_spec(),
+  select_score = "classif.auc",
+  select_maximize = TRUE,
+  id_run = c(8L, 10L),
+  potentials_ancestor = 1L
+))
+expect_equal(
+  as.data.frame(shared[id_run == 8L, .(id_coord, id_lulc)]),
+  as.data.frame(lulc_of(8L, 4L))
+)
+expect_equal(
+  as.data.frame(shared[id_run == 10L, .(id_coord, id_lulc)]),
+  as.data.frame(lulc_of(10L, 4L))
 )
 expect_error(
   allocate_one_period(
     db,
     id_period_post = 4L,
+    allocator = alloc_clumpy_spec(),
+    select_score = "classif.auc",
+    select_maximize = TRUE,
+    id_run = c(8L, 1L),
+    potentials_ancestor = 1L
+  ),
+  "if allocating for multiple runs, they must share their ancestor"
+)
+
+# on mirai daemons, a seeded run gets the same map as on the calling process. The daemons load
+# the installed package, which pkgload::load_all() does not give them, so probe them first, as
+# test_db_parallel.R does
+mirai::daemons(2)
+can_run_parallel <- tryCatch(
+  isTRUE(map_evoland(list(1L), function(item, db) TRUE, parent_db = db)[[1L]]),
+  error = function(e) FALSE
+)
+if (can_run_parallel) {
+  db$runs_t <- as_runs_t(rbind(
+    db$runs_t,
+    data.table::data.table(
+      id_run = 12:13,
+      parent_id_run = 3L,
+      description = "clumpy realisation on daemons",
+      rng_seed = c(42L, 43L),
+      id_period_eval_start = 4L
+    ),
+    fill = TRUE
+  ))
+  tryCatch(alloc_clumpy(12:13), finally = mirai::daemons(0))
+  expect_equal(lulc_of(12L, 4L), lulc_of(8L, 4L))
+  expect_equal(lulc_of(13L, 4L), lulc_of(10L, 4L))
+} else {
+  mirai::daemons(0)
+  message("Skipping the allocation on daemons: they cannot load the installed package")
+}
+
+# --------------------------------------------------------------------------
+# Argument checks
+# --------------------------------------------------------------------------
+expect_error(
+  allocate(
+    db,
+    id_periods = c(1L, 3L),
+    allocator = alloc_greedy_spec(),
+    select_score = "classif.auc",
+    select_maximize = TRUE
+  ),
+  "id_periods must be contiguous"
+)
+expect_error(
+  allocate(
+    db,
+    id_periods = 4L,
+    allocator = alloc_greedy_spec(),
+    select_score = "classif.auc",
+    select_maximize = TRUE,
+    id_run = c(1L, 1L)
+  ),
+  "id_run must be distinct integers"
+)
+expect_error(
+  allocate_one_period(
+    db,
+    id_period_post = 4L,
+    allocator = alloc_greedy_spec(),
     select_score = "classif.auc",
     select_maximize = TRUE,
     id_run = 4L,

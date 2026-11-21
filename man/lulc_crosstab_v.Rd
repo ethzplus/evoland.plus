@@ -8,7 +8,7 @@ lulc_crosstab_v(
   self,
   id_period_anterior,
   id_period_post,
-  id_run_anterior = self$id_run,
+  id_run_anterior = 0L,
   id_run_post = id_run_anterior
 )
 }
@@ -17,8 +17,8 @@ lulc_crosstab_v(
 
 \item{id_period_anterior, id_period_post}{Integer, the two periods to compare}
 
-\item{id_run_anterior}{Integer, run to read \code{id_period_anterior} from; defaults to the active
-run}
+\item{id_run_anterior}{Integer, run to read \code{id_period_anterior} from; defaults to the root
+run, 0}
 
 \item{id_run_post}{Integer, run to read \code{id_period_post} from; defaults to \code{id_run_anterior}}
 }

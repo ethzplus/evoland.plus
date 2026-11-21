@@ -92,7 +92,8 @@ fit_partial_model_worker <- function(
       pred_wide_train <- db$pred_wide_train_v(
         id_trans = item[["id_trans"]],
         id_pred = item[["id_pred"]][[1L]],
-        id_period_anterior = id_period_anterior
+        id_period_anterior = id_period_anterior,
+        id_run = item[["id_run"]]
       )[, -c("id_coord", "id_period_anterior")]
 
       if (nrow(pred_wide_train) == 0L) {
@@ -116,6 +117,8 @@ fit_partial_model_worker <- function(
       )
       full_task$set_col_roles("did_transition", add_to = "stratum")
       if (!is.null(seed)) {
+        caller_rng <- get_rng_state()
+        on.exit(set_rng_state(caller_rng), add = TRUE)
         set.seed(seed)
       }
       split <- mlr3::partition(full_task, ratio = sample_frac)
@@ -188,7 +191,8 @@ fit_full_model_worker <- function(item, db, learner = NULL, id_period_anterior =
       pred_wide_train <- db$pred_wide_train_v(
         id_trans = item[["id_trans"]],
         id_pred = item[["id_pred"]][[1L]],
-        id_period_anterior = id_period_anterior
+        id_period_anterior = id_period_anterior,
+        id_run = item[["id_run"]]
       )
 
       if (nrow(pred_wide_train) == 0L) {
@@ -293,40 +297,36 @@ fit_full_model_worker <- function(item, db, learner = NULL, id_period_anterior =
 #' testing and calculating goodness-of-fit metrics. Default is 0.7 (70% training, 30%
 #' testing).
 #' @param seed Optional integer seed for reproducible subsampling.
-#' @param cluster An optional cluster object created by [parallel::makeCluster()] or
-#' [mirai::make_cluster()].
+#' @param compute Name of the mirai compute profile to run on, see [map_evoland()]: on its
+#'   daemons when they are set, serially otherwise.
 #' @param id_trans Optional integer vector of transition IDs; only these transitions are
 #'   fitted. `NULL` (default) fits every viable transition.
 #' @param id_period_anterior Optional integer vector of anterior period IDs; only the
 #'   transitions observed from these periods are used for training and scoring, e.g. to
 #'   hold out the last observed transition for a backcast. `NULL` (default) uses every
 #'   observed period.
+#' @param id_run Integer; the run to fit for. Its predictor selection is read through its
+#'   lineage, and the models are labelled with it.
 fit_partial_models <- function(
   self,
   learner,
   measures,
   sample_frac = 0.7,
   seed = NULL,
-  cluster = NULL,
+  compute = "default",
   id_trans = NULL,
-  id_period_anterior = NULL
+  id_period_anterior = NULL,
+  id_run = 0L
 ) {
+  stopifnot("id_run must be a single integer" = is_scalar_integerish(id_run))
   # Accept either a character vector of measure IDs or a list of Measure objects
   if (is.character(measures)) {
     measures <- mlr3::msrs(measures)
   }
 
-  # the run fitted for is the active one; the predictor sets may be inherited from an
-  # ancestor, whose id_run they carry
-  trans_preds_nested <- data.table::as.data.table(self$trans_preds_t)[
-    is_selected == TRUE,
-    .(id_run = self$id_run, id_pred = list(sort(unique(id_pred)))),
-    by = id_trans
-  ]
-
   viable_trans <-
     viable_trans_meta(self, id_trans)[, .(id_trans)][
-      trans_preds_nested,
+      selected_trans_preds_nested(self, id_run),
       on = "id_trans",
       nomatch = NULL
     ]
@@ -349,11 +349,11 @@ fit_partial_models <- function(
 
   viable_trans |>
     split(by = c("id_run", "id_trans")) |>
-    run_parallel_evoland(
+    map_evoland(
       items = _,
       worker_fun = fit_partial_model_worker,
       parent_db = self,
-      cluster = cluster,
+      compute = compute,
       learner = learner,
       measures = measures,
       seed = seed,
@@ -384,23 +384,27 @@ fit_partial_models <- function(
 #'   rank partial models in score-select mode. Must be `NULL` when `learner` is provided.
 #' @param select_maximize Logical; if `TRUE` (default) the model with the highest
 #'   `select_score` is selected; if `FALSE`, the lowest. Only used in score-select mode.
-#' @param cluster An optional cluster object created by [parallel::makeCluster()] or
-#' [mirai::make_cluster()].
+#' @param compute Name of the mirai compute profile to run on, see [map_evoland()]: on its
+#'   daemons when they are set, serially otherwise.
 #' @param id_trans Optional integer vector of transition IDs; only these transitions are
 #'   fitted. `NULL` (default) fits every viable transition.
 #' @param id_period_anterior Optional integer vector of anterior period IDs; only the
 #'   transitions observed from these periods are used for training. In score-select mode
 #'   this should match what was passed to [fit_partial_models()]. `NULL` (default) uses
 #'   every observed period.
+#' @param id_run Integer; the run to fit for. Its predictor selection is read through its
+#'   lineage, and the models are labelled with it.
 fit_full_models <- function(
   self,
   learner = NULL,
   select_score = NULL,
   select_maximize = TRUE,
-  cluster = NULL,
+  compute = "default",
   id_trans = NULL,
-  id_period_anterior = NULL
+  id_period_anterior = NULL,
+  id_run = 0L
 ) {
+  stopifnot("id_run must be a single integer" = is_scalar_integerish(id_run))
   has_learner <- !is.null(learner)
   has_score <- !is.null(select_score)
 
@@ -412,18 +416,11 @@ fit_full_models <- function(
     coerce_learner_for_classif(learner)
 
     # Direct mode: get viable transitions with their predictor lists
-    # the run fitted for is the active one, see fit_partial_models()
-    trans_preds_nested <- data.table::as.data.table(self$trans_preds_t)[
-      is_selected == TRUE,
-      .(id_run = self$id_run, id_pred = list(sort(unique(id_pred)))),
-      by = id_trans
-    ]
-
     viable_trans <-
       viable_trans_meta(self, id_trans)[,
         .(id_trans)
       ][
-        trans_preds_nested,
+        selected_trans_preds_nested(self, id_run),
         on = "id_trans",
         nomatch = NULL
       ]
@@ -434,11 +431,11 @@ fit_full_models <- function(
 
     viable_trans |>
       split(by = c("id_run", "id_trans")) |>
-      run_parallel_evoland(
+      map_evoland(
         items = _,
         worker_fun = fit_full_model_worker,
         parent_db = self,
-        cluster = cluster,
+        compute = compute,
         learner = learner,
         id_period_anterior = id_period_anterior
       ) |>
@@ -454,8 +451,8 @@ fit_full_models <- function(
 
     # Identify the best partial model per transition (using QUALIFY window function)
     # and get the predictor ID lists from trans_preds_t in the same query. Both are read
-    # through the active run's lineage, so they may come from different ancestors; the
-    # full models are written under the active run.
+    # through the lineage of id_run, so they may come from different ancestors; the full
+    # models are labelled with id_run.
     best_models <-
       self$get_query(
         r"[
@@ -464,14 +461,14 @@ fit_full_models <- function(
           id_trans,
           list(distinct id_pred order by id_pred) as id_pred
         from
-          {self$get_read_expr("trans_preds_t")}
+          {self$get_read_expr("trans_preds_t", id_run = id_run)}
         where
           is_selected
         group by
           id_trans
       )
       select
-        {self$id_run}::integer as id_run,
+        {id_run}::integer as id_run,
         tm.id_trans,
         tm.learner_id,
         pn.id_pred,
@@ -480,7 +477,7 @@ fit_full_models <- function(
         tm.crossval_score,
         tm.crossval_predictions,
       from
-        {self$get_read_expr("trans_models_t")} tm,
+        {self$get_read_expr("trans_models_t", id_run = id_run)} tm,
         preds_nested pn
       where
         pn.id_trans = tm.id_trans
@@ -510,11 +507,11 @@ fit_full_models <- function(
 
     best_models |>
       split(by = c("id_run", "id_trans")) |>
-      run_parallel_evoland(
+      map_evoland(
         items = _,
         worker_fun = fit_full_model_worker,
         parent_db = self,
-        cluster = cluster,
+        compute = compute,
         id_period_anterior = id_period_anterior
       ) |>
       data.table::rbindlist() |>
