@@ -129,4 +129,3 @@ print.trans_viability_t <- function(x, nrow = 10, ...) {
   NextMethod(nrow = nrow, ...)
   invisible(x)
 }
-
