@@ -37,12 +37,15 @@ terra::writeRaster(landscape$drivers[["accessibility"]], geotiff, overwrite = TR
 
 Predictors usually come as files, such as GeoTIFFs from a data provider.
 This guide reads one GeoTIFF onto the coordinate points of an `evoland_db` and records where it came from.
-So that the guide runs without network access, a hidden setup chunk has written a synthetic GeoTIFF, `accessibility.tif`, to a temporary directory, on the same 100 m grid as the coordinate points of `db`.
+So that this guide runs without network access, a hidden setup chunk has written a synthetic GeoTIFF, `accessibility.tif`, to a temporary directory, on the same 100 m grid as the coordinate points of `db`.
 
 # Download and verify the file
 
 `download_and_verify()` takes a table of URLs and their MD5 checksums, downloads each file into a cache directory, and warns if a file does not match its checksum.
-Our file is local, so its URL uses the `file://` scheme; the commented lines show how remote files are listed.
+The table format is handy if a single predictor is a composite of multiple remote files.
+Our single file is local, so its URL uses the `file://` scheme; the commented lines show how remote files are listed.
+Because the file is locally available, we can already compute its checksum; normally, you would download it a first time and pin its checksum afterwards.
+A later checksum mismatch would most likely indicate that a new version of the source data has (silently) been released at the same URL.
 
 ```{r}
 #| label: download
