@@ -25,6 +25,18 @@
 //                This is the general multi-pixel method (and also covers
 //                mono-pixel patches, with a quota).
 //
+//                Not yet implemented: updating the potentials as the pool
+//                shrinks.  The reference clumpy re-estimates the transition
+//                probabilities on the remaining pool before each pass (thesis
+//                sec. 3.4.2), which is currently too expensive to run here, so
+//                the potentials stay fixed.  Re-drawing pivots from them pass
+//                after pass is successive sampling: the most probable cells
+//                are included slightly less often than their potential, the
+//                others slightly more (about 3 % in the top decile; one pass
+//                over all candidates, batch_size < 0, shows no such shift).
+//                Measured in evoland-experiments
+//                2026-09-paper-figures/010-verify-upam-bias.
+//
 // The R layer auto-selects the method from the patch parameters (all mono-pixel
 // => uSAM, otherwise uPAM); the explicit `method` flag here is kept so the
 // backend can be exercised directly (unit tests / cross-tool comparison).
@@ -37,8 +49,10 @@
 // Aggregation avoidance (`avoid_aggregation`, uPAM only): replicates clumpy's
 // GaussianPatcher.  Patch growth is all-or-nothing and writes nothing until the
 // whole patch is built: if at any growth step (or at the final step) a border
-// cell already belongs to another patch of the same transition, or the patch
-// cannot reach its sampled area, the patch fails and allocates nothing.  Failed
+// cell already belongs to another patch of the same transition allocated in
+// this time step, or the patch cannot reach its sampled area, the patch fails
+// and allocates nothing.  Land that had the target class before the step does
+// not count as a patch: growing next to it is allowed.  Failed
 // (attempted) cells are removed from the pool for the rest of the time step
 // (sampling without replacement), so patches never merge.
 //
@@ -143,11 +157,17 @@ static void build_neighbors(int nrow, int ncol, std::vector<int> &up,
 }
 
 // Log-normal patch-area draw, parameterised by the area mean E and variance V
-// (cell units).  Returns an integer >= 1.  NA / non-positive mean -> 1.
+// (cell units).  Returns an integer >= 1.  NA / non-positive mean -> 1.  A
+// variance of 0 (or NA: a single observed patch) is a point mass at the mean,
+// so the mean is returned and no random number is drawn.
 static int draw_lognorm_area(double area_mean, double area_var) {
   if (ISNAN(area_mean) || area_mean <= 0.0) return 1;
   const double E = area_mean;
-  const double V = (ISNAN(area_var) || area_var <= 0.0) ? 1.0 : area_var;
+  if (ISNAN(area_var) || area_var <= 0.0) {
+    const long a = std::lround(E);
+    return a < 1 ? 1 : (int)a;
+  }
+  const double V = area_var;
   const double mu = std::log(E * E / std::sqrt(V + E * E));
   const double sigma = std::sqrt(std::log(V / (E * E) + 1.0));
   const double draw = R::rlnorm(mu, sigma);
@@ -156,7 +176,10 @@ static int draw_lognorm_area(double area_mean, double area_var) {
 }
 
 // Normal patch-area draw: N(area_mean, sd = sqrt(area_var)), clamped to >= 1
-// (matches clumpy's GaussianPatcher).  NA / non-positive mean -> 1.
+// (as clumpy's GaussianPatcher), rounded to the nearest integer.  clumpy grows a
+// patch while it is smaller than the real-valued draw, i.e. to ceiling(draw)
+// cells, half a cell above the prescribed mean on average; rounding keeps the
+// mean.  NA / non-positive mean -> 1.
 static int draw_normal_area(double area_mean, double area_var) {
   if (ISNAN(area_mean) || area_mean <= 0.0) return 1;
   const double sd = (ISNAN(area_var) || area_var <= 0.0) ? 0.0 : std::sqrt(area_var);
@@ -198,16 +221,42 @@ static void shuffle_pair(std::vector<int> &a, std::vector<int> &b) {
 // shared clumpy::elongation_from_raw_moments) towards the target.  Running
 // spatial moments make each candidate's elongation an O(1) update.
 //
+// Differences from Mazy's patch design algorithm (App. 3.I.3) and from the
+// reference clumpy (Patcher.allocate), checked against clumpy on 2000 scenarios
+// in evoland-experiments 2026-09-paper-figures/010-verify-clumpy:
+//   * no connectedness step (3.I.3.2, steps iv-v): clumpy first adds, at random,
+//     a border cell with >= 3 of its 4 rook neighbours in the patch, to avoid
+//     small holes; here every cell is chosen by the score;
+//   * exact elongation: the candidate patch's moments are taken about its own
+//     centroid, as eqs. 3.I.6-3.I.8 define them; the thesis (3.I.3.3) and
+//     clumpy keep the centroid of the patch without the candidate, an
+//     approximation for speed that the running sums make unnecessary;
+//   * ties go to the lowest cell index, as in clumpy, but candidates that tie in
+//     exact arithmetic (mirror images with equal potential) may be separated by
+//     floating-point round-off differently from clumpy; the thesis leaves ties
+//     open;
+//   * the score adds eps = 1e-6 to the distance, so an exact match of the
+//     target elongation does not divide by zero.
+// With the first two aligned in clumpy, both grow the same patch, up to exact
+// ties.  The growth is a greedy, deterministic choice among the cells next to
+// the patch: only the pivot is drawn from the potentials.  The allocated cells
+// follow the potentials as a whole only where these vary slowly over a patch
+// (Mazy App. 3.A.2: patch scale << scale of the explanatory variables).
+//
 // `avoid_aggregation` enforces the no-patch-merging requirement (Mazy sec. 3.2.4
-// "patch merging" / sec. 3.4.2), which is necessary for the post-allocation
-// patch-size distribution to stay unbiased:
+// "patch merging" / sec. 3.4.2, App. 3.D.1.2): merging would reduce the quantity
+// of change and shift the post-allocation patch-size distribution to larger
+// patches.  It concerns only patches of the same time step; growing into or
+// next to land that already had `to_class` before the step is allowed (Mazy
+// 3.I.3.1), which is how patches can extend existing areas:
 //   * if a border cell already belongs to another patch of this transition
 //     (ant == from_class && land == to_class), the patch FAILS (returns 0);
 //   * if no eligible cell remains before reaching the target area, the patch
 //     FAILS (all-or-nothing);
 //   * a final check is applied to the last added cell's neighbours.
 //   With avoid_aggregation == false, the patch grows greedily up to the target
-//   and a short patch is accepted (no merge checks).
+//   and a short patch is accepted (no merge checks); the thesis and clumpy fail
+//   a patch that runs out of neighbours in either case.
 //
 // Returns the number of cells committed (>= 1 on success; 0 on failure / invalid
 // pivot).  `out_cells` always receives the cells that were *attempted* (0-based),
@@ -530,7 +579,8 @@ IntegerVector grow_patch_cpp(IntegerVector landscape,
 //'   parameters per transition.
 //' @param target_rate NumericVector (length T) of the target transition rate
 //'   P(v|u) per transition (fraction of source pixels that change).  Used only
-//'   by uPAM to set the per-transition pixel quota.
+//'   by uPAM to set the per-transition pixel quota, the rate times the number
+//'   of cells of the source class, rounded to whole cells.
 //' @param method 0 = uSAM (mono-pixel single pass), 1 = uPAM (iterative, quota).
 //' @param batch_size uPAM only: pivots attempted per MuST re-draw. `> 0` is an
 //'   explicit cap (1 = strict uPAM); `< 0` processes all candidates in one pass;
@@ -633,7 +683,9 @@ IntegerVector allocate_clumpy_cpp(
       for (int q = 0; q < k; ++q) {
         double rt = target_rate[at[q]];
         if (ISNAN(rt) || rt < 0.0) rt = 0.0;
-        remaining[q] = rt * m0; // N_{u->v} = P(v|u) * #J
+        // N_{u->v} = P(v|u) * #J in whole cells, rounded half to even as R's
+        // round(), so that it is the quota allocate() documents
+        remaining[q] = std::nearbyint(rt * m0);
       }
       std::vector<char> blocked(n, 0); // attempted-but-failed cells (removed)
       // batch_size controls how many pivots are grown per MuST re-draw:
@@ -651,9 +703,15 @@ IntegerVector allocate_clumpy_cpp(
         bs = std::max(1, (int)(pool.size() / 100));
       }
 
+      // A pass that selects no pivot is repeated: the chance of one is about
+      // exp(-quota / E(sigma)), so stopping there would leave rare transitions
+      // short.  The number of such passes in a row is bounded (as clumpy's
+      // n_try), in case the remaining potentials are too small to ever select.
       int guard = 0;
       const int guard_max = n + 16;
-      while (guard++ < guard_max) {
+      int empty_passes = 0;
+      const int empty_passes_max = 1000;
+      while (guard < guard_max) {
         bool any_quota = false;
         for (int q = 0; q < k; ++q) {
           if (remaining[q] > 0.0) {
@@ -674,16 +732,29 @@ IntegerVector allocate_clumpy_cpp(
 
         // MuST over the current pool, restricted to in-quota transitions.
         std::vector<int> cand_cell, cand_q;
+        // sum of the pivot probabilities tested; complete when no pivot is
+        // selected, which is the only case it is read in
+        double mass = 0.0;
         for (int idx : pool) {
           const int sel = must_draw_one(k, [&](int q) {
-            return remaining[q] > 0.0 ? pivot_prob(idx, at[q]) : 0.0;
+            const double p = remaining[q] > 0.0 ? pivot_prob(idx, at[q]) : 0.0;
+            mass += p;
+            return p;
           });
           if (sel >= 0) {
             cand_cell.push_back(idx);
             cand_q.push_back(sel);
           }
         }
-        if (cand_cell.empty()) break;
+        if (cand_cell.empty()) {
+          // no potential left for the transitions still in quota: no patch can
+          // be formed (Mazy sec. 3.4.2, third stopping condition)
+          if (mass <= 0.0 || ++empty_passes >= empty_passes_max) break;
+          Rcpp::checkUserInterrupt();
+          continue;
+        }
+        empty_passes = 0;
+        ++guard;
         if (shuffle) shuffle_pair(cand_cell, cand_q);
 
         int processed = 0;
@@ -708,9 +779,9 @@ IntegerVector allocate_clumpy_cpp(
             for (int b : out) blocked[b] = 1; // remove attempted cells
           }
         }
-        // Each iteration removes >= 1 cell from the pool (a success commits
-        // to_class, a failure blocks the attempted cells), so the loop is
-        // guaranteed to terminate.
+        // Each pass with candidates removes >= 1 cell from the pool (a success
+        // commits to_class, a failure blocks the attempted cells), and passes
+        // without candidates are bounded, so the loop terminates.
       }
     }
   }

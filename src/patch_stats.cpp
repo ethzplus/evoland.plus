@@ -104,8 +104,7 @@ double calculate_elongation(double m00, double m10, double m01, double s20,
 /**
  * @brief Calculate class statistics (patch metrics) for a raster matrix.
  *
- * This function identifies connected components (patches) using 8-connectivity
- * and calculates:
+ * This function identifies connected components (patches) and calculates:
  * - Mean patch area
  * - Standard deviation of patch area
  * - Mean patch elongation (based on moments of inertia)
@@ -114,10 +113,16 @@ double calculate_elongation(double m00, double m10, double m01, double s20,
  *
  * @param mat IntegerMatrix representing the landscape/raster.
  * @param cellsize The side length of a cell (resolution).
+ * @param directions 8 (default): cells touching by an edge or a corner belong
+ *   to one patch (queen); 4: by an edge only (rook), the adjacency the CLUMPY
+ *   patch grower uses (Mazy 2022, App. 3.I.2).
  * @return DataFrame containing class-level statistics.
  */
 // [[Rcpp::export]]
-DataFrame calculate_class_stats_cpp(IntegerMatrix mat, double cellsize) {
+DataFrame calculate_class_stats_cpp(IntegerMatrix mat, double cellsize,
+                                    int directions = 8) {
+  if (directions != 4 && directions != 8) stop("directions must be 4 or 8");
+  const bool queen = directions == 8;
   int nrow = mat.nrow();
   int ncol = mat.ncol();
   size_t n_total = (size_t)nrow * ncol;
@@ -154,7 +159,7 @@ DataFrame calculate_class_stats_cpp(IntegerMatrix mat, double cellsize) {
       }
 
       // Check Down-Right (r+1, c+1) - Diagonal
-      if (r + 1 < nrow && c + 1 < ncol) {
+      if (queen && r + 1 < nrow && c + 1 < ncol) {
         int val_dr = mat(r + 1, c + 1);
         if (val == val_dr) {
           int idx_dr = (r + 1) + (c + 1) * nrow;
@@ -163,7 +168,7 @@ DataFrame calculate_class_stats_cpp(IntegerMatrix mat, double cellsize) {
       }
 
       // Check Up-Right (r-1, c+1) - Diagonal
-      if (r - 1 >= 0 && c + 1 < ncol) {
+      if (queen && r - 1 >= 0 && c + 1 < ncol) {
         int val_ur = mat(r - 1, c + 1);
         if (val == val_ur) {
           int idx_ur = (r - 1) + (c + 1) * nrow;

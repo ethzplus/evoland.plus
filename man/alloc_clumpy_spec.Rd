@@ -6,7 +6,7 @@
 \usage{
 alloc_clumpy_spec(
   area_dist = c("lognormal", "normal"),
-  avoid_aggregation = FALSE,
+  avoid_aggregation = TRUE,
   batch_size = 0L,
   default_elongation = 0.5
 )
@@ -15,9 +15,14 @@ alloc_clumpy_spec(
 \item{area_dist}{Character; patch-area distribution, \code{"lognormal"} (default) or \code{"normal"}
 (Gaussian with sd = \code{sqrt(patch_size_variance)}, clamped to >= 1).}
 
-\item{avoid_aggregation}{Logical, default \code{FALSE}; if \code{TRUE}, uPAM patches that would merge with
-an existing patch fail and allocate nothing (clumpy \code{GaussianPatcher} semantics). Ignored for
-the mono-pixel uSAM path.}
+\item{avoid_aggregation}{Logical; if \code{TRUE} (default), a uPAM patch that would merge with
+another patch allocated in the same period, or cannot reach its drawn area, fails and
+allocates nothing (clumpy \code{GaussianPatcher} semantics, Mazy App. 3.D.1.2: merging lowers the
+quantity of change and shifts the patch sizes towards larger patches). Land that had the
+target class before the period does not count as a patch: patches may grow next to it, so
+existing areas expand with avoidance on. Failed patches remove their cells from the pool, so
+where patches crowd, the quota can be left slightly unmet. \code{FALSE} lets same-period patches
+merge and keeps patches that run out of neighbours. Ignored for the mono-pixel uSAM path.}
 
 \item{batch_size}{Integer; uPAM pivots attempted per MuST re-draw. \code{0} (default) auto-scales
 to ~1\% of each class's source pool, bounding the number of MuST passes so large rasters
@@ -39,12 +44,15 @@ parameters in \code{alloc_params_t}:
 \item \strong{uSAM} (Unbiased Simple Allocation Method, Mazy sec. 3.4.1) when every transition is
 mono-pixel (\code{mean_patch_size == 1} and \code{patch_size_variance == 0}): one MuST (Multinomial
 Sampling Test, Mazy App. 3.B; the same test the reference \code{clumpy} calls "GART") pass per
-anterior class, each selected pivot allocated as a single cell. Quantity of change is
-enforced in expectation.
+anterior class, each selected pivot allocated as a single cell. The quantity of change is
+met on average: every cell changes with its own probability, so the number of changed
+cells varies between realisations.
 \item \strong{uPAM} (Unbiased Patch Allocation Method, Mazy sec. 3.4.2, Fig. 3.2) otherwise: iterative
-MuST with a per-transition pixel quota and sampling without replacement. Affordable here
-because evoland.plus's potentials come from a fixed fitted model, so the marginal density does
-not need to be re-estimated between patches.
+MuST with a per-transition pixel quota and sampling without replacement. Each pivot grows
+into a patch (Mazy App. 3.I.3). Patches are allocated until the quota,
+\code{round(rate * n_anterior)} cells, is used up, so the changed cells reach it and exceed it by
+less than the last patch. They fall short only where the cells of the anterior class run
+out, or patches fail (see \code{avoid_aggregation}).
 }
 
 Multi-pixel patches require uPAM; "uSAM with patches larger than one pixel" is not a valid
@@ -54,8 +62,43 @@ The per-cell pivot probability is divided by the mean patch area (the 1/E(sigma)
 Mazy Fig. 3.2) so that the allocated quantity of change matches the target transition rate;
 without it allocation over-shoots by roughly the mean patch size.
 
+\strong{What uPAM is unbiased about.} The pivot cells are drawn from the potentials without bias,
+and so are the patch sizes and elongations if same-step patches do not merge (Mazy App. 3.B.2,
+3.D.1.2). The other cells of a patch are not drawn: the grower adds the neighbour with the
+best score, potential over distance to the target elongation. The allocated cells as a whole
+follow the potentials only where these vary slowly over the extent of a patch (Mazy App.
+3.A.2: patch scale much smaller than the scale of the explanatory variables). Where
+potentials vary from cell to cell, uPAM places change where the potentials are high in a
+cell's neighbourhood, not cell by cell; with mono-pixel patches, use uSAM.
+
+\strong{Differences from the reference CLUMPY.} Checked against clumpy's patch grower on 2000
+scenarios (evoland-experiments, \code{2026-09-paper-figures/010-verify-clumpy.r}):
+\itemize{
+\item no connectedness step: clumpy first adds, at random, a cell almost enclosed by the patch
+(Mazy App. 3.I.3.2), to avoid small holes;
+\item exact elongation: a candidate is scored by the elongation of the patch including it, from
+moments about that patch's own centroid (Mazy eqs. 3.I.6-3.I.8); the thesis (App. 3.I.3.3)
+and clumpy keep the centroid of the patch without the candidate, for speed;
+\item patch areas are rounded to the nearest cell, where clumpy grows to the next larger one
+(half a cell above the prescribed mean on average);
+\item without \code{avoid_aggregation}, a patch that runs out of neighbours of its class is kept as
+grown, where clumpy discards it;
+\item updating the potentials between passes is not yet implemented: clumpy re-estimates the
+transition probabilities on the remaining pool before each pass (Mazy sec. 3.4.2), which is
+currently too expensive to run here, so the potentials stay fixed. Re-drawing from fixed
+potentials over a shrinking pool includes the most probable cells slightly less often than
+their potential (about 3 \% in the top decile with several passes, none with one pass,
+\code{batch_size < 0}; \code{2026-09-paper-figures/010-verify-upam-bias.r}).
+}
+
+With the connectedness step and the elongation aligned, both grow the same patch, except where
+equally scored candidates are separated by floating-point round-off. uSAM matches clumpy bit
+for bit when clumpy's random numbers are supplied through R's user-supplied generator.
+
 The patch parameters are read from \code{alloc_params_t}: \code{mean_patch_size} and
-\code{patch_size_variance} give the patch-area distribution, \code{patch_elongation} its shape.
+\code{patch_size_variance} give the patch-area distribution, \code{patch_elongation} its shape. Areas
+are rounded to whole cells and are at least one cell. A transition without a variance (0, or
+missing because it was observed as a single patch) gets patches of exactly its mean size.
 
 The allocator works on a raster built from \code{coords_t}, so it needs coordinate points on a
 regular grid. R's random number generator drives it, so \code{\link[=set.seed]{set.seed()}} makes a realisation
