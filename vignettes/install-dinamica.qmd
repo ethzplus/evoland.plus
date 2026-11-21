@@ -59,6 +59,13 @@ sudo mkdir -p /opt/dinamica
 sudo mv squashfs-root/* /opt/dinamica/
 ```
 
+The AppImage bundles its own dynamic loader, which `evoland.plus` uses to start
+`DinamicaConsole` (see step 5). Extracting the AppImage leaves it without execute permission:
+
+```bash
+sudo chmod +x /opt/dinamica/usr/lib/ld-linux-x86-64.so.2
+```
+
 ### 4. Install the bundled R package
 
 Dinamica ships its own R package inside the installation directory.
@@ -91,11 +98,15 @@ export DINAMICA_EGO_8_HOME="/opt/dinamica"
 export PATH="$PATH:/opt/dinamica/usr/bin"
 ```
 
-::: {.callout-note}
-`LD_LIBRARY_PATH` does **not** need to be set manually.
-`evoland.plus` automatically prepends `/opt/dinamica/usr/lib` (derived from
-`DINAMICA_EGO_8_HOME`) to `LD_LIBRARY_PATH` when it invokes `DinamicaConsole`, so
-your system-wide library path is never affected.
+::: {.callout-warning}
+Do **not** add `/opt/dinamica/usr/lib` to `LD_LIBRARY_PATH`.
+Dinamica bundles its own libraries there, including a newer glibc than most systems have;
+on `LD_LIBRARY_PATH`, they make other programs crash with a segmentation fault.
+`evoland.plus` starts `DinamicaConsole` through the bundled loader,
+`$DINAMICA_EGO_8_HOME/usr/lib/ld-linux-x86-64.so.2`, which gives only Dinamica the bundled
+libraries.
+To run `DinamicaConsole` yourself, do the same:
+`/opt/dinamica/usr/lib/ld-linux-x86-64.so.2 --library-path /opt/dinamica/usr/lib /opt/dinamica/usr/bin/DinamicaConsole`.
 :::
 
 ::: {.callout-warning}
@@ -129,10 +140,12 @@ RCranMirror = "https://cloud.r-project.org/"
 Check that Dinamica can be found on the PATH:
 
 ```bash
-DinamicaConsole --version
+which DinamicaConsole
+/opt/dinamica/usr/lib/ld-linux-x86-64.so.2 --library-path /opt/dinamica/usr/lib \
+  /opt/dinamica/usr/bin/DinamicaConsole -help
 ```
 
-You should see version information printed to the terminal.
+You should see the path and Dinamica's help printed to the terminal.
 From R, `check_dinamica()` lists anything missing from the steps above; the Dinamica allocators run the same check before they start and stop with this list if Dinamica cannot run at all:
 
 ```r
@@ -163,11 +176,11 @@ tinytest::test_package("evoland.plus")
 : Make sure `/opt/dinamica/usr/bin` is on your `PATH` and that you have reloaded your
   shell profile.
 
-**Shared library errors (`libXXX.so not found`)**
-: `evoland.plus` sets `LD_LIBRARY_PATH` to `$DINAMICA_EGO_8_HOME/usr/lib` for every
-  `DinamicaConsole` call. If you still see library errors, verify that
-  `DINAMICA_EGO_8_HOME` is set correctly with `echo $DINAMICA_EGO_8_HOME` and that
-  the shared libraries exist under that path.
+**Shared library errors (`libXXX.so not found`) or segmentation faults**
+: `evoland.plus` runs `DinamicaConsole` through `$DINAMICA_EGO_8_HOME/usr/lib/ld-linux-x86-64.so.2`
+  with the libraries in that directory. Verify that `DINAMICA_EGO_8_HOME` is set correctly
+  with `echo $DINAMICA_EGO_8_HOME`, that the shared libraries exist under that path, that
+  the loader is executable (step 3), and that `LD_LIBRARY_PATH` does not include them.
 
 **`Failed to send message, session is closed` in a Dinamica log**
 : `DINAMICA_EGO_8_TEMP_DIR` is set somewhere (shell profile, `~/.Renviron`, `Renviron.site`)
