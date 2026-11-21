@@ -140,14 +140,15 @@ BEGIN_RCPP
 END_RCPP
 }
 // calculate_class_stats_cpp
-DataFrame calculate_class_stats_cpp(IntegerMatrix mat, double cellsize);
-RcppExport SEXP _evoland_plus_calculate_class_stats_cpp(SEXP matSEXP, SEXP cellsizeSEXP) {
+DataFrame calculate_class_stats_cpp(IntegerMatrix mat, double cellsize, int directions);
+RcppExport SEXP _evoland_plus_calculate_class_stats_cpp(SEXP matSEXP, SEXP cellsizeSEXP, SEXP directionsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< IntegerMatrix >::type mat(matSEXP);
     Rcpp::traits::input_parameter< double >::type cellsize(cellsizeSEXP);
-    rcpp_result_gen = Rcpp::wrap(calculate_class_stats_cpp(mat, cellsize));
+    Rcpp::traits::input_parameter< int >::type directions(directionsSEXP);
+    rcpp_result_gen = Rcpp::wrap(calculate_class_stats_cpp(mat, cellsize, directions));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -161,7 +162,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_evoland_plus_allocate_clumpy_cpp", (DL_FUNC) &_evoland_plus_allocate_clumpy_cpp, 17},
     {"_evoland_plus_greedy_fill_cpp", (DL_FUNC) &_evoland_plus_greedy_fill_cpp, 4},
     {"_evoland_plus_distance_neighbors_chunked_cpp", (DL_FUNC) &_evoland_plus_distance_neighbors_chunked_cpp, 6},
-    {"_evoland_plus_calculate_class_stats_cpp", (DL_FUNC) &_evoland_plus_calculate_class_stats_cpp, 2},
+    {"_evoland_plus_calculate_class_stats_cpp", (DL_FUNC) &_evoland_plus_calculate_class_stats_cpp, 3},
     {NULL, NULL, 0}
 };
 

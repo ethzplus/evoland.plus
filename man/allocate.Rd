@@ -133,9 +133,12 @@ built once, and each of them allocated on it in turn. The runs of a period are s
 the mirai daemons of \code{compute}, see \code{\link[=map_evoland]{map_evoland()}}, and their maps committed once all are
 done; transition potentials are predicted beforehand, on the calling process.
 
-The quantity of change is the same for every allocator: each viable transition changes
+The demanded quantity of change is the same for every allocator: for each viable transition,
 \code{round(rate * n_anterior)} cells, where \code{rate} is the transition's rate in \code{trans_rates_t}
 for the posterior period and \code{n_anterior} the number of cells of its anterior class in the
-anterior map. Transitions without a rate change no cells.
+anterior map. Transitions without a rate change no cells. How closely the allocated map meets
+the demand depends on the allocator: the greedy allocator meets it exactly where enough
+candidate cells exist, CLUMPY's uSAM on average and its uPAM to within a patch, see
+\code{\link[=alloc_clumpy_spec]{alloc_clumpy_spec()}}.
 }
 

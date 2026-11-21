@@ -45,7 +45,8 @@ parameters per transition.}
 
 \item{target_rate}{NumericVector (length T) of the target transition rate
 P(v|u) per transition (fraction of source pixels that change).  Used only
-by uPAM to set the per-transition pixel quota.}
+by uPAM to set the per-transition pixel quota, the rate times the number
+of cells of the source class, rounded to whole cells.}
 
 \item{method}{0 = uSAM (mono-pixel single pass), 1 = uPAM (iterative, quota).}
 
