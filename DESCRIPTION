@@ -37,7 +37,6 @@ Suggests:
     mlr3viz,
     processx,
     quarto,
-    ranger,
     rpart,
     tinytest
 VignetteBuilder: quarto

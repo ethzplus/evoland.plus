@@ -75,5 +75,5 @@ Owing to the complexity of this software, there are quite some dependencies. The
 | `glue`                | String and SQL interpolation                                            |
 | `curl`                | Downloading predictor sources; to be replaced by base R (ethzplus/evoland.plus#79) |
 
-Learners (`ranger`, and `rpart` for demonstrations, see ethzplus/evoland.plus#80), solvers (`lpSolve`), `processx` (for Dinamica) and the documentation and test tooling are in `Suggests` and checked for when needed.
+Learners (`rpart`, for demonstrations, see ethzplus/evoland.plus#80), solvers (`lpSolve`), `processx` (for Dinamica) and the documentation and test tooling are in `Suggests` and checked for when needed.
 See [../style/r.md](../style/r.md#dependencies) for the rules on adding dependencies.
