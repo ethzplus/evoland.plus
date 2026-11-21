@@ -27,7 +27,6 @@ NULL
 # silence R CMD check complaints - it doesn't see :: namespace imports inside/around R6 constructors
 #' @importFrom DBI dbConnect
 #' @importFrom duckdb duckdb
-#' @importFrom paradox ps
 #' @importFrom R6 R6Class
 NULL
 
@@ -79,9 +78,9 @@ utils::globalVariables(c(
   "id_run",
   "id_sel",
   "id_trans",
+  "ids",
   "is_extrapolated",
   "is_persistence",
-  "ids",
   "is_selected",
   "is_viable",
   "lat",
@@ -94,7 +93,10 @@ utils::globalVariables(c(
   "mean_patch_size",
   "N",
   "n_anterior",
+  "n_cells",
+  "n_cells_covered",
   "n_daemons", # set on mirai daemons by map_evoland()
+  "n_rows",
   "no_found_files",
   "parent_id_run",
   "patch_elongation",

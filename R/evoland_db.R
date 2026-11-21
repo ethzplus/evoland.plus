@@ -178,7 +178,7 @@ evoland_db <- R6::R6Class(
     #' @param id_period_anterior Integer ID of period to retrieve data for
     #' @param id_run Integer, the run whose predictors and anterior map are read
     pred_wide_predict_v = function(id_trans, id_period_anterior, id_run = 0L) {
-      create_method_binding(pred_wide_predict_v, with_private = TRUE)
+      create_method_binding(pred_wide_predict_v)
     },
 
     ### Validation methods ---
@@ -202,6 +202,29 @@ evoland_db <- R6::R6Class(
       exclude_id_lulc = integer(0)
     ) {
       create_method_binding(figure_of_merit_v)
+    },
+
+    #' @description Ensembles of simulated maps scored as probabilistic forecasts of the
+    #' observed map, see [brier_score_v()]
+    #' @param id_period_anterior Integer, period of the initial map
+    #' @param id_period_post Integer, period of the observed and simulated maps
+    #' @param id_run_reference Integer, run holding the initial and observed maps
+    #' @param ensembles Named list of integer vectors, the runs of each ensemble, each holding
+    #' a map of its own for `id_period_post`; or an integer vector for a single ensemble
+    #' @param by_anterior Logical; if `TRUE`, report per anterior class instead of overall.
+    #' @param changeable_only Logical; if `TRUE` (default), score only the cells whose
+    #' anterior class has a viable transition.
+    #' @param exclude_id_lulc Integer vector of classes to ignore, see [brier_score_v()].
+    brier_score_v = function(
+      id_period_anterior,
+      id_period_post,
+      id_run_reference,
+      ensembles,
+      by_anterior = FALSE,
+      changeable_only = TRUE,
+      exclude_id_lulc = integer(0)
+    ) {
+      create_method_binding(brier_score_v)
     },
 
     #' @description Cross-tabulation of land use between two periods, see [lulc_crosstab_v()]
@@ -237,7 +260,7 @@ evoland_db <- R6::R6Class(
     #'   NULL (default), all periods are included.
     #' @param id_run Integer; the run whose land use is read
     lulc_data_as_rast = function(id_period = NULL, id_run = 0L) {
-      create_method_binding(lulc_data_as_rast, with_private = TRUE)
+      create_method_binding(lulc_data_as_rast)
     },
 
     #' @description

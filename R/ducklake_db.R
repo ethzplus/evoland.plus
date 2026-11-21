@@ -164,12 +164,12 @@ ducklake_db <- R6::R6Class(
           !is.null(sqlite_journal_mode) &&
           grepl("^sqlite:.*$", self$catalog)
       ) {
-        private$sql("METADATA_PARAMETERS MAP{{'journal_mode': {sqlite_journal_mode}}}")
+        self$interpolate_sql("METADATA_PARAMETERS MAP{{'journal_mode': {sqlite_journal_mode}}}")
       }
 
       attach_options <- glue::glue_sql_collapse(
         c(
-          private$sql("DATA_PATH {self$data_path}"),
+          self$interpolate_sql("DATA_PATH {self$data_path}"),
           journal_option,
           if (read_only) DBI::SQL("READ_ONLY")
         ),
@@ -210,7 +210,7 @@ ducklake_db <- R6::R6Class(
     #' syntax needs the braces.
     #' @return Number of rows affected by statement
     execute = function(statement, ..., .open = "{", .close = "}") {
-      statement <- private$interpolate(
+      statement <- self$interpolate_sql(
         statement,
         ...,
         .open = .open,
@@ -232,7 +232,7 @@ ducklake_db <- R6::R6Class(
     #' @param .open,.close Interpolation delimiters, as in `$execute()`.
     #' @return A data.table with query results, or a vector if `as_atomic`
     get_query = function(statement, ..., as_atomic = FALSE, .open = "{", .close = "}") {
-      statement <- private$interpolate(
+      statement <- self$interpolate_sql(
         statement,
         ...,
         .open = .open,
@@ -268,6 +268,46 @@ ducklake_db <- R6::R6Class(
     },
 
     #' @description
+    #' Interpolate a SQL statement or fragment against this connection, as `$execute()` and
+    #' `$get_query()` do: with [glue::glue_sql()], so that values are quoted as literals and
+    #' identifiers rather than pasted. Use it to compose fragments for a larger statement.
+    #' @param statement A SQL statement or fragment. `{value}` is quoted as a value,
+    #' `{value*}` as a comma-separated list of them, ``{`name`}`` as an identifier,
+    #' ``{`names`*}`` as a comma-separated list of them, and a [DBI::SQL()] object -- such
+    #' as this method or `$get_read_expr()` returns -- inserted as it stands. A statement
+    #' already built with [glue::glue()] or [glue::glue_sql()] is returned as it is, since a
+    #' second pass would trip over braces that arrived in the data.
+    #' @param ... Values for the interpolation, as with [glue::glue_sql()].
+    #' @param .open,.close Interpolation delimiters, for a statement whose own syntax needs
+    #' the braces.
+    #' @param .envir Environment to look up the placeholders not given in `...`; the caller's
+    #' by default.
+    #' @return The interpolated statement, a [DBI::SQL()] object
+    interpolate_sql = function(
+      statement,
+      ...,
+      .open = "{",
+      .close = "}",
+      .envir = parent.frame()
+    ) {
+      if (inherits(statement, c("glue", "SQL"))) {
+        stopifnot(
+          "cannot interpolate into an already interpolated statement" = ...length() == 0L
+        )
+        return(statement)
+      }
+
+      glue::glue_sql(
+        statement,
+        ...,
+        .con = self$connection,
+        .open = .open,
+        .close = .close,
+        .envir = .envir
+      )
+    },
+
+    #' @description
     #' Get row count for a table; returns 0 if table does not exist
     #' @param table_name Character string. Name of the table to query.
     #' @param where Character string. Optional WHERE clause, e.g. `"id_run = 2"`.
@@ -277,7 +317,11 @@ ducklake_db <- R6::R6Class(
         return(0L)
       }
 
-      where_clause <- if (is.null(where)) DBI::SQL("") else private$sql("where {DBI::SQL(where)}")
+      where_clause <- if (is.null(where)) {
+        DBI::SQL("")
+      } else {
+        self$interpolate_sql("where {DBI::SQL(where)}")
+      }
       self$get_query(
         "select count(*) from dl_db.{`table_name`} {where_clause}",
         as_atomic = TRUE
@@ -332,10 +376,18 @@ ducklake_db <- R6::R6Class(
 
       res <- self$get_query(
         "{select_clause} from {read_expr} {where_clause} {limit_clause}",
-        select_clause = if (is.null(cols)) no_clause else private$sql("select {`cols`*}"),
+        select_clause = if (is.null(cols)) {
+          no_clause
+        } else {
+          self$interpolate_sql("select {`cols`*}")
+        },
         # `where` is a fragment the caller wrote, so it is inserted, not quoted
-        where_clause = if (is.null(where)) no_clause else private$sql("where {DBI::SQL(where)}"),
-        limit_clause = if (is.null(limit)) no_clause else private$sql("limit {limit}")
+        where_clause = if (is.null(where)) {
+          no_clause
+        } else {
+          self$interpolate_sql("where {DBI::SQL(where)}")
+        },
+        limit_clause = if (is.null(limit)) no_clause else self$interpolate_sql("limit {limit}")
       )
 
       # convert MAP columns back to list-columns if needed
@@ -706,7 +758,7 @@ ducklake_db <- R6::R6Class(
     #' @param ... Ignored here; lets subclasses add their own filters, see [evoland_db]
     #' @return Character string SQL expression
     get_read_expr = function(table_name, ...) {
-      private$sql("dl_db.{`table_name`}")
+      self$interpolate_sql("dl_db.{`table_name`}")
     }
   ),
 
@@ -743,31 +795,6 @@ ducklake_db <- R6::R6Class(
 
     # whether a transaction() is open on this connection
     in_transaction = FALSE,
-
-    # glue_sql() bound to this connection, evaluated in caller's frame
-    sql = function(...) {
-      glue::glue_sql(..., .con = self$connection, .envir = parent.frame())
-    },
-
-    interpolate = function(statement, ..., .open, .close, .envir) {
-      # a statement a caller has already interpolated is left alone; a second pass would
-      # trip over braces that arrived in the data rather than in the template.
-      if (inherits(statement, c("glue", "SQL"))) {
-        stopifnot(
-          "cannot interpolate into an already interpolated statement" = ...length() == 0L
-        )
-        return(statement)
-      }
-
-      glue::glue_sql(
-        statement,
-        ...,
-        .con = self$connection,
-        .open = .open,
-        .close = .close,
-        .envir = .envir
-      )
-    },
 
     # Retry a catalog operation in the face of lock contention. DuckLake's own
     # `ducklake_max_retry_count` covers snapshot conflicts, but not contention on the
@@ -868,10 +895,10 @@ ducklake_db <- R6::R6Class(
       matched_clause <- if (length(ordinary_cols) == 0L) {
         DBI::SQL("")
       } else {
-        private$sql(
+        self$interpolate_sql(
           "when matched then update set {update_assign_expr}",
           update_assign_expr = glue::glue_sql_collapse(
-            private$sql("{`ordinary_cols`} = new_data_v.{`ordinary_cols`}"),
+            self$interpolate_sql("{`ordinary_cols`} = new_data_v.{`ordinary_cols`}"),
             sep = ",\n "
           )
         )
@@ -957,7 +984,7 @@ ducklake_db <- R6::R6Class(
       # An alternate key already held by a different primary key would be
       # inserted as a duplicate, because the merge joins on the primary key only
       key_differs <- glue::glue_sql_collapse(
-        private$sql("t.{`key_cols`} is distinct from n.{`key_cols`}"),
+        self$interpolate_sql("t.{`key_cols`} is distinct from n.{`key_cols`}"),
         sep = " or "
       )
       stolen_keys <- self$get_query(
@@ -1017,8 +1044,8 @@ ducklake_db <- R6::R6Class(
       plain_cols <- setdiff(names(x), map_cols)
       select_expr <- glue::glue_sql_collapse(
         c(
-          private$sql("{`plain_cols`*}"),
-          private$sql("map_from_entries({`map_cols`}) as {`map_cols`}")
+          self$interpolate_sql("{`plain_cols`*}"),
+          self$interpolate_sql("map_from_entries({`map_cols`}) as {`map_cols`}")
         ),
         sep = ", "
       )

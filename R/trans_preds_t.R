@@ -238,7 +238,7 @@ get_pred_filter_score <- function(
       id_trans_filter = if (is.null(id_trans)) {
         DBI::SQL("")
       } else {
-        glue::glue_sql("and id_trans in ({id_trans*})", .con = self$connection)
+        self$interpolate_sql("and id_trans in ({id_trans*})")
       }
     ) |>
     split(by = "id_trans")

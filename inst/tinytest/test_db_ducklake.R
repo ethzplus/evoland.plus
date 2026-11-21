@@ -1097,6 +1097,15 @@ expect_error(
   interp_db$get_query(glue::glue("select 1"), v = 2),
   "already interpolated"
 )
+# $interpolate_sql() is the same interpolation, for composing fragments: it returns SQL that a
+# larger statement inserts as it stands
+fragment <- interp_db$interpolate_sql("label in ({labels*})", labels = c("a", "O'Brien"))
+expect_inherits(fragment, "SQL")
+expect_equal(as.character(fragment), "label in ('a', 'O''Brien')")
+expect_equal(
+  interp_db$get_query("select id from dl_db.interp_t where {fragment}", as_atomic = TRUE),
+  c(1L, 3L)
+)
 
 # as_atomic wants exactly one column, so a caller cannot silently lose the rest
 expect_error(

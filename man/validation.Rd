@@ -10,6 +10,9 @@ Compare a simulated map against the observed one, both starting from the same in
 two periods, of one run or of two;
 \item \code{\link[=figure_of_merit_v]{figure_of_merit_v()}} (\code{evoland_db$figure_of_merit_v()}): Pontius' figure of merit and its
 components, cell by cell, with the value expected from random allocation for comparison;
+\item \code{\link[=brier_score_v]{brier_score_v()}} (\code{evoland_db$brier_score_v()}): ensembles of simulated maps scored as
+probabilistic forecasts of the observed map, with the Brier score, its fair variant for
+finite ensembles, and the skill against random allocation of the observed quantities;
 \item \code{\link[=calc_transition_similarity]{calc_transition_similarity()}}: fuzzy similarity of differences for one transition, which
 tolerates change placed near, rather than exactly on, the observed change.
 }

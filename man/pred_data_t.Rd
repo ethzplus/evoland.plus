@@ -25,7 +25,7 @@ pred_wide_train_v(
   id_run = 0L
 )
 
-pred_wide_predict_v(self, private, id_trans, id_period_anterior, id_run = 0L)
+pred_wide_predict_v(self, id_trans, id_period_anterior, id_run = 0L)
 
 set_pred_coltypes(result, pred_meta_t)
 

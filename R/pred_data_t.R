@@ -128,7 +128,7 @@ pred_wide_train_v <- function(
       id_period_anterior_filter = if (is.null(id_period_anterior)) {
         DBI::SQL("true")
       } else {
-        glue::glue_sql("id_period in ({as.integer(id_period_anterior)*})", .con = self$connection)
+        self$interpolate_sql("id_period in ({as.integer(id_period_anterior)*})")
       },
       pred_cols = paste0("id_pred_", id_pred)
     )
@@ -145,7 +145,6 @@ pred_wide_train_v <- function(
 #' @param id_run Integer, the run whose predictors and anterior map are read
 pred_wide_predict_v <- function(
   self,
-  private,
   id_trans,
   id_period_anterior,
   id_run = 0L
@@ -162,8 +161,8 @@ pred_wide_predict_v <- function(
     trans_filter <- DBI::SQL("")
   } else {
     # only fetch data for single transition
-    trans_condition <- private$sql("id_trans = {id_trans}")
-    trans_filter <- private$sql("and {trans_condition}")
+    trans_condition <- self$interpolate_sql("id_trans = {id_trans}")
+    trans_filter <- self$interpolate_sql("and {trans_condition}")
   }
 
   # the read expression resolves the lineage before the filter, so a run's deselection wins

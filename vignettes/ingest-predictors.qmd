@@ -1,127 +1,105 @@
 ---
-title: Ingest GeoTIFFs as Predictors
+title: "Ingest a raster predictor"
 author: Jan Hartman
-date: 2025-10-20
+date: last-modified
 vignette: >
-  %\VignetteIndexEntry{evoland-plus-ingest-local-geotiffs}
+  %\VignetteIndexEntry{ingest-predictors}
   %\VignetteEngine{quarto::html}
   %\VignetteEncoding{UTF-8}
-execute:
-  enabled: false
+number-sections: true
 ---
 
-In a likely analytic scenario, your analytic workflow will include the ingestion of predictor data from disk instead of a remote source.
-This is not ideal for reproducibility - in the best case, you would be retrieving data from a persistent archive that uses a DOI handle.
-
-This file shows how to work in either scenario.
-Let's start by attaching a database to work in, and setting some coordinate points
-
 ```{r}
-#| label: create-db
+#| label: setup
+#| include: false
+unlink("ingest-predictors.evolanddb", recursive = TRUE)
+set.seed(143)
 library(evoland.plus)
 library(data.table)
-db <- evoland_db$new(path = "noisemodel.evolanddb")
-db$set_coords(
-  type = "square",
-  epsg = 2056,
-  extent = terra::ext(c(
-    xmin = 2697000,
-    xmax = 2698000,
-    ymin = 1252000,
-    ymax = 1253000
-  )),
+
+# a database whose coordinates lie on the grid of a synthetic landscape
+landscape <- synthetic_landscape(n_periods = 1, n_cells = 40)
+db <- evoland_db$new(path = "ingest-predictors.evolanddb")
+db$coords_t <- create_coords_t_square(
+  epsg = 3857L,
+  extent = terra::ext(landscape$drivers),
   resolution = 100
 )
 
-db$set_periods(
-  period_length_str = "P10Y",
-  start_observed = "1985-01-01",
-  end_observed = "2020-01-01",
-  end_extrapolated = "2060-01-01"
-)
+# one driver of the landscape, written out as the GeoTIFF we pretend to download
+source_dir <- file.path(tempdir(), "predictor-sources")
+dir.create(source_dir, showWarnings = FALSE)
+geotiff <- file.path(source_dir, "accessibility.tif")
+terra::writeRaster(landscape$drivers[["accessibility"]], geotiff, overwrite = TRUE)
 ```
 
-# Ingest Predictors from Online Sources
+*Note: this how-to guide assumes that you know the basic `evoland.plus` workflow from the [tutorial](evoland.plus.html).*
 
-Here, we'll start off with a relatively simple predictor: The current level of noise pollution, in accordance with the current levels of traffic.
+Predictors usually come as files, such as GeoTIFFs from a data provider.
+This guide reads one GeoTIFF onto the coordinate points of an `evoland_db` and records where it came from.
+So that this guide runs without network access, a hidden setup chunk has written a synthetic GeoTIFF, `accessibility.tif`, to a temporary directory, on the same 100 m grid as the coordinate points of `db`.
+
+# Download and verify the file
+
+`download_and_verify()` takes a table of URLs and their MD5 checksums, downloads each file into a cache directory, and warns if a file does not match its checksum.
+The table format is handy if a single predictor is a composite of multiple remote files.
+Our single file is local, so its URL uses the `file://` scheme; the commented lines show how remote files are listed.
+Because the file is locally available, we can already compute its checksum; normally, you would download it a first time and pin its checksum afterwards.
+A later checksum mismatch would most likely indicate that a new version of the source data has (silently) been released at the same URL.
 
 ```{r}
-#| label: sonbase-maximum-noise
-coords_minimal <- db$coords_minimal
-
-sonbase_spec <- list(
-  noise = list(
-    unit = "dBa",
-    pretty_name = "Maximum noise exposure",
-    orig_format = "10m*10m raster",
-    description = "The maximum across all sonBASE noise exposure categories, i.e. daytime & nighttime road & rail exposure",
-    sources = list(
-      list(
-        url = "https://data.geo.admin.ch/ch.bafu.laerm-strassenlaerm_tag/laerm-strassenlaerm_tag/laerm-strassenlaerm_tag_2056.tif",
-        md5sum = "09791808dbf12fcde82182e70f2ebdfb"
-      ),
-      list(
-        url = "https://data.geo.admin.ch/ch.bafu.laerm-strassenlaerm_nacht/laerm-strassenlaerm_nacht/laerm-strassenlaerm_nacht_2056.tif",
-        md5sum = "6e79dc1d353751084e21dc6b61778b99"
-      )
-      # list(
-      #   url = "https://data.geo.admin.ch/ch.bafu.laerm-bahnlaerm_nacht/laerm-bahnlaerm_nacht/laerm-bahnlaerm_nacht_2056.tif",
-      #   md5sum = "161df62f9a2a29c9120380f965aa19ba"
-      # ),
-      # list(
-      #   url = "https://data.geo.admin.ch/ch.bafu.laerm-bahnlaerm_tag/laerm-bahnlaerm_tag/laerm-bahnlaerm_tag_2056.tif",
-      #   md5sum = "6016b9ca4c974cb982fbe18112f201fe"
-      # )
-    )
-  )
+#| label: download
+sources <- data.table(
+  url = paste0("file://", geotiff),
+  # url = "https://example.org/archive/accessibility.tif",
+  # url = "ftp://ftp.example.org/drivers/accessibility.tif",
+  md5sum = unname(tools::md5sum(geotiff))
 )
 
-sonbase_sources <-
-  sonbase_spec$noise$sources |>
-  data.table::rbindlist() |>
-  download_and_verify()
+fetched <- download_and_verify(
+  sources,
+  target_dir = file.path(tempdir(), "evoland-cache")
+)
+fetched[, .(local_filename, checksum_matches = md5sum == md5sum_actual)]
+```
 
-# data is at 10m
-# extent plus 1km, given metres for unit; enough for all resampling strategies
-extent_wide <- db$extent |> terra::extend(1000)
+The checksum matches, and `fetched$local_path` holds the path of the cached copy.
+Files already in the cache are not downloaded again.
 
-sonbase_max <-
-  lapply(
-    sonbase_sources$local_path,
-    \(x) terra::rast(x) |> terra::crop(extent_wide)
-  ) |>
-  terra::rast() |>
-  max(na.rm = TRUE) |>
-  terra::resample(10, method = "bilinear") |> # downsample factor 10: to hectare
-  extract_using_coords_t(coords_minimal)
+# Read the raster and extract its values
 
+We read the cached file with `terra` and extract one value per coordinate point with `extract_using_coords_t()`.
+
+```{r}
+#| label: extract
+accessibility_at_coords <-
+  terra::rast(fetched$local_path) |>
+  extract_using_coords_t(db$coords_t)
+accessibility_at_coords
+```
+
+Each of the 1600 coordinate points received a value.
+`extract_using_coords_t()` reads the raster cell that contains each point, without resampling; a raster on another grid should first be brought onto the grid of the coordinates, e.g. with `terra::project()` or `terra::resample()`.
+It also accepts a `SpatVector`, see `?extract_using_coords_t`.
+
+# Add the predictor
+
+`$add_predictor()` stores the values together with their metadata.
+Accessibility does not change over time, so we store it under the static period `0`.
+The `sources` table goes into the predictor metadata, so that the file can be fetched and verified again later.
+
+```{r}
+#| label: add-predictor
 db$add_predictor(
-  pred_spec = sonbase_spec,
-  pred_data = sonbase_max[
-    ,
-    # the id_period = 0L is a 0 integer; this special period indicates "static" data
-    # that's not associated with a historical period
-    .(id_coord, id_period = 0L, value)
-  ],
-  pred_type = "float"
+  pred_data_raw = accessibility_at_coords[, .(id_coord, id_period = 0L, value)],
+  name = "accessibility",
+  fill_value = NA,
+  pretty_name = "Accessibility",
+  description = "Driver of the synthetic landscape, see ?synthetic_landscape",
+  orig_format = "GeoTIFF, EPSG:3857, 100 m",
+  sources = sources
 )
+db$pred_sources_v
 ```
 
-# Check Results
-
-Let's see how the data looks in the DB.
-
-```{r}
-#| label: look-at-meto
-db$pred_meta_t
-```
-
-We can see that the `noise` predictor was assigned `id_pred = 1`, which makes sense, given that this was the first predictor to be ingested
-
-```{r}
-#| label: look-at-data
-db$pred_data_t_float
-```
-
-We see that there's currently a single predictor in our table at 100 coordinate points.
-As expected, once the metadata was inserted into the database, we used the allotted identifier to label our inserted `sonbase_max` data.
+`db$pred_sources_v` lists the URL and checksum of every predictor's sources: the table to pass to `download_and_verify()` to rebuild the cache on another machine.

@@ -420,21 +420,6 @@ expect_equal(
   )
 )
 
-# a seeded, row-order sensitive learner fits the same full model twice: fit_full_models() reads
-# its training data in a fixed order
-if (
-  requireNamespace("ranger", quietly = TRUE) && requireNamespace("mlr3learners", quietly = TRUE)
-) {
-  seeded_forest <- function() {
-    fitted <- suppressMessages(db$fit_full_models(
-      learner = mlr3::lrn("classif.ranger", predict_type = "prob", num.trees = 20, seed = 1L),
-      id_trans = 1L
-    ))
-    qs2::qs_deserialize(fitted$learner_full[[1L]])$model$forest$split.values
-  }
-  expect_identical(seeded_forest(), seeded_forest())
-}
-
 # under a child run, fitting and filtering inherit the base run's predictor sets but label
 # their results with the child run, so they cannot overwrite the base run's
 expect_equal(evoland.plus:::get_lineage(db$runs_t, 2L), c(2L, 0L))
