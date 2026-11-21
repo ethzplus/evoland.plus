@@ -334,11 +334,15 @@ static int grow_one_patch(std::vector<int> &land, const std::vector<int> &ant,
 // "stay" mass is the remainder 1 - sum_q cum_prob(q), so xi falling past the last
 // cumulative bound returns -1 (no change).
 //
-// The uniform comes from R's generator, one per call. To replay another
-// implementation's draws exactly (e.g. numpy's in the reference clumpy), supply
-// them through R's user-supplied generator (?RNGkind, "user-supplied") rather
-// than through this code; evoland-experiments 2026-09-paper-figures
-// 010-verify-clumpy does so to show that uSAM matches clumpy bit for bit.
+// The uniform random u comes from R's default RNG.
+// To replay another implementation's draws exactly (e.g. numpy's in the reference
+// clumpy), supply them through R's user-supplied generator (?RNGkind, "user-supplied")
+// as demonstrated in
+// https://github.com/mmyrte/evoland-experiments/blob/548cedf60340b3ab176b6637e97438702c9dc1b8/2026-09-paper-figures/010-verify-clumpy/replay_rng.c
+// and
+// https://github.com/mmyrte/evoland-experiments/blob/548cedf60340b3ab176b6637e97438702c9dc1b8/2026-09-paper-figures/010-verify-clumpy.r#L154-L159
+
+ to show that uSAM matches clumpy bit for bit.
 template <typename F> static int must_draw_one(int k, F cum_prob) {
   const double u = R::unif_rand();
   double cs = 0.0;
