@@ -189,8 +189,13 @@ dinamica_console_command <- function() {
   loader <- file.path(lib_dir, "ld-linux-x86-64.so.2")
   if (file.exists(loader)) {
     c(
-      "env", "-u", "LD_LIBRARY_PATH",
-      loader, "--library-path", lib_dir, file.path(home, "usr", "bin", "DinamicaConsole")
+      "env",
+      "-u",
+      "LD_LIBRARY_PATH",
+      loader,
+      "--library-path",
+      lib_dir,
+      file.path(home, "usr", "bin", "DinamicaConsole")
     )
   } else {
     c("env", paste0("LD_LIBRARY_PATH=", lib_dir), "DinamicaConsole")
