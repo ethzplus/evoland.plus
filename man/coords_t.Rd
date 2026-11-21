@@ -31,9 +31,9 @@ create_coords_t_square(epsg, extent, resolution, ...)
 \value{
 A data.table of class "coords_t" with columns:
 \itemize{
-\item \code{id_coord}: Unique ID for each coordinate pair
-\item \code{lon}: Longitude/x coordinate
-\item \code{lat}: Latitude/y coordinate
+\item \code{id_coord}: Unique ID for each coordinate point
+\item \code{lon}: Longitude/x coordinate, in the unit of the CRS
+\item \code{lat}: Latitude/y coordinate, in the unit of the CRS
 }
 }
 \description{

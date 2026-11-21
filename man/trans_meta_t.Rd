@@ -42,12 +42,12 @@ anterior == posterior)}
 A data.table of class "trans_meta_t" with columns:
 \itemize{
 \item \code{id_trans}: Unique ID for each transition
-\item \code{id_lulc_anterior}: Foreign key to lulc_meta_t (before transition)
-\item \code{id_lulc_posterior}: Foreign key to lulc_meta_t (after transition)
-\item \code{cardinality}: How many times this transition occurred
-\item \code{frequency_rel}: Frequency relative to all transitions
-\item \code{frequency_abs}: Frequency relative to all coordinate pairs
-\item \code{is_viable}: Whether this transition is viable for modelling
+\item \code{id_lulc_anterior}: Foreign key to \link{lulc_meta_t}, the class before the transition
+\item \code{id_lulc_posterior}: Foreign key to \link{lulc_meta_t}, the class after the transition
+\item \code{cardinality}: How many times this transition was observed
+\item \code{frequency_rel}: Frequency relative to all observed transitions
+\item \code{frequency_abs}: Frequency relative to all coordinate points
+\item \code{is_viable}: Whether a transition potential model is fitted for this transition
 }
 }
 \description{

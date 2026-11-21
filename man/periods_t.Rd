@@ -39,13 +39,12 @@ periods \emph{before} this date are taken into account.}
 \value{
 A data.table of class "periods_t" with columns:
 \itemize{
-\item \code{id_period}: Unique ID for each tperiod
-\item \code{start_date}: Start date for period
-\item \code{end_date}: End date for period
-\item \code{period_length_d}: Days between this and the preceding period's
-midpoints, derived from start and end date.
-\item \code{is_extrapolated}: bool, are observations matched to this period, or is it used
-for extrapolation?
+\item \code{id_period}: Unique ID for each period
+\item \code{start_date}: First day of the period
+\item \code{end_date}: Last day of the period
+\item \code{mean_date}: Midpoint of the period, derived from start and end date
+\item \code{period_length_d}: Days between this and the preceding period's midpoints, derived from start and end date
+\item \code{is_extrapolated}: Whether the period is used for extrapolation (\code{TRUE}) or matched to observations (\code{FALSE})
 }
 }
 \description{

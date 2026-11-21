@@ -82,22 +82,14 @@ rank partial models in score-select mode. Must be \code{NULL} when \code{learner
 \value{
 A data.table of class "trans_models_t" with columns:
 \itemize{
-\item \code{id_run}: Foreign key to runs_t
-\item \code{id_trans}: Foreign key to trans_meta_t
-\item \code{learner_id}: mlr3 twoclass \href{https://mlr3.mlr-org.com/reference/LearnerClassif.html}{LearnerClassif}
-key, e.g. \code{"classif.ranger"}
-\item \code{learner_params}: MAP of atomic scalar learner hyperparameters for
-querying; complete hyperparameters are captured by \code{learner_spec}.
-A fit that failed is recorded as a sentinel row whose \code{learner_params}
-holds a single \code{error_message} entry, and whose \code{learner_full} is \code{NULL}
-\item \code{learner_spec}: BLOB of serialized untrained mlr3 \code{Learner}; for
-AutoTuners, this is the optimal inner learner after tuning
-\item \code{crossval_score}: MAP of cross-validation performance scores
-(from \code{prediction$score(measures)})
-\item \code{crossval_predictions}: BLOB of serialized mlr3 \code{PredictionClassif}
-on the held-out test split
-\item \code{learner_full}: BLOB of serialized trained mlr3 \code{Learner} fitted on
-the full dataset, used for extrapolation
+\item \code{id_run}: Foreign key to \link{runs_t}
+\item \code{id_trans}: Foreign key to \link{trans_meta_t}
+\item \code{learner_id}: mlr3 twoclass \href{https://mlr3.mlr-org.com/reference/LearnerClassif.html}{LearnerClassif} key, e.g. \code{"classif.ranger"}
+\item \code{learner_params}: MAP of atomic scalar learner hyperparameters for querying; complete hyperparameters are captured by \code{learner_spec}. A fit that failed is recorded as a sentinel row whose \code{learner_params} holds a single \code{error_message} entry, and whose \code{learner_full} is \code{NULL}
+\item \code{learner_spec}: BLOB of serialized untrained mlr3 \code{Learner}; for AutoTuners, this is the optimal inner learner after tuning
+\item \code{crossval_score}: MAP of cross-validation performance scores (from \code{prediction$score(measures)})
+\item \code{crossval_predictions}: BLOB of serialized mlr3 \code{PredictionClassif} on the held-out test split
+\item \code{learner_full}: BLOB of serialized trained mlr3 \code{Learner} fitted on the full dataset, used for extrapolation
 }
 }
 \description{
