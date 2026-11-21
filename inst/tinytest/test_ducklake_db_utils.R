@@ -215,4 +215,3 @@ expect_equal(
   as_trans_models_t(list(id_run = 0L, id_trans = 1L, learner_id = "a"))[["crossval_predictions"]],
   list(NULL)
 )
-
