@@ -36,6 +36,8 @@ Additional methods and active bindings are added to this class in separate files
 
     \item{\code{trans_meta_t}}{Get or upsert \link{trans_meta_t}}
 
+    \item{\code{trans_viability_t}}{Get or upsert \link{trans_viability_t}}
+
     \item{\code{trans_preds_t}}{Get or upsert \link{trans_preds_t}; deselect a predictor by setting
 its \code{is_selected} to \code{FALSE}}
 

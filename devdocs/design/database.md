@@ -30,6 +30,7 @@ Grouped by the [workflow](workflow.md) phase that writes them:
   - `neighbors_t`: neighbor relationships between coordinates, for neighborhood predictors
 - Calibration
   - `trans_meta_t`: the transitions between classes and whether each is viable for modelling
+  - `trans_viability_t`: runs that allow or disallow transitions differently
   - `trans_preds_t`: which predictors each transition's model may use
   - `trans_models_t`: fitted transition potential models and their scores
 - Allocation
@@ -153,6 +154,11 @@ erDiagram
         int count
         float rate
     }
+    trans_viability_t {
+        int id_run PK, FK
+        int id_trans PK, FK
+        bool is_viable
+    }
 
     alloc_params_t }o--|| runs_t : "id_run"
     alloc_params_t }o--|| trans_meta_t : "id_trans"
@@ -181,6 +187,8 @@ erDiagram
     trans_rates_t }o--|| runs_t : "id_run"
     trans_rates_t }o--|| periods_t : "id_period"
     trans_rates_t }o--|| trans_meta_t : "id_trans"
+    trans_viability_t }o--|| runs_t : "id_run"
+    trans_viability_t }o--|| trans_meta_t : "id_trans"
 ```
 <!-- END GENERATED ER DIAGRAM -->
 

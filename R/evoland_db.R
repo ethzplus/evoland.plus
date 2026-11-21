@@ -405,6 +405,8 @@ evoland_db <- R6::R6Class(
     pred_meta_t = create_table_binding("pred_meta_t", "upsert"),
     #' @field trans_meta_t Get or upsert [trans_meta_t]
     trans_meta_t = create_table_binding("trans_meta_t", "upsert"),
+    #' @field trans_viability_t Get or upsert [trans_viability_t]
+    trans_viability_t = create_table_binding("trans_viability_t", "upsert"),
     #' @field trans_preds_t Get or upsert [trans_preds_t]; deselect a predictor by setting
     #' its `is_selected` to `FALSE`
     trans_preds_t = create_table_binding("trans_preds_t", "upsert"),

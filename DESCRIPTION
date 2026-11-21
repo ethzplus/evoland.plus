@@ -78,6 +78,7 @@ Collate:
     'trans_rates_lp.R'
     'trans_rates_solver.R'
     'trans_rates_t.R'
+    'trans_viability_t.R'
     'util.R'
     'util_download.R'
     'util_terra.R'
