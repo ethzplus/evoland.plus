@@ -491,6 +491,27 @@ expect_equal(
   1
 )
 
+# changeable_only scores the cells whose anterior class has a transition viable in the
+# reference run: all six here, and only the four of class 1 once run 10 disallows the
+# transitions out of class 2 (3 and 4). The viability of the members does not matter
+brier_cells <- function() {
+  db$brier_score_v(1L, 2L, id_run_reference = 10L, ensembles = 11:12)$n_cells
+}
+expect_equal(brier_cells(), 6L)
+db$trans_viability_t <- as_trans_viability_t(data.table::data.table(
+  id_run = 10L,
+  id_trans = 3:4,
+  is_viable = FALSE
+))
+expect_equal(brier_cells(), 4L)
+db$trans_viability_t <- as_trans_viability_t(data.table::data.table(
+  id_run = 11L,
+  id_trans = 1:4,
+  is_viable = TRUE
+))
+expect_equal(brier_cells(), 4L)
+db$delete_from("trans_viability_t", where = "id_run in (10, 11)")
+
 # brier_score_v against an independent computation in R, on a random fixture: run 20 holds the
 # initial and observed maps of 300 cells in 3 classes, runs 21-25 a simulated map each. Class 3
 # never changes, so its reference forecast is perfect and its skill undefined.
