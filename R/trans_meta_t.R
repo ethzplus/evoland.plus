@@ -133,11 +133,10 @@ trans_meta_read_expr <- function(self, id_run) {
   } else {
     DBI::SQL("(select null::integer as id_trans, null::boolean as is_viable where false)")
   }
-  glue::glue_sql(
+  self$interpolate_sql(
     "(select m.*, coalesce(v.is_viable, true) as is_viable
       from {self$get_read_expr('trans_meta_t')} m
-      left join {viability_read_expr} v using (id_trans))",
-    .con = self$connection
+      left join {viability_read_expr} v using (id_trans))"
   )
 }
 

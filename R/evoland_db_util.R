@@ -35,22 +35,20 @@ get_evoland_db_read_expr <- function(self, super, table_name, id_run) {
 
   distinctness_cols <- c("id_run", inherit_by)
 
-  # .envir, or the statement would be interpolated in this helper's frame
-  sql <- function(...) glue::glue_sql(..., .con = self$connection, .envir = parent.frame())
   run_lineage <- get_lineage(self$runs_t, as.integer(id_run))
 
   # Single run in lineage: just filter for id_run
   if (length(run_lineage) == 1L) {
-    return(sql("(select * from {base_read_expr} where id_run = {id_run})"))
+    return(self$interpolate_sql("(select * from {base_read_expr} where id_run = {id_run})"))
   }
 
   # map each id_run in lineage to its distance from the requested run; used to
   # find the minimum distance. e.g. if run_lineage is (3, 2, 0) we get
   # case id_run when 3 then 1 when 2 then 2 when 0 then 3 else 999999 end
-  run_case <- sql(
+  run_case <- self$interpolate_sql(
     "case b.id_run {when_clauses} else 999999 end",
     when_clauses = glue::glue_sql_collapse(
-      sql("when {run_lineage} then {seq_along(run_lineage)}"),
+      self$interpolate_sql("when {run_lineage} then {seq_along(run_lineage)}"),
       sep = " "
     )
   )
@@ -58,7 +56,7 @@ get_evoland_db_read_expr <- function(self, super, table_name, id_run) {
   ctes <- list()
 
   # return one row per tuple of available data within lineage
-  ctes[["data_present"]] <- sql(
+  ctes[["data_present"]] <- self$interpolate_sql(
     r"[
     select distinct
       {`distinctness_cols`*}
@@ -78,13 +76,13 @@ get_evoland_db_read_expr <- function(self, super, table_name, id_run) {
         if (col == "id_period") {
           # special case for id_period: self-join data_present to allow for
           # id_period=0 fallback
-          return(sql("(a.{`col`} = b.{`col`} or b.{`col`} = 0)"))
+          return(self$interpolate_sql("(a.{`col`} = b.{`col`} or b.{`col`} = 0)"))
         }
-        sql("a.{`col`} = b.{`col`}")
+        self$interpolate_sql("a.{`col`} = b.{`col`}")
       }
     )
     # reduce data_present to one row per most specific id_run
-    ctes[["best_run"]] <- sql(
+    ctes[["best_run"]] <- self$interpolate_sql(
       r"[
       select
         {group_cols},
@@ -98,11 +96,14 @@ get_evoland_db_read_expr <- function(self, super, table_name, id_run) {
       group by
         {group_cols}
       ]",
-      group_cols = glue::glue_sql_collapse(sql("b.{`inherit_by`}"), sep = ", ")
+      group_cols = glue::glue_sql_collapse(
+        self$interpolate_sql("b.{`inherit_by`}"),
+        sep = ", "
+      )
     )
   } else if (length(inherit_by) > 0L) {
     # general case: find minimum distance id_run for each tuple of inheritance key cols
-    ctes[["best_run"]] <- sql(
+    ctes[["best_run"]] <- self$interpolate_sql(
       r"[
       select
         {group_cols},
@@ -112,17 +113,20 @@ get_evoland_db_read_expr <- function(self, super, table_name, id_run) {
       group by
         {group_cols}
       ]",
-      group_cols = glue::glue_sql_collapse(sql("b.{`inherit_by`}"), sep = ", ")
+      group_cols = glue::glue_sql_collapse(
+        self$interpolate_sql("b.{`inherit_by`}"),
+        sep = ", "
+      )
     )
   } else {
     # no inheritance keys: the nearest run holding any data wins
-    ctes[["best_run"]] <- sql(
+    ctes[["best_run"]] <- self$interpolate_sql(
       "select arg_min(b.id_run, {run_case}) as id_run from data_present b"
     )
   }
 
   # use a semi join to filter the table using best_run
-  sql(
+  self$interpolate_sql(
     r"[(
     with
       data_present as (
