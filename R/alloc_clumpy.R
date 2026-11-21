@@ -9,11 +9,15 @@
 #' * **uSAM** (Unbiased Simple Allocation Method, Mazy sec. 3.4.1) when every transition is
 #'   mono-pixel (`mean_patch_size == 1` and `patch_size_variance == 0`): one MuST (Multinomial
 #'   Sampling Test, Mazy App. 3.B; the same test the reference `clumpy` calls "GART") pass per
-#'   anterior class, each selected pivot allocated as a single cell. Quantity of change is
-#'   enforced in expectation.
+#'   anterior class, each selected pivot allocated as a single cell. The quantity of change is
+#'   met on average: every cell changes with its own probability, so the number of changed
+#'   cells varies between realisations.
 #' * **uPAM** (Unbiased Patch Allocation Method, Mazy sec. 3.4.2, Fig. 3.2) otherwise: iterative
 #'   MuST with a per-transition pixel quota and sampling without replacement. Each pivot grows
-#'   into a patch (Mazy App. 3.I.3).
+#'   into a patch (Mazy App. 3.I.3). Patches are allocated until the quota,
+#'   `round(rate * n_anterior)` cells, is used up, so the changed cells reach it and exceed it by
+#'   less than the last patch. They fall short only where the cells of the anterior class run
+#'   out, or patches fail (see `avoid_aggregation`).
 #'
 #' Multi-pixel patches require uPAM; "uSAM with patches larger than one pixel" is not a valid
 #' method, hence the automatic selection rather than a user switch.
@@ -54,7 +58,9 @@
 #' for bit when clumpy's random numbers are supplied through R's user-supplied generator.
 #'
 #' The patch parameters are read from `alloc_params_t`: `mean_patch_size` and
-#' `patch_size_variance` give the patch-area distribution, `patch_elongation` its shape.
+#' `patch_size_variance` give the patch-area distribution, `patch_elongation` its shape. Areas
+#' are rounded to whole cells and are at least one cell. A transition without a variance (0, or
+#' missing because it was observed as a single patch) gets patches of exactly its mean size.
 #'
 #' The allocator works on a raster built from `coords_t`, so it needs coordinate points on a
 #' regular grid. R's random number generator drives it, so [set.seed()] makes a realisation

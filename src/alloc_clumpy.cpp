@@ -157,11 +157,17 @@ static void build_neighbors(int nrow, int ncol, std::vector<int> &up,
 }
 
 // Log-normal patch-area draw, parameterised by the area mean E and variance V
-// (cell units).  Returns an integer >= 1.  NA / non-positive mean -> 1.
+// (cell units).  Returns an integer >= 1.  NA / non-positive mean -> 1.  A
+// variance of 0 (or NA: a single observed patch) is a point mass at the mean,
+// so the mean is returned and no random number is drawn.
 static int draw_lognorm_area(double area_mean, double area_var) {
   if (ISNAN(area_mean) || area_mean <= 0.0) return 1;
   const double E = area_mean;
-  const double V = (ISNAN(area_var) || area_var <= 0.0) ? 1.0 : area_var;
+  if (ISNAN(area_var) || area_var <= 0.0) {
+    const long a = std::lround(E);
+    return a < 1 ? 1 : (int)a;
+  }
+  const double V = area_var;
   const double mu = std::log(E * E / std::sqrt(V + E * E));
   const double sigma = std::sqrt(std::log(V / (E * E) + 1.0));
   const double draw = R::rlnorm(mu, sigma);
@@ -581,7 +587,8 @@ IntegerVector grow_patch_cpp(IntegerVector landscape,
 //'   parameters per transition.
 //' @param target_rate NumericVector (length T) of the target transition rate
 //'   P(v|u) per transition (fraction of source pixels that change).  Used only
-//'   by uPAM to set the per-transition pixel quota.
+//'   by uPAM to set the per-transition pixel quota, the rate times the number
+//'   of cells of the source class, rounded to whole cells.
 //' @param method 0 = uSAM (mono-pixel single pass), 1 = uPAM (iterative, quota).
 //' @param batch_size uPAM only: pivots attempted per MuST re-draw. `> 0` is an
 //'   explicit cap (1 = strict uPAM); `< 0` processes all candidates in one pass;
@@ -684,7 +691,9 @@ IntegerVector allocate_clumpy_cpp(
       for (int q = 0; q < k; ++q) {
         double rt = target_rate[at[q]];
         if (ISNAN(rt) || rt < 0.0) rt = 0.0;
-        remaining[q] = rt * m0; // N_{u->v} = P(v|u) * #J
+        // N_{u->v} = P(v|u) * #J in whole cells, rounded half to even as R's
+        // round(), so that it is the quota allocate() documents
+        remaining[q] = std::nearbyint(rt * m0);
       }
       std::vector<char> blocked(n, 0); // attempted-but-failed cells (removed)
       // batch_size controls how many pivots are grown per MuST re-draw:
@@ -702,9 +711,15 @@ IntegerVector allocate_clumpy_cpp(
         bs = std::max(1, (int)(pool.size() / 100));
       }
 
+      // A pass that selects no pivot is repeated: the chance of one is about
+      // exp(-quota / E(sigma)), so stopping there would leave rare transitions
+      // short.  The number of such passes in a row is bounded (as clumpy's
+      // n_try), in case the remaining potentials are too small to ever select.
       int guard = 0;
       const int guard_max = n + 16;
-      while (guard++ < guard_max) {
+      int empty_passes = 0;
+      const int empty_passes_max = 1000;
+      while (guard < guard_max) {
         bool any_quota = false;
         for (int q = 0; q < k; ++q) {
           if (remaining[q] > 0.0) {
@@ -725,16 +740,29 @@ IntegerVector allocate_clumpy_cpp(
 
         // MuST over the current pool, restricted to in-quota transitions.
         std::vector<int> cand_cell, cand_q;
+        // sum of the pivot probabilities tested; complete when no pivot is
+        // selected, which is the only case it is read in
+        double mass = 0.0;
         for (int idx : pool) {
           const int sel = must_draw_one(k, [&](int q) {
-            return remaining[q] > 0.0 ? pivot_prob(idx, at[q]) : 0.0;
+            const double p = remaining[q] > 0.0 ? pivot_prob(idx, at[q]) : 0.0;
+            mass += p;
+            return p;
           });
           if (sel >= 0) {
             cand_cell.push_back(idx);
             cand_q.push_back(sel);
           }
         }
-        if (cand_cell.empty()) break;
+        if (cand_cell.empty()) {
+          // no potential left for the transitions still in quota: no patch can
+          // be formed (Mazy sec. 3.4.2, third stopping condition)
+          if (mass <= 0.0 || ++empty_passes >= empty_passes_max) break;
+          Rcpp::checkUserInterrupt();
+          continue;
+        }
+        empty_passes = 0;
+        ++guard;
         if (shuffle) shuffle_pair(cand_cell, cand_q);
 
         int processed = 0;
@@ -759,9 +787,9 @@ IntegerVector allocate_clumpy_cpp(
             for (int b : out) blocked[b] = 1; // remove attempted cells
           }
         }
-        // Each iteration removes >= 1 cell from the pool (a success commits
-        // to_class, a failure blocks the attempted cells), so the loop is
-        // guaranteed to terminate.
+        // Each pass with candidates removes >= 1 cell from the pool (a success
+        // commits to_class, a failure blocks the attempted cells), and passes
+        // without candidates are bounded, so the loop terminates.
       }
     }
   }

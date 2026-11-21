@@ -1,58 +1,100 @@
 library(tinytest)
 
-# --------------------------------------------------------------------------
-# Unit tests for the CLUMPY allocation backend (all in C++)
-# --------------------------------------------------------------------------
+# The CLUMPY allocation backend (src/alloc_clumpy.cpp) against Mazy (2022),
+# https://theses.hal.science/tel-04382012v1, Ch. 3. Everything here is deterministic or
+# reproduces the random draws in R: the C++ code draws from R's generator, so after the same
+# set.seed() the test knows every uniform the allocator sees. Properties that only hold on
+# average are in test_alloc_clumpy_stat.R.
 
-# --- evoland.plus:::must_cpp() (Multinomial Sampling Test) ---------------------------------------------------
-
-# Simple case: 2 states, equal probability
-set.seed(42L)
-P <- matrix(c(0.5, 0.5), nrow = 1L, ncol = 2L)
-result <- evoland.plus:::must_cpp(P, c(1L, 2L))
-expect_equal(result, 2L)
-
-# With 100 cells, each gets exactly one state
+# must_cpp: Multinomial Sampling Test ####
+# Mazy App. 3.B.1, eq. 3.B.1: one uniform u per cell picks the first state w whose cumulative
+# probability exceeds u; the last column is the stay state, taken when no other is.
+row_cumsum <- function(x) {
+  for (j in seq_len(ncol(x))[-1L]) {
+    x[, j] <- x[, j] + x[, j - 1L]
+  }
+  x
+}
+must_oracle <- function(prob, states, u) {
+  states[pmin(rowSums(u >= row_cumsum(prob)) + 1L, ncol(prob))]
+}
 set.seed(1L)
-P100 <- matrix(rep(c(0.3, 0.7), each = 100L), nrow = 100L, ncol = 2L)
-must_results_many <- evoland.plus:::must_cpp(P100, c(10L, 20L))
+must_prob <- matrix(stats::runif(600L), ncol = 3L) / 3 # rows sum below 1
+must_states <- c(10L, 20L, 30L)
+set.seed(2L)
+must_drawn <- evoland.plus:::must_cpp(must_prob, must_states)
+set.seed(2L)
+must_u <- stats::runif(200L)
+expect_equal(must_drawn, must_oracle(must_prob, must_states, must_u))
+# all three states occur, so the comparison exercises every branch
+expect_equal(sort(unique(must_drawn)), must_states)
+# supplied uniforms give the same assignment as drawn ones
+expect_equal(evoland.plus:::must_cpp(must_prob, must_states, u = must_u), must_drawn)
+# u on a cumulative bound belongs to the next state: eta_(w-1) <= u < eta_w
 expect_equal(
-  must_results_many,
-  # fmt: skip
-  c(
-    10, 20, 20, 20, 10, 20, 20, 20, 20, 10, 10, 10, 20, 20, 20, 20, 20, 20, 20,
-    20, 20, 10, 20, 10, 10, 20, 10, 20, 20, 20, 20, 20, 20, 10, 20, 20, 20, 10,
-    20, 20, 20, 20, 20, 20, 20, 20, 10, 20, 20, 20, 20, 20, 20, 10, 10, 10, 20,
-    20, 20, 20, 20, 10, 20, 20, 20, 10, 20, 20, 10, 20, 20, 20, 20, 20, 20, 20,
-    20, 20, 20, 20, 20, 20, 20, 20, 20, 10, 20, 10, 10, 10, 10, 10, 20, 20, 20,
-    20, 20, 20, 20, 20
-  )
+  evoland.plus:::must_cpp(matrix(c(0.25, 0.25, 0.5), nrow = 1L), 1:3, u = 0.25),
+  2L
+)
+# negative and NaN probabilities count as 0 (as in the reference clumpy)
+expect_equal(
+  evoland.plus:::must_cpp(matrix(c(-1, NaN, 1), nrow = 1L), 1:3, u = 0),
+  3L
 )
 
-
-# "Stay" column: assign from_class when u > cumsum of all change probs
-P_stay <- matrix(c(0.0, 0.0, 1.0), nrow = 1L, ncol = 3L) # all stay
-res_stay <- evoland.plus:::must_cpp(P_stay, c(1L, 2L, 3L))
-expect_equal(res_stay, 3L)
-
-# Negative / NaN probabilities are clamped to 0 (matches reference clumpy)
-P_neg <- matrix(c(-1.0, 1.0), nrow = 1L, ncol = 2L)
-expect_equal(evoland.plus:::must_cpp(P_neg, c(1L, 2L)), 2L)
-
-# --- area samplers ----------------------------------------------------------
-
+# area samplers ####
+# both are parameterised by the mean E and variance V of the patch area in cells, rounded to
+# whole cells and at least 1; the draws below are reproduced with R's own samplers
 set.seed(1L)
-expect_equal(evoland.plus:::sample_lognorm_area_cpp(area_mean = 4, area_var = 2), 3)
+lognorm_drawn <- vapply(1:50, \(i) evoland.plus:::sample_lognorm_area_cpp(4, 2), integer(1))
+set.seed(1L)
+expect_equal(
+  lognorm_drawn,
+  # a log-normal with mean E and variance V has sdlog^2 = log(1 + V / E^2) and
+  # meanlog = log(E) - sdlog^2 / 2
+  stats::rlnorm(50L, meanlog = log(4) - log(1 + 2 / 16) / 2, sdlog = sqrt(log(1 + 2 / 16))) |>
+    round() |>
+    pmax(1)
+)
+set.seed(1L)
+normal_drawn <- vapply(1:50, \(i) evoland.plus:::sample_normal_area_cpp(4, 2), integer(1))
+set.seed(1L)
+expect_equal(normal_drawn, pmax(round(pmax(stats::rnorm(50L, 4, sqrt(2)), 1)), 1))
+# without variance (0, or NA for a transition observed as a single patch) the area is the mean
+expect_equal(evoland.plus:::sample_lognorm_area_cpp(5, 0), 5L)
+expect_equal(evoland.plus:::sample_lognorm_area_cpp(1, 0), 1L)
+expect_equal(evoland.plus:::sample_lognorm_area_cpp(5, NA_real_), 5L)
+expect_equal(evoland.plus:::sample_normal_area_cpp(5, 0), 5L)
+# no usable mean: a single cell
 expect_equal(evoland.plus:::sample_lognorm_area_cpp(0, 1), 1L)
 expect_equal(evoland.plus:::sample_lognorm_area_cpp(NA_real_, 1), 1L)
-
-set.seed(666L)
-expect_equal(evoland.plus:::sample_normal_area_cpp(area_mean = 4, area_var = 2), 5)
 expect_equal(evoland.plus:::sample_normal_area_cpp(0, 1), 1L)
-# Normal with zero variance returns the (rounded) mean
-expect_equal(evoland.plus:::sample_normal_area_cpp(5, 0), 5L)
 
-# --- evoland.plus:::raster_neighbors_cpp() ---------------------------------------
+# patch elongation ####
+# Mazy eq. 3.I.12: e = 1 - sqrt(lambda_min / lambda_max) of the second central moments of the
+# cell coordinates. Measured through calculate_class_stats_cpp(), which shares the definition
+# (src/clumpy_geometry.h) with the patch grower.
+patch_stats <- function(cells, nrow = 4L, ncol = 4L, directions = 8L) {
+  patch <- matrix(NA_integer_, nrow, ncol)
+  patch[cells] <- 1L
+  evoland.plus:::calculate_class_stats_cpp(patch, cellsize = 1, directions = directions)
+}
+elongation <- function(...) patch_stats(...)[["patch_elongation_mean"]]
+expect_equal(elongation(cbind(1, 1)), 0) # a single cell is isometric by convention
+expect_equal(elongation(cbind(1, 1:2)), 1) # domino: all variance along one axis
+expect_equal(elongation(cbind(1, 1:4)), 1)
+expect_equal(elongation(cbind(c(1, 1, 2, 2), c(1, 2, 1, 2))), 0) # 2 x 2 square
+# L-tromino (1,1), (1,2), (2,1): the moment matrix [[2, -1], [-1, 2]] / 9 has eigenvalues 1/9
+# and 3/9
+expect_equal(elongation(cbind(c(1, 1, 2), c(1, 2, 1))), 1 - 1 / sqrt(3))
+# the eigenvalues do not depend on position or on which axis is which
+expect_equal(elongation(cbind(c(3, 3, 4), c(2, 3, 2))), 1 - 1 / sqrt(3))
+expect_equal(elongation(cbind(c(1, 2, 1), c(1, 1, 2))), 1 - 1 / sqrt(3))
+# two cells touching by a corner are one patch by queen adjacency, two by rook adjacency
+expect_equal(patch_stats(cbind(1:2, 1:2))[["patch_count"]], 1L)
+expect_equal(patch_stats(cbind(1:2, 1:2), directions = 4L)[["patch_count"]], 2L)
+expect_error(patch_stats(cbind(1, 1), directions = 6L), "directions must be 4 or 8")
+
+# raster_neighbors_cpp ####
 
 expect_equal(
   evoland.plus:::raster_neighbors_cpp(3L, 4L), # 3-row, 4-col raster (12 cells)
@@ -64,7 +106,7 @@ expect_equal(
   )
 )
 
-# --- evoland.plus:::grow_patch_cpp() ---------------------------------------------
+# grow_patch_cpp ####
 
 # 4x4 raster, all class 1, no obstacles
 n <- 16L
@@ -160,225 +202,247 @@ patch_noagg <- evoland.plus:::grow_patch_cpp(
 )
 expect_equal(sort(patch_noagg), c(1L, 2L))
 
-# --- evoland.plus:::allocate_clumpy_cpp() ----------------------------------------
-
-# Sparse potentials are passed as per-transition lists. Helper: one transition
-# over all `ncell` cells with constant potential `p`.
-sparse_const <- function(ncell, p) {
-  list(cell = list(seq_len(ncell)), value = list(rep(p, ncell)))
+# allocate_clumpy_cpp ####
+# one transition 1 -> 2 on a square of class 1 unless said otherwise; potentials are recycled
+# over the cells
+allocate_square <- function(
+  n_side,
+  potential,
+  rate,
+  area_mean = 1,
+  area_var = 0,
+  method = 1L,
+  trans_to = 2L,
+  batch_size = 0L,
+  rarefy = TRUE,
+  avoid_aggregation = TRUE,
+  elongation = 0,
+  area_dist = 1L, # normal: with a variance of 0, every patch has exactly area_mean cells
+  extra_trans_to = integer(0)
+) {
+  n_cells <- n_side^2
+  n_extra <- length(extra_trans_to)
+  evoland.plus:::allocate_clumpy_cpp(
+    landscape = rep(1L, n_cells),
+    nrow = n_side,
+    ncol = n_side,
+    trans_from = rep(1L, 1L + n_extra),
+    trans_to = c(trans_to, extra_trans_to),
+    prob_cell = c(list(seq_len(n_cells)), rep(list(integer(0)), n_extra)),
+    prob_value = c(list(rep_len(potential, n_cells)), rep(list(numeric(0)), n_extra)),
+    area_mean = rep(area_mean, 1L + n_extra),
+    area_var = rep(area_var, 1L + n_extra),
+    elongation = rep(elongation, 1L + n_extra),
+    target_rate = c(rate, rep(0, n_extra)),
+    method = method,
+    batch_size = batch_size,
+    rarefy = rarefy,
+    shuffle = TRUE,
+    avoid_aggregation = avoid_aggregation,
+    area_dist = area_dist
+  )
+}
+n_changed <- function(seed, ...) {
+  set.seed(seed)
+  sum(allocate_square(...) == 2L)
+}
+# sizes of the rook-connected patches of class 2
+rook_patches <- function(posterior, n_side) {
+  ifelse(posterior == 2L, 1L, NA_integer_) |>
+    matrix(nrow = n_side) |>
+    evoland.plus:::calculate_class_stats_cpp(cellsize = 1, directions = 4L)
 }
 
-nr <- 5L
-nc <- 5L
-ncell <- nr * nc
-ant <- as.integer(rep(1L, ncell)) # all class 1
-sp <- sparse_const(ncell, 0.5) # one transition 1 -> 2, potential 0.5
-
-# uSAM (method 0): mono-pixel single pass
-set.seed(1L)
-res_usam <- evoland.plus:::allocate_clumpy_cpp(
-  landscape = ant,
-  nrow = nr,
-  ncol = nc,
-  trans_from = 1L,
-  trans_to = 2L,
-  prob_cell = sp$cell,
-  prob_value = sp$value,
-  area_mean = 1.0,
-  area_var = 0.0,
-  elongation = 0.0,
-  target_rate = 0.3,
+## uSAM ####
+# Mazy sec. 3.4.1: every cell of an anterior class is tested once with MuST, anterior classes
+# in ascending order, cells in raster order. The posterior map follows from the uniforms.
+# `potential` is a cells x transitions matrix.
+usam_oracle <- function(landscape, trans_from, trans_to, potential) {
+  posterior <- landscape
+  for (id_lulc in sort(unique(trans_from))) {
+    pool <- which(landscape == id_lulc)
+    trans <- which(trans_from == id_lulc)
+    u <- stats::runif(length(pool))
+    selected <- rowSums(u >= row_cumsum(potential[pool, trans, drop = FALSE])) + 1L
+    changes <- selected <= length(trans)
+    posterior[pool[changes]] <- trans_to[trans[selected[changes]]]
+  }
+  posterior
+}
+# three classes with a block without data; class 1 can become 2 or 3, class 3 can become 1,
+# class 2 does not change
+set.seed(7L)
+usam_landscape <- sample(1:3, 400L, replace = TRUE)
+usam_landscape[101:140] <- NA_integer_
+usam_from <- c(1L, 1L, 3L)
+usam_to <- c(2L, 3L, 1L)
+usam_potential <- matrix(stats::runif(1200L, 0, 0.4), ncol = 3L)
+for (trans in 1:3) {
+  usam_potential[!usam_landscape %in% usam_from[trans], trans] <- 0
+}
+usam_cells <- lapply(1:3, \(trans) which(usam_potential[, trans] > 0))
+set.seed(99L)
+usam_posterior <- evoland.plus:::allocate_clumpy_cpp(
+  landscape = usam_landscape,
+  nrow = 20L,
+  ncol = 20L,
+  trans_from = usam_from,
+  trans_to = usam_to,
+  prob_cell = usam_cells,
+  prob_value = lapply(1:3, \(trans) usam_potential[usam_cells[[trans]], trans]),
+  area_mean = c(1, 1, 1),
+  area_var = c(0, 0, 0),
+  elongation = c(0, 0, 0),
+  target_rate = c(0.2, 0.2, 0.2),
   method = 0L,
-  batch_size = 1L,
+  batch_size = 0L,
   rarefy = TRUE,
   shuffle = TRUE,
   avoid_aggregation = FALSE,
   area_dist = 0L
 )
+set.seed(99L)
+expect_equal(usam_posterior, usam_oracle(usam_landscape, usam_from, usam_to, usam_potential))
+# a cell changes at most once and only along a declared transition: class 2 and the cells
+# without data are untouched (implied by the oracle, stated for the reader)
+expect_equal(usam_posterior[usam_landscape %in% 2L], rep(2L, sum(usam_landscape %in% 2L)))
+expect_true(all(is.na(usam_posterior[101:140])))
+
+# a potential of 1 changes every cell, whatever is drawn; no potential changes none
+expect_equal(n_changed(1L, 5L, potential = 1, rate = 1, method = 0L), 25L)
+expect_equal(n_changed(1L, 5L, potential = 0, rate = 0.3), 0L)
+# only cells that carry a potential can change
+set.seed(9L)
 expect_equal(
-  res_usam,
-  # fmt: skip
-  c(
-    2L, 2L, 1L, 1L, 2L,
-    1L, 1L, 1L, 1L, 2L,
-    2L, 2L, 1L, 2L, 1L,
-    2L, 1L, 1L, 2L, 1L,
-    1L, 2L, 1L, 2L, 2L
-  )
+  which(allocate_square(5L, rep(c(1, 0, 0, 0, 0, 0), length.out = 25L), 1, method = 0L) == 2L),
+  c(1L, 7L, 13L, 19L, 25L)
 )
 
-# uPAM (method 1): iterative, multi-pixel, quota
-set.seed(1L)
-res_upam <- evoland.plus:::allocate_clumpy_cpp(
-  landscape = ant,
-  nrow = nr,
-  ncol = nc,
-  trans_from = 1L,
-  trans_to = 2L,
-  prob_cell = sp$cell,
-  prob_value = sp$value,
-  area_mean = 2.0,
-  area_var = 1.0,
-  elongation = 0.0,
-  target_rate = 0.3,
-  method = 1L,
-  batch_size = 1L,
-  rarefy = TRUE,
-  shuffle = TRUE,
-  avoid_aggregation = TRUE,
-  area_dist = 0L
+## uPAM: quantity of change ####
+# Mazy sec. 3.4.2: patches are allocated until the quantity of change of the transition is
+# used up, so the allocated cells reach the quota and exceed it by less than one patch. The
+# quota is round(rate * cells of the anterior class). Checked over seeds, with patches of
+# exactly 6 cells on 1600 cells: quota 80, i.e. 14 patches.
+seeds <- 1:20
+expect_equal(
+  vapply(seeds, n_changed, numeric(1), n_side = 40L, potential = 0.05, rate = 0.05, area_mean = 6),
+  rep(84, 20L)
+)
+# the same when patches may merge
+expect_equal(
+  vapply(
+    seeds,
+    n_changed,
+    numeric(1),
+    n_side = 40L,
+    potential = 0.05,
+    rate = 0.05,
+    area_mean = 6,
+    avoid_aggregation = FALSE
+  ),
+  rep(84, 20L)
+)
+# a quota of a single patch: with 400 cells at potential 0.01 and patches of 4 cells, a MuST
+# pass selects no pivot with probability exp(-1); the pass is repeated until one is
+expect_equal(
+  vapply(seeds, n_changed, numeric(1), n_side = 20L, potential = 0.01, rate = 0.01, area_mean = 4),
+  rep(4, 20L)
+)
+# the quota is a whole number of cells: 0.026 * 400 = 10.4 gives 10, 0.001 * 400 = 0.4 gives 0
+expect_equal(
+  vapply(seeds, n_changed, numeric(1), n_side = 20L, potential = 0.026, rate = 0.026),
+  rep(10, 20L)
 )
 expect_equal(
-  res_upam,
-  # fmt: skip
-  c(
-    1L, 1L, 1L, 2L, 1L,
-    1L, 2L, 1L, 2L, 1L,
-    1L, 2L, 1L, 1L, 1L,
-    1L, 1L, 1L, 1L, 2L,
-    1L, 1L, 1L, 1L, 2L
-  )
+  vapply(seeds, n_changed, numeric(1), n_side = 20L, potential = 0.001, rate = 0.001),
+  rep(0, 20L)
 )
+# log-normal areas: the bound holds with the largest patch of the realisation
+expect_true(all(vapply(
+  seeds,
+  function(seed) {
+    set.seed(seed)
+    posterior <-
+      allocate_square(40L, 0.05, 0.05, area_mean = 6, area_var = 4, area_dist = 0L)
+    largest <- max(table(terra::values(terra::patches(
+      terra::rast(matrix(ifelse(posterior == 2L, 1, NA), 40L, byrow = TRUE)),
+      directions = 4L
+    ))))
+    sum(posterior == 2L) >= 80L && sum(posterior == 2L) < 80L + largest
+  },
+  logical(1)
+)))
 
-# Deterministic forcing: potential 1 + uSAM => every source cell transitions,
-# regardless of the RNG draw (the MuST rejection step is bypassed).
-sp1 <- sparse_const(ncell, 1.0)
-set.seed(123L)
-res_forced <- evoland.plus:::allocate_clumpy_cpp(
-  landscape = ant,
-  nrow = nr,
-  ncol = nc,
-  trans_from = 1L,
-  trans_to = 2L,
-  prob_cell = sp1$cell,
-  prob_value = sp1$value,
-  area_mean = 1.0,
-  area_var = 0.0,
-  elongation = 0.0,
-  target_rate = 1.0,
-  method = 0L,
-  batch_size = 1L,
-  rarefy = FALSE,
-  shuffle = TRUE,
-  avoid_aggregation = FALSE,
-  area_dist = 0L
+## uPAM: patches ####
+# Mazy sec. 3.2.4 and App. 3.D.1.2: patches of one period must not merge, or the patch sizes
+# shift towards larger patches. With avoid_aggregation and patches of exactly 6 cells at a
+# density where patches crowd (a tenth of the map), every rook-connected patch has 6 cells.
+set.seed(3L)
+crowded <- allocate_square(40L, 0.1, 0.1, area_mean = 6)
+expect_equal(
+  rook_patches(crowded, 40L)[c("patch_count", "patch_area_mean", "patch_area_variance")],
+  data.frame(patch_count = 27L, patch_area_mean = 6, patch_area_variance = 0)
 )
-expect_true(all(res_forced == 2L))
+expect_equal(sum(crowded == 2L), 27L * 6L)
+# without it patches merge, and the same count of cells sits in fewer, larger patches
+set.seed(3L)
+merged <- allocate_square(40L, 0.1, 0.1, area_mean = 6, avoid_aggregation = FALSE)
+expect_true(rook_patches(merged, 40L)[["patch_area_mean"]] > 6)
 
-# Empty sparse potentials (no entries) => nothing changes
-set.seed(123L)
-res_zero <- evoland.plus:::allocate_clumpy_cpp(
-  landscape = ant,
-  nrow = nr,
-  ncol = nc,
-  trans_from = 1L,
-  trans_to = 2L,
-  prob_cell = list(integer(0)),
-  prob_value = list(numeric(0)),
-  area_mean = 2.0,
-  area_var = 1.0,
-  elongation = 0.0,
-  target_rate = 0.3,
-  method = 1L,
-  batch_size = 1L,
-  rarefy = TRUE,
-  shuffle = TRUE,
-  avoid_aggregation = TRUE,
-  area_dist = 0L
-)
-expect_true(all(res_zero == 1L))
-
-# avoid_aggregation: rejecting merging patches leaves fewer cells allocated.
-# Deterministic setup so the comparison is a true invariant (not RNG/quota/FP
-# dependent): a 1x5 row, forced potential 1 (deterministic MuST), area exactly 2
-# (normal with variance 0), no shuffle, quota = everything (target_rate 1).
-#   - without avoidance, patches tile the row -> all 5 cells change;
-#   - with avoidance, the middle patch (cell 3) would touch cell 2's patch, so it
-#     is rejected and cell 3 stays -> 4 cells change.
-ant_row <- as.integer(rep(1L, 5L))
-row_cell <- list(1:5L)
-row_val <- list(rep(1.0, 5L))
-run_row <- function(avoid_agg) {
-  set.seed(1L)
+# a 1 x 5 row with potential 1 (every cell is a pivot, taken left to right), patches of 2
+# cells and all cells demanded: without avoidance the patches tile the row; with it, the patch
+# from cell 3 would touch the first one, fails and leaves cell 3 unchanged
+allocate_row <- function(avoid_aggregation) {
   evoland.plus:::allocate_clumpy_cpp(
-    landscape = ant_row,
+    landscape = rep(1L, 5L),
     nrow = 1L,
     ncol = 5L,
     trans_from = 1L,
     trans_to = 2L,
-    prob_cell = row_cell,
-    prob_value = row_val,
-    area_mean = 2.0,
-    area_var = 0.0,
-    elongation = 0.0,
-    target_rate = 1.0,
+    prob_cell = list(1:5),
+    prob_value = list(rep(1, 5L)),
+    area_mean = 2,
+    area_var = 0,
+    elongation = 0,
+    target_rate = 1,
     method = 1L,
     batch_size = 1L,
     rarefy = FALSE,
     shuffle = FALSE,
-    avoid_aggregation = avoid_agg,
+    avoid_aggregation = avoid_aggregation,
     area_dist = 1L
   )
 }
-expect_equal(run_row(avoid_agg = FALSE), c(2, 2, 2, 2, 2))
-expect_equal(run_row(avoid_agg = TRUE), c(2, 2, 1, 2, 2))
+expect_equal(allocate_row(avoid_aggregation = FALSE), c(2L, 2L, 2L, 2L, 2L))
+expect_equal(allocate_row(avoid_aggregation = TRUE), c(2L, 2L, 1L, 2L, 2L))
 
-# A sparse subset: only some cells carry a potential; only those can change.
-set.seed(9L)
-some_cells <- c(1L, 7L, 13L, 19L, 25L)
-res_subset <- evoland.plus:::allocate_clumpy_cpp(
-  landscape = ant,
-  nrow = nr,
-  ncol = nc,
-  trans_from = 1L,
-  trans_to = 2L,
-  prob_cell = list(some_cells),
-  prob_value = list(rep(1.0, length(some_cells))),
-  area_mean = 1.0,
-  area_var = 0.0,
-  elongation = 0.0,
-  target_rate = 1.0,
-  method = 0L,
-  batch_size = 1L,
-  rarefy = FALSE,
-  shuffle = TRUE,
-  avoid_aggregation = FALSE,
-  area_dist = 0L
+## relabeling ####
+# the realisation depends on the classes only through which cells belong to which transition:
+# another id for the posterior class, or a further transition without potential or demand,
+# leaves the allocated cells the same under one seed
+set.seed(5L)
+reference <- allocate_square(30L, 0.05, 0.05, area_mean = 4, area_var = 2, area_dist = 0L)
+set.seed(5L)
+relabeled <-
+  allocate_square(30L, 0.05, 0.05, area_mean = 4, area_var = 2, area_dist = 0L, trans_to = 7L)
+expect_equal(which(relabeled == 7L), which(reference == 2L))
+set.seed(5L)
+expect_equal(
+  allocate_square(
+    30L,
+    0.05,
+    0.05,
+    area_mean = 4,
+    area_var = 2,
+    area_dist = 0L,
+    extra_trans_to = 3L
+  ),
+  reference
 )
-# forced potential 1 on exactly those cells (mono-pixel) => exactly they change
-expect_equal(which(res_subset == 2L), some_cells)
 
-# Auto batch (batch_size = 0): scales with the pool, runs and stays valid.
-big2 <- 40L
-antc <- as.integer(rep(1L, big2 * big2))
-spc <- sparse_const(big2 * big2, 0.4)
-set.seed(11L)
-res_auto <- evoland.plus:::allocate_clumpy_cpp(
-  landscape = antc,
-  nrow = big2,
-  ncol = big2,
-  trans_from = 1L,
-  trans_to = 2L,
-  prob_cell = spc$cell,
-  prob_value = spc$value,
-  area_mean = 4.0,
-  area_var = 2.0,
-  elongation = 0.0,
-  target_rate = 0.3,
-  method = 1L,
-  batch_size = 0L,
-  rarefy = TRUE,
-  shuffle = TRUE,
-  avoid_aggregation = TRUE,
-  area_dist = 0L
-)
-expect_length(res_auto, big2 * big2)
-# quota-bounded: changed count should be near rate * pool, not wildly over
-expect_true(sum(res_auto == 2L) <= ceiling(0.3 * big2 * big2) + 10L)
-
-# --- alloc_clumpy_spec() on a hand-built allocation context -----------------
-# a 10 x 10 grid of class 1 with one viable transition 1 -> 2 at rate 0.2, mono-pixel patches
-# (uSAM); the seed fixes the realisation
+# alloc_clumpy_spec on a hand-built allocation context ####
+# a 10 x 10 grid of class 1 with one viable transition 1 -> 2 at rate 0.2, mono-pixel patches,
+# so uSAM is selected
 grid_coords <- data.table::CJ(lat = seq(5, 95, 10), lon = seq(5, 95, 10))[,
   .(id_coord = .I, lon, lat)
 ]
@@ -401,28 +465,33 @@ clumpy_ctx <- list(
   ),
   grid = evoland.plus:::coords_grid(grid_coords)
 )
+# the uSAM oracle on a context: id_coord counts from the bottom row of the grid, the allocator
+# draws in raster order, from the top row
+ctx_oracle <- function(ctx) {
+  cells <- ctx$grid[["cells"]][ctx$anterior, on = "id_coord"]
+  landscape <- cells[order(cell), id_lulc]
+  potential <-
+    ctx$potentials[cells, on = "id_coord"] |>
+    data.table::dcast(cell ~ id_trans, value.var = "value", fill = 0)
+  posterior <- usam_oracle(
+    landscape,
+    ctx$viable_trans[["id_lulc_anterior"]],
+    ctx$viable_trans[["id_lulc_posterior"]],
+    as.matrix(potential[, -"cell"])
+  )
+  cells[, .(id_coord, id_lulc = posterior[cell])]
+}
 set.seed(3L)
 expect_message(
   clumpy_posterior <- alloc_clumpy_spec()$one_period(clumpy_ctx),
   "CLUMPY method: uSAM"
 )
-# one row per grid cell, in id_coord order: the bottom row of the grid first
-# fmt: skip
-expect_identical(
-  clumpy_posterior,
-  data.table::data.table(id_coord = 1:100, id_lulc = as.integer(c(
-    2, 1, 1, 1, 1, 1, 1, 1, 2, 1,
-    1, 1, 1, 2, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 2, 2, 1, 1,
-    1, 2, 1, 2, 1, 1, 1, 1, 1, 2,
-    1, 1, 1, 1, 1, 1, 1, 1, 2, 1,
-    1, 1, 2, 1, 1, 1, 2, 2, 1, 1,
-    1, 1, 2, 1, 1, 1, 1, 1, 1, 1,
-    1, 2, 2, 2, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 2, 1, 1, 1,
-    2, 1, 1, 1, 1, 1, 2, 1, 1, 1
-  )))
-)
+set.seed(3L)
+# one row per row of the anterior map, in its order
+expect_identical(clumpy_posterior, ctx_oracle(clumpy_ctx))
+# uSAM meets the quota of 20 cells on average only (Mazy sec. 3.4.1); this realisation has 19
+expect_equal(sum(clumpy_posterior[["id_lulc"]] == 2L), 19L)
+
 # a viable transition at a rate of 0 has no positive potential anywhere; it still gets its
 # (empty) element, so the other transition is allocated and it changes no cell
 zero_rate_ctx <- clumpy_ctx
@@ -440,7 +509,7 @@ zero_rate_ctx$quota <- data.table::data.table(
 )
 zero_rate_ctx$potentials <- rbind(
   grid_coords[, .(id_trans = 1L, id_coord, value = 0)],
-  grid_coords[, .(id_trans = 2L, id_coord, value = 0.2)]
+  zero_rate_ctx$anterior[id_lulc == 2L, .(id_trans = 2L, id_coord, value = 0.2)]
 )
 zero_rate_ctx$alloc_params <- data.table::data.table(
   id_trans = 1:2,
@@ -453,10 +522,24 @@ expect_message(
   zero_rate_posterior <- alloc_clumpy_spec()$one_period(zero_rate_ctx),
   "CLUMPY method: uSAM"
 )
-zero_rate_changes <- zero_rate_ctx$anterior[zero_rate_posterior, on = "id_coord"][
-  id_lulc != i.id_lulc
-]
-expect_true(nrow(zero_rate_changes) > 0L)
-expect_true(all(zero_rate_changes$id_lulc == 2L))
+set.seed(3L)
+expect_identical(zero_rate_posterior, ctx_oracle(zero_rate_ctx))
+# class 1 keeps its 50 cells and gains those that left class 2
+expect_true(sum(zero_rate_posterior[["id_lulc"]] == 1L) > 50L)
+
+# patches larger than a cell select uPAM, which takes its quota from the rate: 20 cells
+patch_ctx <- clumpy_ctx
+patch_ctx$alloc_params <- data.table::data.table(
+  id_trans = 1L,
+  mean_patch_size = 2,
+  patch_size_variance = 0,
+  patch_elongation = NA_real_
+)
+set.seed(3L)
+expect_message(
+  patch_posterior <- alloc_clumpy_spec(area_dist = "normal")$one_period(patch_ctx),
+  "CLUMPY method: uPAM"
+)
+expect_equal(sum(patch_posterior[["id_lulc"]] == 2L), 20L)
 
 expect_error(alloc_clumpy_spec(default_elongation = 2), "default_elongation")

@@ -105,7 +105,8 @@ grow_patch_cpp <- function(landscape, ant_landscape, probs, nbr_above, nbr_below
 #'   parameters per transition.
 #' @param target_rate NumericVector (length T) of the target transition rate
 #'   P(v|u) per transition (fraction of source pixels that change).  Used only
-#'   by uPAM to set the per-transition pixel quota.
+#'   by uPAM to set the per-transition pixel quota, the rate times the number
+#'   of cells of the source class, rounded to whole cells.
 #' @param method 0 = uSAM (mono-pixel single pass), 1 = uPAM (iterative, quota).
 #' @param batch_size uPAM only: pivots attempted per MuST re-draw. `> 0` is an
 #'   explicit cap (1 = strict uPAM); `< 0` processes all candidates in one pass;
@@ -146,7 +147,7 @@ distance_neighbors_chunked_cpp <- function(coords_t, max_distance, breaks, chunk
     .Call(`_evoland_plus_distance_neighbors_chunked_cpp`, coords_t, max_distance, breaks, chunk_rows, callback, quiet)
 }
 
-calculate_class_stats_cpp <- function(mat, cellsize) {
-    .Call(`_evoland_plus_calculate_class_stats_cpp`, mat, cellsize)
+calculate_class_stats_cpp <- function(mat, cellsize, directions = 8L) {
+    .Call(`_evoland_plus_calculate_class_stats_cpp`, mat, cellsize, directions)
 }
 
