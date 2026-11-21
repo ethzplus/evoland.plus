@@ -10,23 +10,20 @@
 #'
 #' [check_dinamica()] runs before anything is predicted or written.
 #'
-#' @section Replaying a realisation:
-#' DinamicaConsole cannot be given a seed value. By default it seeds its random number
-#' generators from the current time, so no two realisations are alike and none can be replayed.
-#' Its only seed option, `-predefined-seed`, takes no value: every run then uses the same
-#' built-in seed. `replayable = TRUE` passes that option and runs Dinamica single-threaded
-#' (`-processors=1 -disable-parallel-functors -disable-parallel-map-load`), because parallel
-#' execution has made other Dinamica functors non-deterministic. A replayable run reproduces one
-#' realisation; it cannot produce an ensemble of distinct ones, since all runs share the seed.
-#'
 #' @param work_dir Character or `NULL`; directory under which each period gets its own working
 #'   directory, `run_<id_run>_period_<id_period_post>`. `NULL` (default) uses a temporary
 #'   directory.
 #' @param keep_intermediate Logical; keep the working directories after each period (default
 #'   `FALSE`, remove them).
-#' @param replayable Logical; run Dinamica with its predefined seed and single-threaded, so that
-#'   the same inputs give the same allocation (default `FALSE`, a time-derived seed). See
-#'   "Replaying a realisation".
+#' @param replayable Logical; defaults to `FALSE`, making Dinamica use its default
+#'   time-based seed, leading to stochastic behaviour. For perfect reproducibility,
+#'   DinamicaConsole cannot be given a seed value. Its only seed option,
+#'   `-predefined-seed`, takes no value: every run uses the same built-in seed.
+#'   `replayable = TRUE` passes that option and runs Dinamica single-threaded
+#'   (`-processors=1 -disable-parallel-functors -disable-parallel-map-load`), because
+#'   parallel execution makes some Dinamica functors non-deterministic. A replayable run
+#'   reproduces one single realisation; it cannot produce an ensemble of distinct ones,
+#'   since all runs share the seed.
 #'
 #' @return An allocator specification for [allocate()].
 #'

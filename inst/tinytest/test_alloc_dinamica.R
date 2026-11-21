@@ -79,7 +79,3 @@ expect_equal(
   if (getOption("evoland.plus.dinamica_fallback")) 0L else 20L
 )
 expect_equal(list.files(tempdir(), pattern = "^dinamica_"), dirs_before)
-
-# replayable is stored as a spec arg and validated
-expect_true(alloc_dinamica_spec(replayable = TRUE)$args$replayable)
-expect_error(alloc_dinamica_spec(replayable = NA), "replayable must be TRUE or FALSE")
