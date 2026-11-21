@@ -169,9 +169,9 @@ elongated <-
   allocate_patches(seed = 6L, elongation = 0.8) |>
   evoland.plus:::calculate_class_stats_cpp(cellsize = 1, directions = 4L)
 expect_equal(elongated[["patch_elongation_mean"]], 0.8, tolerance = 0.1)
-# By queen adjacency, the default and what create_alloc_params_t() uses, patches that touch by
-# a corner count as one, which the grower does not prevent: fewer and larger patches are
-# measured than were allocated.
+# This needs rook adjacency, which create_alloc_params_t() uses: by queen adjacency, patches
+# that touch by a corner count as one, which the grower does not prevent, so fewer and larger
+# patches are measured than were allocated.
 by_queen <- evoland.plus:::calculate_class_stats_cpp(patches, cellsize = 1)
 expect_true(by_queen[["patch_count"]] < by_rook[["patch_count"]])
 expect_true(by_queen[["patch_area_mean"]] > by_rook[["patch_area_mean"]])

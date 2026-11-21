@@ -59,7 +59,8 @@ A data.table of class "alloc_params_t" with columns:
 \itemize{
 \item \code{id_run}: Foreign key to runs_t
 \item \code{id_trans}: Foreign key to trans_meta_t
-\item \code{mean_patch_size}: Mean area of new patches (in cell units)
+\item \code{mean_patch_size}: Mean area of new patches (in cell units); a patch is a set of cells
+connected by their edges (rook adjacency)
 \item \code{patch_size_variance}: Variance of patch area (in cell units)
 \item \code{patch_elongation}: Mean patch elongation (\eqn{e = 1 - \sqrt{\lambda_2 / \lambda_1}},
 range 0–1); the raw shape summary from \code{calculate_class_stats_cpp()}

@@ -107,6 +107,28 @@ expect_equal(params_empty$frac_expander, 0)
 expect_equal(params_empty$frac_patcher, 0)
 expect_true(is.na(params_empty$patch_elongation))
 
+# Patches are sets of cells connected by their edges (rook adjacency), as the CLUMPY patch
+# grower builds them: two new cells in a row and a third touching them by a corner only are a
+# patch of 2 and a patch of 1, not one patch of 3
+lulc_post_corner <- lulc_ant
+# fmt: skip
+terra::values(lulc_post_corner) <- c(
+  2, 2, 2, 2, 2, 1, 1, 1, 1, 1,
+  2, 1, 1, 1, 2, 1, 1, 2, 2, 1,
+  2, 1, 1, 1, 2, 1, 1, 1, 1, 2,
+  2, 1, 1, 1, 2, 1, 1, 1, 1, 1,
+  2, 2, 2, 2, 2, 1, 1, 1, 1, 1
+)
+expect_equal(
+  evoland.plus:::compute_alloc_params_single(
+    lulc_ant = lulc_ant,
+    lulc_post = lulc_post_corner,
+    id_lulc_ant = 1L,
+    id_lulc_post = 2L
+  )[c("mean_patch_size", "patch_size_variance", "frac_patcher")],
+  list(mean_patch_size = 1.5, patch_size_variance = 0.5, frac_patcher = 1)
+)
+
 # Square cells with floating point noise in the resolution, as when a raster is rebuilt from
 # coords_t on a grid with a non-integer origin, are accepted
 lulc_ant_noisy <- lulc_ant

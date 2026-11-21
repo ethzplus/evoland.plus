@@ -11,7 +11,8 @@
 #' @return A data.table of class "alloc_params_t" with columns:
 #'   - `id_run`: Foreign key to runs_t
 #'   - `id_trans`: Foreign key to trans_meta_t
-#'   - `mean_patch_size`: Mean area of new patches (in cell units)
+#'   - `mean_patch_size`: Mean area of new patches (in cell units); a patch is a set of cells
+#'     connected by their edges (rook adjacency)
 #'   - `patch_size_variance`: Variance of patch area (in cell units)
 #'   - `patch_elongation`: Mean patch elongation (\eqn{e = 1 - \sqrt{\lambda_2 / \lambda_1}},
 #'     range 0–1); the raw shape summary from `calculate_class_stats_cpp()`
@@ -227,7 +228,9 @@ compute_alloc_params_single <- function(
     is_patcher |>
     as.matrix(wide = TRUE) |>
     # cellsize = 1 because we want the patch characteristics in cell edge units
-    calculate_class_stats_cpp(cellsize = 1)
+    # patches by rook adjacency, as the CLUMPY patch grower builds and separates them (Mazy
+    # 2022, App. 3.I.2); by queen adjacency, patches touching by a corner would count as one
+    calculate_class_stats_cpp(cellsize = 1, directions = 4L)
 
   # Raw elongation from patch_stats.cpp; used as-is for CLUMPY (elongation)
   # and converted to Dinamica isometry via isometry_from_elongation().
