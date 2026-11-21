@@ -39,13 +39,20 @@ NULL
 #   tools:::.check_code_usage_in_package("evoland.plus")
 utils::globalVariables(c(
   ".",
+  ".evoland_worker_db", # set on mirai daemons by map_evoland()
   ".I",
   ".N",
   ".SD",
+  ".stop", # mirai_map() collection option
   "area",
   "cardinality",
+  "catalog", # set on mirai daemons by map_evoland()
   "cell",
   "cells",
+  "chunk",
+  "context_run",
+  "data_path", # set on mirai daemons by map_evoland()
+  "description",
   "did_transition",
   "distance",
   "distance_class",
@@ -67,6 +74,7 @@ utils::globalVariables(c(
   "id_lulc_anterior",
   "id_lulc_posterior",
   "id_period",
+  "id_period_eval_start",
   "id_pred",
   "id_run",
   "id_sel",
@@ -86,6 +94,7 @@ utils::globalVariables(c(
   "mean_patch_size",
   "N",
   "n_anterior",
+  "n_daemons", # set on mirai daemons by map_evoland()
   "no_found_files",
   "parent_id_run",
   "patch_elongation",
@@ -93,10 +102,13 @@ utils::globalVariables(c(
   "patch_size_variance",
   "period_length_d",
   "period_length_y",
+  "periods",
+  "potentials_run",
   "quota",
   "rank_trans",
   "rate",
   "rate_annual",
+  "rng_seed",
   "shape",
   "sources",
   "start_date",

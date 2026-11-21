@@ -47,6 +47,11 @@ Column names are part of the database schema and therefore of the API; see [Sche
 
 - Work by reference: `setDT()`, `setorder()`, `setcolorder()`, `setattr()`, `:=`, `set()`. Copy (`data.table::copy()`) only when the caller's object must not change, and say so in a comment.
 - Columns used in non-standard evaluation (`i`, `j`, `by`, `on`) must be declared in `utils::globalVariables()` in `R/init.R`, or R CMD check reports a NOTE. Regenerate the list with `tools:::.check_code_usage_in_package("evoland.plus")`.
+- Inside `[...]`, a column shadows a variable of the same name, so `runs[id_run %in% id_run]` compares the column with itself. Pass such a variable in through `env`, wrapped in `I()` so that its value is substituted rather than a symbol, instead of renaming it:
+
+  ```r
+  runs[.(ids), on = "id_run", rng_seed, env = list(ids = I(id_run))]
+  ```
 - As with pipes, chained `data.table[column == "a", column := "b"][,.(column, column2)]` statements should be visually structured like so:
   
   ```r

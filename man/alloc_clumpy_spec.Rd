@@ -6,7 +6,7 @@
 \usage{
 alloc_clumpy_spec(
   area_dist = c("lognormal", "normal"),
-  avoid_aggregation = TRUE,
+  avoid_aggregation = FALSE,
   batch_size = 0L,
   default_elongation = 0.5
 )
@@ -15,8 +15,8 @@ alloc_clumpy_spec(
 \item{area_dist}{Character; patch-area distribution, \code{"lognormal"} (default) or \code{"normal"}
 (Gaussian with sd = \code{sqrt(patch_size_variance)}, clamped to >= 1).}
 
-\item{avoid_aggregation}{Logical; if \code{TRUE} (default) uPAM patches that would merge with an
-existing patch fail and allocate nothing (clumpy \code{GaussianPatcher} semantics). Ignored for
+\item{avoid_aggregation}{Logical, default \code{FALSE}; if \code{TRUE}, uPAM patches that would merge with
+an existing patch fail and allocate nothing (clumpy \code{GaussianPatcher} semantics). Ignored for
 the mono-pixel uSAM path.}
 
 \item{batch_size}{Integer; uPAM pivots attempted per MuST re-draw. \code{0} (default) auto-scales

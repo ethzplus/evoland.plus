@@ -241,3 +241,20 @@ cast_dt_col <- function(x, colname, type, levels = NULL) {
   )
   invisible(x)
 }
+
+# The state of R's random number generator, NULL if it has not been seeded yet. Save it before
+# seeding inside a function and restore it on exit, so the caller's generator is left as it was.
+get_rng_state <- function() {
+  if (exists(".Random.seed", envir = globalenv(), inherits = FALSE)) {
+    get(".Random.seed", envir = globalenv(), inherits = FALSE)
+  }
+}
+
+set_rng_state <- function(state) {
+  if (!is.null(state)) {
+    assign(".Random.seed", state, envir = globalenv())
+  } else if (exists(".Random.seed", envir = globalenv(), inherits = FALSE)) {
+    # R seeds a fresh generator on the next draw
+    rm(".Random.seed", envir = globalenv())
+  }
+}

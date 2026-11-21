@@ -25,6 +25,13 @@ map per viable transition (the adjusted potentials), the transition rates, and t
 expansion and patcher tables from \code{alloc_params_t} (\code{frac_expander}, \code{mean_patch_size},
 \code{patch_size_variance}, \code{patch_isometry}).
 
-\code{\link[=check_dinamica]{check_dinamica()}} runs before anything is predicted or written. Dinamica draws its own
-random seed, so its realisations cannot be replayed (see ethzplus/evoland.plus#104).
+\code{\link[=check_dinamica]{check_dinamica()}} runs before anything is predicted or written.
+
+Dinamica draws its own random seed, so its realisations cannot be replayed (see
+ethzplus/evoland.plus#104). DinamicaConsole cannot be given a seed value; its only seed
+option, \code{-predefined-seed}, makes it use a built-in seed instead of a time-based one.
+Together with running single-threaded (\code{-processors=1}, \code{-disable-parallel-functors},
+\code{-disable-parallel-map-load}, \code{-disable-parallel-steps}), it still does not make a run
+reproducible: as of Dinamica 8.14.1, the same inputs give a different allocation on each
+run. These options can be passed to \code{\link[=exec_dinamica]{exec_dinamica()}} as \code{additional_args}.
 }

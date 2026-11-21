@@ -19,10 +19,11 @@ Imports:
     Rcpp,
     curl,
     data.table (>= 1.15.0),
-    duckdb (>= 1.5.5),
+    duckdb (>= 2.0.0),
     glue,
     mlr3,
     methods,
+    mirai (>= 2.3.0),
     mlr3filters,
     paradox,
     qs2,
@@ -81,4 +82,4 @@ Collate:
     'util_download.R'
     'util_terra.R'
     'validation.R'
-Config/roxygen2/version: 8.1.0
+Config/roxygen2/version: 8.1.1

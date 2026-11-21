@@ -334,19 +334,21 @@ static int grow_one_patch(std::vector<int> &land, const std::vector<int> &ant,
 // "stay" mass is the remainder 1 - sum_q cum_prob(q), so xi falling past the last
 // cumulative bound returns -1 (no change).
 //
-// `must_pick` takes the uniform explicitly (so an externally supplied stream can
-// be replayed for deterministic cross-tool comparison); `must_draw_one` draws it
-// from R's RNG.
-template <typename F> static int must_pick(int k, double u, F cum_prob) {
+// The uniform random u comes from R's default RNG.
+// To replay another implementation's draws exactly (e.g. numpy's in the reference
+// clumpy), supply them through R's user-supplied generator (?RNGkind, "user-supplied")
+// as demonstrated in
+// https://github.com/mmyrte/evoland-experiments/blob/548cedf60340b3ab176b6637e97438702c9dc1b8/2026-09-paper-figures/010-verify-clumpy/replay_rng.c
+// and
+// https://github.com/mmyrte/evoland-experiments/blob/548cedf60340b3ab176b6637e97438702c9dc1b8/2026-09-paper-figures/010-verify-clumpy.r#L154-L159
+template <typename F> static int must_draw_one(int k, F cum_prob) {
+  const double u = R::unif_rand();
   double cs = 0.0;
   for (int q = 0; q < k; ++q) {
     cs += cum_prob(q);
     if (u < cs) return q; // first q with u < eta_q  (eta_{q-1} <= u < eta_q)
   }
   return -1; // stay
-}
-template <typename F> static int must_draw_one(int k, F cum_prob) {
-  return must_pick(k, R::unif_rand(), cum_prob);
 }
 
 // ---------------------------------------------------------------------------
@@ -388,25 +390,16 @@ List raster_neighbors_cpp(int nrow, int ncol) {
 //'   (include the "stay" column).
 //' @param states Integer vector of length `ncol(P)` giving the state id of each
 //'   column.
-//' @param u Optional NumericVector of length `nrow(P)` of uniform draws in
-//'   [0, 1) to replay instead of drawing from R's RNG.  Lets an external uniform
-//'   stream (e.g. numpy's, from the reference `clumpy`) be replayed for an exact
-//'   cross-tool comparison of the pivot test.
 //' @return Integer vector of length `nrow(P)` with the sampled state per cell.
+//'   One uniform is drawn from R's generator per row, so [set.seed()] fixes the
+//'   result.
 //' @keywords internal
 // [[Rcpp::export]]
-IntegerVector must_cpp(NumericMatrix P, IntegerVector states,
-                       Nullable<NumericVector> u = R_NilValue) {
+IntegerVector must_cpp(NumericMatrix P, IntegerVector states) {
   const int n = P.nrow();
   const int k = P.ncol();
   if ((int)states.size() != k) {
     stop("length(states) must equal ncol(P)");
-  }
-  const bool have_u = u.isNotNull();
-  NumericVector uu;
-  if (have_u) {
-    uu = u.get();
-    if ((int)uu.size() != n) stop("length(u) must equal nrow(P)");
   }
   IntegerVector y(n);
   auto cum = [&](int i) {
@@ -417,8 +410,7 @@ IntegerVector must_cpp(NumericMatrix P, IntegerVector states,
     };
   };
   for (int i = 0; i < n; ++i) {
-    const int sel =
-        have_u ? must_pick(k, uu[i], cum(i)) : must_draw_one(k, cum(i));
+    const int sel = must_draw_one(k, cum(i));
     y[i] = states[sel < 0 ? k - 1 : sel]; // sel<0 only if row sums < u
   }
   return y;

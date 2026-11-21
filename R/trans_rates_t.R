@@ -6,6 +6,12 @@
 #' can be extrapolated with a linear regression ([extrapolate_trans_rates()]) or derived from
 #' target class shares or areas with a linear program ([solve_trans_rates()]).
 #'
+#' `rate` is the quantity of change: [allocate()] changes `round(rate * n_anterior)` cells of
+#' each transition, with `n_anterior` taken from the anterior map it allocates from. `count`
+#' is for reporting only: the observed number of transitioning cells for observed periods, the
+#' planned number for rates solved by [solve_trans_rates()], and `NA` for rates extrapolated
+#' by regression, whose count depends on the map they will be applied to.
+#'
 #' @name trans_rates_t
 #'
 #' @param x A list or data.frame coercible to a data.table
@@ -14,7 +20,8 @@
 #'   - `id_run`: Foreign key to runs_t
 #'   - `id_period`: Foreign key to periods_t
 #'   - `id_trans`: Foreign key to trans_meta_t
-#'   - `count`: Absolute number of transitioning cells for (id_trans, id_period)
+#'   - `count`: Number of transitioning cells for (id_trans, id_period), for reporting; see
+#'     Description
 #'   - `rate`: Transition rate: count of transitions in (id_trans, id_period)
 #'     over count of cells of id_lulc_anterior in id_period
 #' @export
@@ -47,11 +54,12 @@ as_trans_rates_t <- function(x) {
 #' For each period and transition type, calculates the rate as the proportion of
 #' id_lulc_anterior cells that transitioned to id_lulc_posterior.
 #' @param self a DB instance
+#' @param id_run Integer; the run whose land use is read, through its lineage, and whose
+#'   `id_run` the rates carry
 #' @keywords internal
-get_obs_trans_rates <- function(self) {
-  # subsets to active id_run, but could also just group by id_run
-  stopifnot("id_run must be set" = !is.null(self$id_run))
-  lulc_expr <- self$get_read_expr("lulc_data_t")
+get_obs_trans_rates <- function(self, id_run = 0L) {
+  stopifnot("id_run must be a single integer" = is_scalar_integerish(id_run))
+  lulc_expr <- self$get_read_expr("lulc_data_t", id_run = id_run)
   meta_expr <- self$get_read_expr("trans_meta_t")
 
   result <- self$get_query(
@@ -91,7 +99,7 @@ get_obs_trans_rates <- function(self) {
         id_period, id_lulc_anterior
     )
     select
-      {self$id_run} as id_run,
+      {id_run} as id_run,
       c.id_period,
       m.id_trans,
       c.n as count,
@@ -113,13 +121,12 @@ get_obs_trans_rates <- function(self) {
 
 #' @describeIn trans_rates_t Return future transition rates using linear regression. For
 #' each id_run + id_trans, fits a linear model of rate vs period number and extrapolates
-#' to future periods. Negative predicted rates are set to 0.
+#' to future periods. Negative predicted rates are set to 0. The extrapolated rows have no
+#' `count`: it depends on the anterior map the rate will be applied to.
 #' @param obs_rates A trans_rates_t table of observed transition rates for historical periods
 #' @param periods A periods_t table with is_extrapolated = TRUE for future periods
-#' @param coord_count Optional integer specifying the number of coordinates
-#' (cells) for normalization
 #' @export
-extrapolate_trans_rates <- function(obs_rates, periods, coord_count = NA_integer_) {
+extrapolate_trans_rates <- function(obs_rates, periods) {
   stopifnot(
     inherits(obs_rates, "trans_rates_t"),
     inherits(periods, "periods_t"),
@@ -158,7 +165,7 @@ extrapolate_trans_rates <- function(obs_rates, periods, coord_count = NA_integer
         id_run = subtable$id_run[1],
         id_trans = subtable$id_trans[1],
         id_period = extrap_id_periods,
-        count = as.integer(round(coord_count * predictions)), # convert back to counts for storage
+        count = NA_integer_,
         rate = predictions
       )
     }) |>

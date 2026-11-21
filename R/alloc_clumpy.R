@@ -32,8 +32,8 @@
 #'
 #' @param area_dist Character; patch-area distribution, `"lognormal"` (default) or `"normal"`
 #'   (Gaussian with sd = `sqrt(patch_size_variance)`, clamped to >= 1).
-#' @param avoid_aggregation Logical; if `TRUE` (default) uPAM patches that would merge with an
-#'   existing patch fail and allocate nothing (clumpy `GaussianPatcher` semantics). Ignored for
+#' @param avoid_aggregation Logical, default `FALSE`; if `TRUE`, uPAM patches that would merge with
+#'   an existing patch fail and allocate nothing (clumpy `GaussianPatcher` semantics). Ignored for
 #'   the mono-pixel uSAM path.
 #' @param batch_size Integer; uPAM pivots attempted per MuST re-draw. `0` (default) auto-scales
 #'   to ~1% of each class's source pool, bounding the number of MuST passes so large rasters
@@ -50,7 +50,7 @@
 #' @export
 alloc_clumpy_spec <- function(
   area_dist = c("lognormal", "normal"),
-  avoid_aggregation = TRUE,
+  avoid_aggregation = FALSE,
   batch_size = 0L,
   default_elongation = 0.5
 ) {
