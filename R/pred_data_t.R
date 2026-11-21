@@ -27,7 +27,7 @@ PRED_DATA_T <- table_spec(
 #' (pred_data_t_float, ...)
 #'
 #' @name pred_data_t
-#' @include table_spec.R
+#' @include ducklake_db_utils.R
 #'
 #' @param x Coercible to data.table
 #'
@@ -35,14 +35,6 @@ PRED_DATA_T <- table_spec(
 #' @export
 as_pred_data_t <- function(x) {
   as_table_t(x, PRED_DATA_T)
-}
-
-#' @export
-validate.pred_data_t <- function(x, ...) {
-  NextMethod()
-  validate_table_spec(x, PRED_DATA_T)
-
-  return(x)
 }
 
 #' @export

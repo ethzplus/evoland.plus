@@ -45,7 +45,7 @@ Factored out utility functions and methods specifically used in conjunction with
 \itemize{
 \item \code{get_evoland_db_read_expr()}: Gets the read expression for a given table, taking into
 account the run lineage. Whether a table is run-scoped, and which columns form one
-inheritance slice, is the \code{inherit_by} of its \link{table_spec} in \code{EVOLAND_SCHEMA}; a table
+inheritance slice, is the \code{inherit_by} of its \code{table_spec()} in \code{EVOLAND_SCHEMA}; a table
 that is not in the registry is run-scoped if its stored metadata carries \code{inherit_by}.
 A table that is not run-scoped, or a read without \code{id_run}, falls back to the default
 read expression. Otherwise, the read expression filters for \code{id_run} and its lineage,

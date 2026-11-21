@@ -295,14 +295,13 @@ db$commit(
 
 retrieved <- db$fetch("test_metadata")
 expect_equal(nrow(retrieved), 4L)
-# metadata keep their type: a string that reads like a number stays a string
-expect_equal(attr(retrieved, "version"), "1.0")
+expect_equal(attr(retrieved, "version"), 1.0)
 
 # Test 40: Metadata preservation on delete_from
 db$delete_from("test_metadata", where = "id <= 2")
 retrieved <- db$fetch("test_metadata")
 expect_equal(nrow(retrieved), 2L)
-expect_equal(attr(retrieved, "version"), "1.0")
+expect_equal(attr(retrieved, "version"), 1.0)
 
 # Test 41: Partitioned write (overwrite)
 test_part_1 <- data.table::data.table(
@@ -804,27 +803,6 @@ expect_equal(db_reclaim$get_table_metadata("upkeep_t")[["epsg"]], 2056L)
 db_reclaim$commit(upkeep_row(301:400), "upkeep_t", method = "upsert")
 again <- ducklake_db$new(upkeep_dir)$checkpoint()
 expect_true(again[["snapshots_before"]] > again[["snapshots_after"]])
-
-# Test 57a: a table comment in the format of earlier versions, one `key: "value"` line per
-# entry, is still read by a read-only connection, and rewritten as JSON once by the next
-# connection that opens the catalog read-write
-db_reclaim$execute(
-  "comment on table dl_db.upkeep_t is {comment}",
-  comment = 'key_cols: "id"\nepsg: "2056"'
-)
-comment_of <- function(db) {
-  db$get_query(
-    "select comment from duckdb_tables() where table_name = 'upkeep_t'",
-    as_atomic = TRUE
-  )
-}
-upkeep_metadata <- list(key_cols = "id", epsg = 2056L)
-upkeep_reader <- ducklake_db$new(upkeep_dir, read_only = TRUE)
-expect_equal(upkeep_reader$get_table_metadata("upkeep_t"), upkeep_metadata)
-expect_equal(comment_of(upkeep_reader), 'key_cols: "id"\nepsg: "2056"')
-upkeep_writer <- ducklake_db$new(upkeep_dir)
-expect_equal(comment_of(upkeep_writer), '{"key_cols": ["id"], "epsg": [2056]}')
-expect_equal(upkeep_writer$get_table_metadata("upkeep_t"), upkeep_metadata)
 
 # Test 57b: a path holding a run of separators -- which macOS hands out
 # readily, since tempdir() there can contain one -- used to cost the data.

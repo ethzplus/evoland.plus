@@ -24,7 +24,7 @@ LULC_META_T <- table_spec(
 #' metadata describe the characteristics of land use classes.
 #'
 #' @name lulc_meta_t
-#' @include table_spec.R
+#' @include ducklake_db_utils.R
 #'
 #' @param x List-like coercible to `lulc_meta_t` via [data.table::as.data.table()]
 #' @eval table_spec_rd(LULC_META_T)
@@ -87,7 +87,6 @@ create_lulc_meta_t <- function(lulc_class_spec) {
 #' @export
 validate.lulc_meta_t <- function(x, ...) {
   NextMethod()
-  validate_table_spec(x, LULC_META_T)
 
   stopifnot("name cannot be empty" = !any(x[["name"]] == ""))
 

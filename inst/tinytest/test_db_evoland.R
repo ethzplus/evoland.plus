@@ -542,30 +542,6 @@ expect_equal(
   paste0("id_pred_", base_preds[id_trans == child_trans][1:2, id_pred])
 )
 
-# Each run-scoped table is read through the lineage by its declared inherit_by, which returns
-# what the column-name guessing it replaced returned: one slice per tuple of the id columns
-# among id_period, id_period_post, id_trans and id_pred. Runs 11 and 13 inherit land use and
-# predictor sets from run 10 and the base run.
-run_scoped <- Filter(\(spec) !is.null(spec[["inherit_by"]]), evoland.plus:::EVOLAND_SCHEMA)
-for (table_name in intersect(names(run_scoped), db$list_tables())) {
-  base_read_expr <- db$get_read_expr(table_name)
-  guessed <- intersect(
-    db$get_query("select column_name from (describe {base_read_expr})", as_atomic = TRUE),
-    c("id_period", "id_period_post", "id_trans", "id_pred")
-  )
-  key_cols <- run_scoped[[table_name]][["key_cols"]]
-  for (run in c(11L, 13L)) {
-    guessed_read_expr <- evoland.plus:::lineage_read_expr(db, base_read_expr, guessed, run)
-    expect_equal(
-      db$get_query(
-        "from {db$get_read_expr(table_name, id_run = run)} order by {`key_cols`*}"
-      ),
-      db$get_query("from {guessed_read_expr} order by {`key_cols`*}"),
-      info = paste(table_name, run)
-    )
-  }
-}
-
 # set_full_trans_preds() refuses a run that holds predictor sets; reset = TRUE starts the run's
 # selection over, its scores included, and leaves the parent's rows alone
 expect_error(

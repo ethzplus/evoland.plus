@@ -17,24 +17,15 @@ NEIGHBORS_T <- table_spec(
 #' Creates a `neighbors_t` table and validates that it matches the schema.
 #'
 #' @name neighbors_t
-#' @include table_spec.R
+#' @include ducklake_db_utils.R
 #'
 #' @param x An object that can be passed to [data.table::setDT()]
-#' @param ... Passed to [data.table::print.data.table()] resp. [validate()]
+#' @param ... Passed to [data.table::print.data.table()]
 #'
 #' @eval table_spec_rd(NEIGHBORS_T)
 #' @export
 as_neighbors_t <- function(x) {
   as_table_t(x, NEIGHBORS_T)
-}
-
-#' @describeIn neighbors_t Validate a neighbors_t object
-#' @export
-validate.neighbors_t <- function(x, ...) {
-  NextMethod()
-  validate_table_spec(x, NEIGHBORS_T)
-
-  return(x)
 }
 
 #' @describeIn neighbors_t Print a neighbors_t object

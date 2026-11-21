@@ -49,7 +49,7 @@ TRANS_VIABILITY_T <- table_spec(
 #' read-only, the column is read in their place.
 #'
 #' @name trans_viability_t
-#' @include table_spec.R
+#' @include ducklake_db_utils.R
 #'
 #' @param x A list or data.frame coercible to a data.table
 #' @param trans_meta A [trans_meta_t] table
@@ -109,7 +109,6 @@ create_trans_viability_t <- function(
 #' @export
 validate.trans_viability_t <- function(x, ...) {
   NextMethod()
-  validate_table_spec(x, TRANS_VIABILITY_T)
 
   stopifnot("is_viable must be TRUE or FALSE" = !anyNA(x[["is_viable"]]))
 

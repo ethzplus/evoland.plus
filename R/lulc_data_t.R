@@ -19,7 +19,7 @@ LULC_DATA_T <- table_spec(
 #' Creates an `lulc_data_t` table and validates that it matches the schema.
 #'
 #' @name lulc_data_t
-#' @include table_spec.R
+#' @include ducklake_db_utils.R
 #'
 #' @param x An object that can be passed to [data.table::setDT()]
 #'
@@ -28,14 +28,6 @@ LULC_DATA_T <- table_spec(
 #' @export
 as_lulc_data_t <- function(x) {
   as_table_t(x, LULC_DATA_T)
-}
-
-#' @export
-validate.lulc_data_t <- function(x, ...) {
-  NextMethod()
-  validate_table_spec(x, LULC_DATA_T)
-
-  return(x)
 }
 
 #' @export

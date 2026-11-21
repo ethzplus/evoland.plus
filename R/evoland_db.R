@@ -12,7 +12,10 @@
 #'
 #' - [evoland_db_views] - View active bindings (lulc_meta_long_v, etc.) and methods
 #'
-#' @include ducklake_db.R ducklake_db_utils.R
+#' @include ducklake_db.R ducklake_db_utils.R alloc_params_t.R coords_t.R lulc_data_t.R
+#' @include lulc_meta_t.R neighbors_t.R periods_t.R pred_data_t.R pred_meta_t.R reporting_t.R
+#' @include runs_t.R trans_meta_t.R trans_models_t.R trans_pot_t.R trans_preds_t.R
+#' @include trans_rates_t.R trans_viability_t.R
 #' @export
 
 evoland_db <- R6::R6Class(
@@ -436,3 +439,25 @@ evoland_db <- R6::R6Class(
     runs_t = create_table_binding("runs_t", "upsert")
   )
 )
+
+# The table_spec() of every table, by name; read by get_evoland_db_read_expr() and
+# devdocs/er_diagram.R
+EVOLAND_SCHEMA <- list(
+  ALLOC_PARAMS_T,
+  COORDS_T,
+  LULC_DATA_T,
+  LULC_META_T,
+  NEIGHBORS_T,
+  PERIODS_T,
+  PRED_DATA_T,
+  PRED_META_T,
+  REPORTING_T,
+  RUNS_T,
+  TRANS_META_T,
+  TRANS_MODELS_T,
+  TRANS_POT_T,
+  TRANS_PREDS_T,
+  TRANS_RATES_T,
+  TRANS_VIABILITY_T
+)
+names(EVOLAND_SCHEMA) <- vapply(EVOLAND_SCHEMA, \(spec) spec[["name"]], character(1))

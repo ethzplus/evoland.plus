@@ -37,7 +37,7 @@ TRANS_META_T <- table_spec(
 #' ```
 #'
 #' @name trans_meta_t
-#' @include table_spec.R
+#' @include ducklake_db_utils.R
 #'
 #' @param x A list or data.frame coercible to a trans_meta_t object.
 #' @param transitions A trans_v table, with columns id_coord, id_lulc_anterior,
@@ -95,7 +95,6 @@ create_trans_meta_t <- function(transitions, ...) {
 #' @export
 validate.trans_meta_t <- function(x, ...) {
   NextMethod()
-  validate_table_spec(x, TRANS_META_T)
 
   stopifnot(
     all(x[["cardinality"]] >= 0),

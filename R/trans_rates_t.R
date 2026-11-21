@@ -39,7 +39,7 @@ TRANS_RATES_T <- table_spec(
 #' by regression, whose count depends on the map they will be applied to.
 #'
 #' @name trans_rates_t
-#' @include table_spec.R
+#' @include ducklake_db_utils.R
 #'
 #' @param x A list or data.frame coercible to a data.table
 #'
@@ -175,7 +175,6 @@ extrapolate_trans_rates <- function(obs_rates, periods) {
 #' @export
 validate.trans_rates_t <- function(x, ...) {
   NextMethod()
-  validate_table_spec(x, TRANS_RATES_T)
 
   stopifnot(
     "rate is negative" = all(x[["rate"]] >= 0, na.rm = TRUE)

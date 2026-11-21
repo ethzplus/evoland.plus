@@ -41,7 +41,7 @@ ALLOC_PARAMS_T <- table_spec(
 #' structure for storing allocation parameters.
 #'
 #' @name alloc_params_t
-#' @include table_spec.R
+#' @include ducklake_db_utils.R
 #'
 #' @param x A list or data.frame coercible to a data.table
 #'
@@ -49,14 +49,6 @@ ALLOC_PARAMS_T <- table_spec(
 #' @export
 as_alloc_params_t <- function(x) {
   as_table_t(x, ALLOC_PARAMS_T)
-}
-
-#' @export
-validate.alloc_params_t <- function(x, ...) {
-  NextMethod()
-  validate_table_spec(x, ALLOC_PARAMS_T)
-
-  return(x)
 }
 
 #' @export

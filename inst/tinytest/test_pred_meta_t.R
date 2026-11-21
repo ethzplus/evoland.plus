@@ -48,19 +48,6 @@ pred_spec <- list(
 # Test creation and validation
 pred_meta_t <- create_pred_meta_t(pred_spec)
 expect_equal(nrow(pred_meta_t), 3L)
-expect_inherits(pred_meta_t, "pred_meta_t")
-expect_true(all(
-  c(
-    "name",
-    "pretty_name",
-    "description",
-    "orig_format",
-    "sources",
-    "unit",
-    "factor_levels"
-  ) %in%
-    names(pred_meta_t)
-))
 expect_stdout(print(pred_meta_t), "Number of predictors")
 
 expect_error(

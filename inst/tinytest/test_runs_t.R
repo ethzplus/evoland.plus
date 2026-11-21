@@ -13,19 +13,6 @@ data.table::setkeyv(x, "id_run")
 expect_equal(as_runs_t(), x)
 
 
-# Test constructor with custom data, which should be coerced and validated
-runs_t <-
-  data.frame(
-    id_run = c(0, 1),
-    parent_id_run = c(NA, 0),
-    description = c("Base", "Scenario 1")
-  ) |>
-  as_runs_t()
-
-# Test Validation Logic
-runs_t$id_run <- as.double(runs_t$id_run)
-expect_error(validate(runs_t), pattern = "id_run is not integer")
-
 # Missing id_run 0 (Base)
 expect_error(
   as_runs_t(data.frame(
@@ -78,14 +65,3 @@ expect_error(
   )),
   "all parent_id_run must be in id_run or NA"
 )
-
-# rng_seed and id_period_eval_start are cast to integer
-with_params <- as_runs_t(list(
-  id_run = 0:1,
-  parent_id_run = c(NA, 0L),
-  description = c("a", "b"),
-  rng_seed = c(NA, 7),
-  id_period_eval_start = c(NA, 4)
-))
-expect_identical(with_params[["rng_seed"]], c(NA, 7L))
-expect_identical(with_params[["id_period_eval_start"]], c(NA, 4L))

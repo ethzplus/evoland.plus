@@ -91,10 +91,10 @@ These use R's own `message()`, `warning()` and `stop()` for now; a logging tool 
 
 Every table follows the shape of `R/periods_t.R`:
 
-1. `<ENTITY>_T <- table_spec(...)`: the table declared once, as data: its columns with their types and descriptions, in the canonical column order, its keys, partitions, and, for a run-scoped table, `inherit_by`, the columns that form one slice of inheritance through the run lineage. Add the spec to `EVOLAND_SCHEMA` (`R/evoland_schema.R`); the ER diagram, the column tables in `devdocs/design/database.md` and the reads through the lineage are derived from the registry.
+1. `<ENTITY>_T <- table_spec(...)`: the table declared once, as data: its columns with their types and descriptions, in the canonical column order, its keys, partitions, and, for a run-scoped table, `inherit_by`, the columns that form one slice of inheritance through the run lineage. Add the spec to `EVOLAND_SCHEMA` (`R/evoland_db.R`); the ER diagram, the column tables in `devdocs/design/database.md` and the reads through the lineage are derived from the registry.
 2. `as_<entity>_t(x)`: `as_table_t(x, <ENTITY>_T)`, which builds an empty table if `x` is missing, casts every column, adds missing ones, sets the column order and finishes with `as_ducklake_db_t()`, which calls `validate()`. Derived columns are computed in its `derive` function.
 3. Optionally `create_<entity>_t(...)`, building the table from a specification and ending with `as_<entity>_t()`.
-4. `validate.<entity>_t(x, ...)`: `NextMethod()`, `validate_table_spec(x, <ENTITY>_T)` for the declared columns and types, then the invariants specific to the table in one named `stopifnot()`, return `x`.
+4. `validate.<entity>_t(x, ...)`: only for a table with invariants of its own: `NextMethod()`, the invariants in one named `stopifnot()`, return `x`. Columns, types and keys are already guaranteed by `as_table_t()`.
 5. `print.<entity>_t(x, nrow = 10, ...)`: `cat()` a short summary, then `NextMethod(nrow = nrow, ...)`, then `invisible(x)`.
 
 ## R6 classes and database methods

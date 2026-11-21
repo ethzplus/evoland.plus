@@ -11,7 +11,7 @@ DuckLake was chosen over plain Parquet files because it gives atomic writes and 
 It supports no constraints, keys, or indexes so `ducklake_db$commit()` enforces key uniqueness itself.
 Each table is declared once, as a `table_spec()` next to its `as_*_t()` constructor: its columns and their types, its keys, partitioning and map columns, and whether and how it is inherited along the run lineage.
 The constructor, the reads through the lineage, the column lists in the help pages and the tables in this document are derived from that declaration; the registry of all of them is `EVOLAND_SCHEMA`.
-The keys, partitioning, map columns and inheritance of each table are also stored in the catalog, as a JSON object in the table's comment, e.g. `{"key_cols": ["id_run", "id_coord", "id_period"], "partition_cols": ["id_run"], "inherit_by": ["id_period"], ...}`, so that other tools can read them.
+The keys, partitioning, map columns and inheritance of each table are also stored in the catalog as the table's comment, one `key: "value1", "value2"` line each, so that other tools can read them.
 An append or upsert that brings columns a table does not have adds them (`alter table ... add column`, which only touches the catalog; existing rows read `NULL`).
 The validators of the large per-coordinate tables (`coords_t`, `lulc_data_t`, `pred_data_t`, `neighbors_t`, `trans_pot_t`) reject columns they do not declare, to keep those tables lean.
 DuckLake also does not support ENUMs, so R factors are stored as strings and cast back by the `as_*_t()` constructors.

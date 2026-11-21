@@ -11,7 +11,7 @@ REPORTING_T <- table_spec(
 #' graphs...)
 #'
 #' @name reporting_t
-#' @include table_spec.R
+#' @include ducklake_db_utils.R
 #'
 #' @eval table_spec_rd(REPORTING_T)
 #' @export
@@ -42,13 +42,4 @@ db_set_report <- function(self, ...) {
     key = names(params), # cannot name a column "key" in data.table()
     value = unlist(params)
   ))
-}
-
-
-#' @export
-validate.reporting_t <- function(x, ...) {
-  NextMethod()
-  validate_table_spec(x, REPORTING_T)
-
-  return(x)
 }

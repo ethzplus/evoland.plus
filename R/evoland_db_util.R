@@ -8,7 +8,7 @@ NULL
 
 #' @describeIn evoland_db_util Gets the read expression for a given table, taking into
 #' account the run lineage. Whether a table is run-scoped, and which columns form one
-#' inheritance slice, is the `inherit_by` of its [table_spec] in `EVOLAND_SCHEMA`; a table
+#' inheritance slice, is the `inherit_by` of its `table_spec()` in `EVOLAND_SCHEMA`; a table
 #' that is not in the registry is run-scoped if its stored metadata carries `inherit_by`.
 #' A table that is not run-scoped, or a read without `id_run`, falls back to the default
 #' read expression. Otherwise, the read expression filters for `id_run` and its lineage,
@@ -33,16 +33,7 @@ get_evoland_db_read_expr <- function(self, super, table_name, id_run) {
     return(base_read_expr)
   }
 
-  lineage_read_expr(self, base_read_expr, inherit_by, id_run)
-}
-
-# The read expression of a run-scoped table for the lineage of `id_run`: for each slice, a
-# tuple of the `inherit_by` columns, the rows of the closest run in the lineage that holds
-# any. Slicing coarser than a single row is a tradeoff: we could also choose to fall
-# through on each coordinate point, but that would blow up the query time.
-lineage_read_expr <- function(self, base_read_expr, inherit_by, id_run) {
   distinctness_cols <- c("id_run", inherit_by)
-  inheritance_key_cols <- inherit_by
 
   # .envir, or the statement would be interpolated in this helper's frame
   sql <- function(...) glue::glue_sql(..., .con = self$connection, .envir = parent.frame())
@@ -80,9 +71,9 @@ lineage_read_expr <- function(self, base_read_expr, inherit_by, id_run) {
 
   # Special case for id_period: need self-join on id_period AND id_period=0;
   # currently only relevant for pred_data_t, but let's generalize just in case
-  if ("id_period" %in% inheritance_key_cols) {
+  if ("id_period" %in% inherit_by) {
     join_conditions <- lapply(
-      inheritance_key_cols,
+      inherit_by,
       function(col) {
         if (col == "id_period") {
           # special case for id_period: self-join data_present to allow for
@@ -107,9 +98,9 @@ lineage_read_expr <- function(self, base_read_expr, inherit_by, id_run) {
       group by
         {group_cols}
       ]",
-      group_cols = glue::glue_sql_collapse(sql("b.{`inheritance_key_cols`}"), sep = ", ")
+      group_cols = glue::glue_sql_collapse(sql("b.{`inherit_by`}"), sep = ", ")
     )
-  } else if (length(inheritance_key_cols) > 0L) {
+  } else if (length(inherit_by) > 0L) {
     # general case: find minimum distance id_run for each tuple of inheritance key cols
     ctes[["best_run"]] <- sql(
       r"[
@@ -121,7 +112,7 @@ lineage_read_expr <- function(self, base_read_expr, inherit_by, id_run) {
       group by
         {group_cols}
       ]",
-      group_cols = glue::glue_sql_collapse(sql("b.{`inheritance_key_cols`}"), sep = ", ")
+      group_cols = glue::glue_sql_collapse(sql("b.{`inherit_by`}"), sep = ", ")
     )
   } else {
     # no inheritance keys: the nearest run holding any data wins

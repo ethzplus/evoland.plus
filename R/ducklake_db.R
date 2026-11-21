@@ -189,7 +189,6 @@ ducklake_db <- R6::R6Class(
         for (option in names(options)) {
           self$execute("call dl_db.set_option({option}, {options[[option]]})")
         }
-        private$upgrade_metadata()
       }
 
       invisible(self)
@@ -1097,29 +1096,6 @@ ducklake_db <- R6::R6Class(
       }
 
       out
-    },
-
-    # Table comments were once written as one `key: "value1", "value2"` line per entry,
-    # which breaks on values holding `", "` or a newline. Rewrite those as JSON, in one
-    # transaction, so that a catalog opened read-write carries the old format no longer.
-    upgrade_metadata = function() {
-      outdated <- self$get_query(
-        "select table_name, comment from duckdb_tables()
-         where database_name = 'dl_db' and comment is not null and comment != ''
-           and not starts_with(trim(comment), '{{')"
-      )
-      if (nrow(outdated) == 0L) {
-        return(invisible(NULL))
-      }
-      self$transaction({
-        for (i in seq_len(nrow(outdated))) {
-          private$write_metadata(
-            outdated[["table_name"]][i],
-            deserialize_metadata(outdated[["comment"]][i])
-          )
-        }
-      })
-      invisible(NULL)
     },
 
     # Writing the comment is a catalog change, and so costs a snapshot. Most

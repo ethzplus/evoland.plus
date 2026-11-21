@@ -26,7 +26,7 @@ COORDS_T <- table_spec(
 #' `coords_t` object. The unit is that of the epsg.
 #'
 #' @name coords_t
-#' @include table_spec.R
+#' @include ducklake_db_utils.R
 NULL
 
 #' @describeIn coords_t Cast and validate as coords_t
@@ -34,14 +34,6 @@ NULL
 #' @export
 as_coords_t <- function(x) {
   as_table_t(x, COORDS_T)
-}
-
-#' @export
-validate.coords_t <- function(x, ...) {
-  NextMethod()
-  validate_table_spec(x, COORDS_T)
-
-  return(x)
 }
 
 #' @export
