@@ -424,8 +424,15 @@ expect_error(
   "if allocating for multiple runs, they must share their ancestor"
 )
 
-# on mirai daemons, a seeded run gets the same map as on the calling process
-if (requireNamespace("evoland.plus", quietly = TRUE)) {
+# on mirai daemons, a seeded run gets the same map as on the calling process. The daemons load
+# the installed package, which pkgload::load_all() does not give them, so probe them first, as
+# test_db_parallel.R does
+mirai::daemons(2)
+can_run_parallel <- tryCatch(
+  isTRUE(map_evoland(list(1L), function(item, db) TRUE, parent_db = db)[[1L]]),
+  error = function(e) FALSE
+)
+if (can_run_parallel) {
   db$runs_t <- as_runs_t(rbind(
     db$runs_t,
     data.table::data.table(
@@ -437,11 +444,12 @@ if (requireNamespace("evoland.plus", quietly = TRUE)) {
     ),
     fill = TRUE
   ))
-  mirai::daemons(2)
-  alloc_clumpy(12:13)
-  mirai::daemons(0)
+  tryCatch(alloc_clumpy(12:13), finally = mirai::daemons(0))
   expect_equal(lulc_of(12L, 4L), lulc_of(8L, 4L))
   expect_equal(lulc_of(13L, 4L), lulc_of(10L, 4L))
+} else {
+  mirai::daemons(0)
+  message("Skipping the allocation on daemons: they cannot load the installed package")
 }
 
 # --------------------------------------------------------------------------
