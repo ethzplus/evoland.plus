@@ -30,7 +30,6 @@ S3method(validate,trans_pot_t)
 S3method(validate,trans_preds_t)
 S3method(validate,trans_rates_t)
 S3method(validate,trans_viability_t)
-export(LearnerClassifGrrf)
 export(alloc_clumpy_spec)
 export(alloc_dinamica_spec)
 export(alloc_greedy_spec)
@@ -87,5 +86,4 @@ importFrom(data.table,
   ":="
 )
 importFrom(duckdb,duckdb)
-importFrom(paradox,ps)
 useDynLib(evoland.plus, .registration = TRUE)
