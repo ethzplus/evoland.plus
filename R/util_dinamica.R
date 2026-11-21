@@ -206,7 +206,6 @@ dinamica_console_command <- function() {
 #' [exec_dinamica()]
 #' @param work_dir Working dir, where to place ego files and control table
 #' @param ... passed to [exec_dinamica()]
-#' @export
 run_alloc_dinamica <- function(
   work_dir = format(Sys.time(), "%Y-%m-%d_%Hh%Mm%Ss"),
   ...
