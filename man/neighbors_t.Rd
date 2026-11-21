@@ -3,7 +3,6 @@
 \name{neighbors_t}
 \alias{neighbors_t}
 \alias{as_neighbors_t}
-\alias{validate.neighbors_t}
 \alias{print.neighbors_t}
 \alias{set_neighbors}
 \alias{generate_neighbor_predictors}
@@ -11,8 +10,6 @@
 \title{Create Neighbors Table}
 \usage{
 as_neighbors_t(x)
-
-\method{validate}{neighbors_t}(x, ...)
 
 \method{print}{neighbors_t}(x, nrow = 10, ...)
 
@@ -32,9 +29,9 @@ upsert_new_neighbors(self, id_period, id_run = 0L)
 \arguments{
 \item{x}{An object that can be passed to \code{\link[data.table:setDT]{data.table::setDT()}}}
 
-\item{...}{Passed to \code{\link[data.table:print.data.table]{data.table::print.data.table()}} resp. \code{\link[=validate]{validate()}}}
-
 \item{nrow}{Maximum number of rows to print}
+
+\item{...}{Passed to \code{\link[data.table:print.data.table]{data.table::print.data.table()}}}
 
 \item{self}{An evoland_db object}
 
@@ -72,8 +69,6 @@ Creates a \code{neighbors_t} table and validates that it matches the schema.
 }
 \section{Methods (by generic)}{
 \itemize{
-\item \code{validate(neighbors_t)}: Validate a neighbors_t object
-
 \item \code{print(neighbors_t)}: Print a neighbors_t object
 
 }}

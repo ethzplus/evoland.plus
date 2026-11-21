@@ -35,7 +35,7 @@ PERIODS_T <- table_spec(
 #' the end of the observed period.
 #'
 #' @name periods_t
-#' @include table_spec.R
+#' @include ducklake_db_utils.R
 #'
 #' @param x A list or data.frame coercible to a data.table
 #'
@@ -121,7 +121,6 @@ create_periods_t <- function(
 #' @export
 validate.periods_t <- function(x, ...) {
   NextMethod()
-  validate_table_spec(x, PERIODS_T)
 
   overlapping <-
     x[

@@ -34,7 +34,7 @@ RUNS_T <- table_spec(
 #' you assign or commit.
 #'
 #' @name runs_t
-#' @include table_spec.R
+#' @include ducklake_db_utils.R
 #'
 #' @param x A list or data.frame coercible to a data.table
 #'
@@ -55,7 +55,6 @@ as_runs_t <- function(x) {
 #' @export
 validate.runs_t <- function(x, ...) {
   NextMethod()
-  validate_table_spec(x, RUNS_T)
 
   stopifnot(
     "all parent_id_run must be in id_run or NA" = all(

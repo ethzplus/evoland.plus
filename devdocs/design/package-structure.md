@@ -44,7 +44,7 @@ The class is defined in `R/<table>_t.R`, which holds:
 - `validate.<table>_t()`, which checks the declared columns and the invariants of the table (non-overlapping periods, a base run), called by every constructor;
 - `print.<table>_t()`, which prints a summary before the data.
 
-The registry `EVOLAND_SCHEMA` (`R/evoland_schema.R`) lists every spec.
+The registry `EVOLAND_SCHEMA` (`R/evoland_db.R`) lists every spec.
 `evoland_db` reads from it which tables are run-scoped and how, and `devdocs/er_diagram.R` generates the ER diagram and the column tables of [database.md](database.md) from it; the help pages list the columns from the same specs.
 Because `ducklake_db` reads keys and partitioning from the attributes, the schema is defined in R, one file per table, and `ducklake_db` itself needs no knowledge of it.
 This also leaves room for ad-hoc adaptations in a specific analysis: a table can carry an additional column that is useful in one scenario while keeping the guarantees of the schema, and entirely new tables can be committed with `as_ducklake_db_t()` or even as a plain `data.table`.

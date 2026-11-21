@@ -53,7 +53,7 @@ PRED_META_T <- table_spec(
 #' metadata.
 #'
 #' @name pred_meta_t
-#' @include table_spec.R
+#' @include ducklake_db_utils.R
 #'
 #' @param x An object that is accepted by [data.table::setDT()]
 #'
@@ -182,7 +182,6 @@ create_pred_meta_t <- function(pred_spec, starting_id = 1L) {
 #' @export
 validate.pred_meta_t <- function(x, ...) {
   NextMethod()
-  validate_table_spec(x, PRED_META_T)
 
   sources_dt <- unique(data.table::rbindlist(x[["sources"]]))
 

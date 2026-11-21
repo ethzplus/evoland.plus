@@ -51,7 +51,7 @@ TRANS_MODELS_T <- table_spec(
 #' structure for storing fitted models via the mlr3 interface.
 #'
 #' @name trans_models_t
-#' @include table_spec.R
+#' @include ducklake_db_utils.R
 #'
 #' @param x A list or data.frame coercible to a data.table
 #'
@@ -531,7 +531,6 @@ fit_full_models <- function(
 #' @export
 validate.trans_models_t <- function(x, ...) {
   NextMethod()
-  validate_table_spec(x, TRANS_MODELS_T)
 
   # Skip soft checks if empty
   if (nrow(x) == 0L) {

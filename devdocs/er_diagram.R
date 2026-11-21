@@ -15,8 +15,34 @@ if (file.exists("DESCRIPTION") && requireNamespace("pkgload", quietly = TRUE)) {
 }
 schema <- utils::getFromNamespace("EVOLAND_SCHEMA", "evoland.plus")
 schema <- schema[sort(names(schema))]
-column_type <- \(type) utils::getFromNamespace("TABLE_SPEC_TYPES", "evoland.plus")[[type]][["doc"]]
-table_spec_md <- utils::getFromNamespace("table_spec_md", "evoland.plus")
+column_type <- \(type) ifelse(type == "char", "string", type)
+
+# A table's columns as a Markdown table: uniqueness, name, type and description
+table_spec_md <- function(spec) {
+  all_cols <- c(spec[["columns"]], spec[["optional_cols"]])
+  cells <- cbind(
+    uniqueness = ifelse(
+      names(all_cols) %in% spec[["key_cols"]],
+      "\\*",
+      ifelse(names(all_cols) %in% spec[["alternate_key_cols"]], "alternate", "")
+    ),
+    colname = names(all_cols),
+    type = paste0(
+      column_type(all_cols),
+      ifelse(names(all_cols) %in% names(spec[["optional_cols"]]), ", optional", "")
+    ),
+    # roxygen links and escaped brackets to Markdown
+    description = spec[["descriptions"]] |>
+      gsub("\\[`?([A-Za-z0-9_.:]+(\\(\\))?)`?\\]", "`\\1`", x = _) |>
+      gsub("\\\\([][])", "\\1", x = _)
+  )
+  cells <- rbind(colnames(cells), cells)
+  widths <- apply(cells, 2, \(col) max(nchar(col, type = "width")))
+  row_line <- function(row) {
+    paste0("| ", paste0(row, strrep(" ", widths - nchar(row, "width")), collapse = " | "), " |")
+  }
+  unname(c(row_line(cells[1, ]), row_line(strrep("-", widths)), apply(cells[-1, ], 1, row_line)))
+}
 
 target_file <- file.path("devdocs", "design", "database.md")
 generated_note <- "run `Rscript devdocs/er_diagram.R`, do not edit"

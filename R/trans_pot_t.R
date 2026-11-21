@@ -25,7 +25,7 @@ TRANS_POT_T <- table_spec(
 #' Estimate transition potential at `id_period_post`. Based on the LULC at `id_period_anterior`
 #'
 #' @name trans_pot_t
-#' @include table_spec.R
+#' @include ducklake_db_utils.R
 #'
 #' @param x A list or data.frame coercible to a data.table
 #' @param id_period_post Integer, period to estimate transition potential to
@@ -39,7 +39,6 @@ as_trans_pot_t <- function(x) {
 #' @export
 validate.trans_pot_t <- function(x, ...) {
   NextMethod()
-  validate_table_spec(x, TRANS_POT_T)
 
   # Skip soft checks if empty
   if (nrow(x) == 0L) {

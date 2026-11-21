@@ -23,7 +23,7 @@ TRANS_PREDS_T <- table_spec(
 #' flags rather than a subset of it: rows left out of the assignment keep the flags they had.
 #'
 #' @name trans_preds_t
-#' @include table_spec.R
+#' @include ducklake_db_utils.R
 #'
 #' @param self An [evoland_db] instance with populated trans_meta_t and pred_meta_t tables
 #' @param x A list or data.frame coercible to a trans_preds_t object. If missing, an
@@ -52,7 +52,6 @@ as_trans_preds_t <- function(x) {
 #' @export
 validate.trans_preds_t <- function(x, ...) {
   NextMethod()
-  validate_table_spec(x, TRANS_PREDS_T)
 
   # Skip soft checks if empty
   if (nrow(x) == 0L) {

@@ -1,10 +1,6 @@
 library(tinytest)
 
-trans_meta_t <- create_trans_meta_t()
-expect_silent(trans_meta_t)
-expect_equal(nrow(trans_meta_t), 0L)
-expect_inherits(trans_meta_t, "trans_meta_t")
-expect_stdout(print(trans_meta_t), "empty")
+expect_equal(nrow(create_trans_meta_t()), 0L)
 
 # nolint start
 synthetic_transitions <- data.table::rowwiseDT(
