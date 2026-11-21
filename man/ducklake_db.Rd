@@ -57,6 +57,7 @@ binding may take before it is interrupted with an error; \code{NULL} never inter
     \item \href{#method-ducklake_db-initialize}{\code{ducklake_db$new()}}
     \item \href{#method-ducklake_db-execute}{\code{ducklake_db$execute()}}
     \item \href{#method-ducklake_db-get_query}{\code{ducklake_db$get_query()}}
+    \item \href{#method-ducklake_db-interpolate_sql}{\code{ducklake_db$interpolate_sql()}}
     \item \href{#method-ducklake_db-row_count}{\code{ducklake_db$row_count()}}
     \item \href{#method-ducklake_db-list_tables}{\code{ducklake_db$list_tables()}}
     \item \href{#method-ducklake_db-fetch}{\code{ducklake_db$fetch()}}
@@ -189,6 +190,46 @@ as a plain vector rather than a one-column data.table.}
   }
   \subsection{Returns}{
     A data.table with query results, or a vector if \code{as_atomic}
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-ducklake_db-interpolate_sql"></a>}}
+\if{latex}{\out{\hypertarget{method-ducklake_db-interpolate_sql}{}}}
+\subsection{\code{ducklake_db$interpolate_sql()}}{
+  Interpolate a SQL statement or fragment against this connection, as \verb{$execute()} and
+\verb{$get_query()} do: with \code{\link[glue:glue_sql]{glue::glue_sql()}}, so that values are quoted as literals and
+identifiers rather than pasted. Use it to compose fragments for a larger statement.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{ducklake_db$interpolate_sql(
+  statement,
+  ...,
+  .open = "{",
+  .close = "}",
+  .envir = parent.frame()
+)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{statement}}{A SQL statement or fragment. \code{{value}} is quoted as a value,
+\verb{\{value*\}} as a comma-separated list of them, \code{{`name`}} as an identifier,
+\verb{\{`names`*\}} as a comma-separated list of them, and a \code{\link[DBI:SQL]{DBI::SQL()}} object -- such
+as this method or \verb{$get_read_expr()} returns -- inserted as it stands. A statement
+already built with \code{\link[glue:glue]{glue::glue()}} or \code{\link[glue:glue_sql]{glue::glue_sql()}} is returned as it is, since a
+second pass would trip over braces that arrived in the data.}
+      \item{\code{...}}{Values for the interpolation, as with \code{\link[glue:glue_sql]{glue::glue_sql()}}.}
+      \item{\code{.open, .close}}{Interpolation delimiters, for a statement whose own syntax needs
+the braces.}
+      \item{\code{.envir}}{Environment to look up the placeholders not given in \code{...}; the caller's
+by default.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The interpolated statement, a \code{\link[DBI:SQL]{DBI::SQL()}} object
   }
 }
 
