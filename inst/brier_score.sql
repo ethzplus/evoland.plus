@@ -114,21 +114,32 @@ with
     order by
       r.id_run
   ),
-  forecast as (
-    -- the share of an ensemble's runs that put each scored cell in each class
+  votes as (
+    -- how many of an ensemble's runs put each scored cell in each class; the ensemble size is
+    -- joined only after this aggregation, which, over all members' rows, is the costly step
     select
       s.ensemble,
       s.id_coord,
       s.id_lulc,
-      count(*) / any_value(e.m) as p
+      count(*) as n_runs
     from
       simulated s
-      inner join ensembles e using (ensemble)
       semi join cells using (id_coord)
     group by
       s.ensemble,
       s.id_coord,
       s.id_lulc
+  ),
+  forecast as (
+    -- the share of an ensemble's runs that put each scored cell in each class
+    select
+      v.ensemble,
+      v.id_coord,
+      v.id_lulc,
+      v.n_runs / e.m as p
+    from
+      votes v
+      inner join ensembles e using (ensemble)
   ),
   forecast_cell as (
     select
