@@ -75,7 +75,7 @@ flags rather than a subset of it: rows left out of the assignment keep the flags
 \section{Functions}{
 \itemize{
 \item \code{set_full_trans_preds()}: Set an initial full set of transition / predictor relations for
-a run: every predictor for every viable transition, all selected
+a run: every predictor for every transition viable in the run, all selected
 
 \item \code{get_pred_filter_score()}: Get a filter score for the selected transition-predictor
 relationships based on mlr3filters. Returns trans_preds_t with an additional

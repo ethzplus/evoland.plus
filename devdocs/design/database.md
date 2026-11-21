@@ -262,7 +262,7 @@ Two more columns, `NA` where unset and not inherited, are read by `allocate()`:
 | id_period_eval_start | int, nullable | Period the run branches off its parent; earlier ones are its lineage's |
 
 Given several runs, `allocate()` goes period by period, each for every run that has reached its `id_period_eval_start`, so that a branch finds the maps of the run it branches off.
-At its branching period, a run uses its parent's potentials, and shares its parent's allocation context if it holds no inputs of its own.
+At its branching period, a run uses its parent's potentials unless it holds inputs of its own (predictors, the anterior map, potentials or `trans_viability_t` overrides), and shares its parent's allocation context if it also holds no rates or allocation parameters of its own.
 
 ### `lulc_meta_t` + `lulc_data_t`
 
@@ -349,6 +349,24 @@ And a transition may be observed too rarely for statistical inference (`min_card
 > [!NOTE]
 > The previous generation of this model, [evoland-plus-legacy](https://github.com/ethzplus/evoland-plus-legacy), determined the viability of a transition per period.
 > This meant that a single period for training our transition models had to be picked (usually the most recent), which made us lose out on the data provided by previous periods. We could still restrict our training periods in training now, but this only really makes sense if we suppose that different causal mechanisms drove land use change in different periods.
+
+### `trans_viability_t`
+
+| uniqueness | colname   | type | description                                  |
+| ---------- | --------- | ---- | -------------------------------------------- |
+| \*         | id_run    | int  | FK from `runs_t`                             |
+| \*         | id_trans  | int  | FK from `trans_meta_t`                       |
+|            | is_viable | bool | Whether the transition is viable in this run |
+
+Which transitions are modelled is itself a modelling choice: a model may do better or worse when a rare transition is allowed or left out (ethzplus/evoland.plus#142).
+`trans_meta_t` therefore keeps the identity of each transition (`id_trans` for a pair of classes, the same in every run) and its default viability, and `trans_viability_t` holds the runs that deviate from it.
+The table is read through the lineage per `id_trans`, like any run-dependent table: a run's override applies to it and the runs inheriting from it, and a transition without an override anywhere in the lineage keeps the default of `trans_meta_t`.
+A database without the table, e.g. one written before it existed, reads the defaults as stored.
+`db$trans_meta_v(id_run)` returns `trans_meta_t` with the viability resolved for a run; predictor selection, model fitting, prediction, allocation parameters and allocation all work on that set.
+A run that branches off its parent and holds overrides predicts its own potentials instead of taking its parent's, see `runs_t`.
+
+The alternatives were to make `trans_meta_t` itself run-dependent, which duplicates the transition statistics per run and lets `id_trans` drift between runs although every other table refers to it, or to move `is_viable` out of `trans_meta_t` altogether, which is the cleaner schema but breaks external readers of the column and needs a migration.
+An override table on top of the existing column only adds to the schema.
 
 ### `trans_preds_t`
 

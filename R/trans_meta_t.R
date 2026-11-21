@@ -3,8 +3,10 @@
 #' Creates a trans_meta_t table based on observed land use transitions in the
 #' LULC data. This function analyzes transition patterns and creates metadata
 #' entries for each viable transition type. The metadata is kept constant across
-#' runs, since comparisons of model performance should be based on the same set
-#' of transitions.
+#' runs: `id_trans` identifies a pair of anterior and posterior classes in every run.
+#' `is_viable` is the default viability; a run may allow or disallow transitions
+#' differently through [trans_viability_t], and `db$trans_meta_v(id_run)` returns the
+#' table with the viability resolved for a run.
 #'
 #' @name trans_meta_t
 #'
@@ -24,7 +26,8 @@
 #'   - `cardinality`: How many times this transition occurred
 #'   - `frequency_rel`: Frequency relative to all transitions
 #'   - `frequency_abs`: Frequency relative to all coordinate pairs
-#'   - `is_viable`: Whether this transition is viable for modelling
+#'   - `is_viable`: Whether this transition is viable for modelling, unless a run overrides
+#'     it in [trans_viability_t]
 #' @export
 as_trans_meta_t <- function(x) {
   if (missing(x)) {
@@ -186,12 +189,40 @@ print.trans_meta_t <- function(x, nrow = 10, ...) {
   invisible(x)
 }
 
-# The viable transitions, optionally narrowed to `id_trans`
-viable_trans_meta <- function(self, id_trans = NULL) {
+# trans_meta_t with is_viable resolved for `id_run`: the override in trans_viability_t of the
+# closest run in the lineage that has one, else the default. A database without
+# trans_viability_t (e.g. one written before it existed) reads the defaults as stored.
+trans_meta_read_expr <- function(self, id_run) {
+  meta_read_expr <- self$get_read_expr("trans_meta_t")
+  if (!"trans_viability_t" %in% self$list_tables()) {
+    return(meta_read_expr)
+  }
+  glue::glue_sql(
+    "(select m.* replace (coalesce(v.is_viable, m.is_viable) as is_viable)
+      from {meta_read_expr} m
+      left join {viability_read_expr} v using (id_trans))",
+    viability_read_expr = self$get_read_expr("trans_viability_t", id_run = id_run),
+    .con = self$connection
+  )
+}
+
+#' @describeIn trans_meta_t The transition metadata with `is_viable` resolved for a run,
+#' see [trans_viability_t]
+#' @param self An [evoland_db] instance
+#' @param id_run Integer, the run whose viability overrides are read, through its lineage
+trans_meta_v <- function(self, id_run = 0L) {
+  stopifnot("id_run must be a single integer" = is_scalar_integerish(id_run))
+  self$get_query("from {trans_meta_read_expr(self, id_run)} order by id_trans") |>
+    as_trans_meta_t()
+}
+
+# The viable transitions of a run, optionally narrowed to `id_trans`
+viable_trans_meta <- function(self, id_trans = NULL, id_run = 0L) {
   stopifnot("id_trans must be NULL or integers" = is.null(id_trans) || is_integerish(id_trans))
+  viable <- trans_meta_v(self, id_run)[is_viable == TRUE]
   if (is.null(id_trans)) {
-    return(self$trans_meta_t[is_viable == TRUE])
+    return(viable)
   }
   # env renames the argument, which inside `[` would be masked by the column of the same name
-  self$trans_meta_t[is_viable == TRUE & id_trans %in% ids, env = list(ids = I(id_trans))]
+  viable[id_trans %in% ids, env = list(ids = I(id_trans))]
 }

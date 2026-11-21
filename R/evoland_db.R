@@ -178,6 +178,13 @@ evoland_db <- R6::R6Class(
       create_method_binding(pred_wide_predict_v, with_private = TRUE)
     },
 
+    #' @description The transition metadata with `is_viable` resolved for a run, see
+    #' [trans_meta_v()] and [trans_viability_t]
+    #' @param id_run Integer, the run whose viability overrides are read, through its lineage
+    trans_meta_v = function(id_run = 0L) {
+      create_method_binding(trans_meta_v)
+    },
+
     ### Validation methods ---
     #' @description Pontius' figure of merit of simulated against observed change, see
     #' [figure_of_merit_v()]

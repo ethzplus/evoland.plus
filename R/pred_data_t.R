@@ -187,7 +187,7 @@ pred_wide_predict_v <- function(
   )
 
   if (is.na(id_trans)) {
-    # if NA, fetch all data for viable transitions. used for prefetch.
+    # if NA, fetch all data for the run's viable transitions. used for prefetch.
     trans_condition <- DBI::SQL("is_viable = TRUE")
     trans_filter <- DBI::SQL("")
   } else {
@@ -210,7 +210,8 @@ pred_wide_predict_v <- function(
   result <-
     self$get_query(
       read_sql("pred_wide_predict.sql"),
-      trans_meta_read_expr = self$get_read_expr("trans_meta_t"),
+      # with is_viable resolved for the run, which the prefetch (id_trans = NA) filters on
+      trans_meta_read_expr = trans_meta_read_expr(self, id_run),
       lulc_data_read_expr = self$get_read_expr("lulc_data_t", id_run = id_run),
       pred_data_read_expr = self$get_read_expr("pred_data_t", id_run = id_run),
       trans_condition = trans_condition,

@@ -325,7 +325,7 @@ fit_partial_models <- function(
   }
 
   viable_trans <-
-    viable_trans_meta(self, id_trans)[, .(id_trans)][
+    viable_trans_meta(self, id_trans, id_run)[, .(id_trans)][
       selected_trans_preds_nested(self, id_run),
       on = "id_trans",
       nomatch = NULL
@@ -417,7 +417,7 @@ fit_full_models <- function(
 
     # Direct mode: get viable transitions with their predictor lists
     viable_trans <-
-      viable_trans_meta(self, id_trans)[,
+      viable_trans_meta(self, id_trans, id_run)[,
         .(id_trans)
       ][
         selected_trans_preds_nested(self, id_run),
@@ -496,10 +496,10 @@ fit_full_models <- function(
         c("learner_params", "crossval_score"),
         kv_df_to_list
       )
-    if (!is.null(id_trans)) {
-      keep <- best_models[["id_trans"]] %in% id_trans
-      best_models <- best_models[keep]
-    }
+    # the partial models may be inherited from an ancestor that allows transitions this run
+    # does not
+    keep <- best_models[["id_trans"]] %in% viable_trans_meta(self, id_trans, id_run)[["id_trans"]]
+    best_models <- best_models[keep]
 
     message(glue::glue(
       "Fitting full models for {nrow(best_models)} transitions..."

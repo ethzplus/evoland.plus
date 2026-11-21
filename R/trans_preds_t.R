@@ -114,7 +114,7 @@ print.trans_preds_t <- function(x, nrow = 10, ...) {
 }
 
 #' @describeIn trans_preds_t Set an initial full set of transition / predictor relations for
-#' a run: every predictor for every viable transition, all selected
+#' a run: every predictor for every transition viable in the run, all selected
 #' @param reset Bool, start the run's selection over? This removes the run's rows, including
 #' their score columns' values, before writing the full set.
 #' @param id_run Integer, the run to write the predictor sets for, or to score.
@@ -125,7 +125,7 @@ set_full_trans_preds <- function(self, reset = FALSE, id_run = 0L) {
     stop("`trans_preds_t` already holds predictor sets for this run; use reset = TRUE")
   }
   p <- self$pred_meta_t
-  t <- viable_trans_meta(self)
+  t <- viable_trans_meta(self, id_run = id_run)
 
   full <- expand.grid(
     id_run = id_run,

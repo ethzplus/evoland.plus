@@ -51,7 +51,8 @@ NULL
 #' returned by `evoland_db$get_obs_trans_rates()`.
 #' @param periods A [periods_t] table, used for the true period lengths.
 #' @param trans_meta A [trans_meta_t] table, defining the full set of transitions and their
-#' viability.
+#' viability; `db$trans_meta_v(id_run)` gives it with the viability of a run, see
+#' [trans_viability_t].
 #' @param include_persistence Whether to reconstruct the `i -> i` diagonal as
 #' `1 - sum(rate)` over all transitions out of `i`. The diagonal is not part of
 #' [trans_meta_t] but the LP needs it; without it, persistence is left unbounded.

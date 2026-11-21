@@ -106,6 +106,47 @@ db$trans_pot_t <- pots(2L, 0)
 expect_equal(db$fetch("trans_pot_t", id_run = 2L)[["value"]], c(0, 0, 0))
 expect_equal(db$fetch("trans_pot_t", id_run = 1L)[["value"]], c(0.5, 0.5, 0.5))
 
+# viability is resolved per run. Without trans_viability_t, as in a database written before it
+# existed, every run reads the defaults of trans_meta_t
+expect_false("trans_viability_t" %in% db$list_tables())
+expect_equivalent(db$trans_meta_v(id_run = 2L), db$trans_meta_t[order(id_trans)])
+# the child disallows transition 1; the grandchild allows it again and disallows 4 instead
+db$trans_viability_t <- as_trans_viability_t(list(
+  id_run = c(1L, 2L, 2L),
+  id_trans = c(1L, 1L, 4L),
+  is_viable = c(FALSE, TRUE, FALSE)
+))
+viable_ids <- function(id_run, id_trans = NULL) {
+  evoland.plus:::viable_trans_meta(db, id_trans = id_trans, id_run = id_run)[["id_trans"]]
+}
+expect_equal(viable_ids(0L), 1:4)
+expect_equal(viable_ids(1L), 2:4)
+expect_equal(viable_ids(2L), 1:3)
+expect_equal(viable_ids(1L, id_trans = 1:2), 2L)
+# the identity of the transitions and their defaults stay as they are
+expect_true(all(db$trans_meta_t[["is_viable"]]))
+expect_equal(
+  db$trans_meta_v(id_run = 1L)[, .(id_trans, id_lulc_anterior, id_lulc_posterior)],
+  db$trans_meta_t[order(id_trans), .(id_trans, id_lulc_anterior, id_lulc_posterior)]
+)
+# the prefetch of predictors for all viable transitions reads the run's set: without the
+# transitions out of class 2 (3 and 4), no cell of class 2 is fetched
+db$trans_viability_t <- as_trans_viability_t(data.table::data.table(
+  id_run = 1L,
+  id_trans = 3:4,
+  is_viable = FALSE
+))
+expect_equal(viable_ids(1L), 2L)
+expect_equal(
+  unique(db$pred_wide_predict_v(id_trans = NA, id_period_anterior = 1L, id_run = 1L)[["id_lulc"]]),
+  1L
+)
+expect_equal(
+  sort(unique(db$pred_wide_predict_v(id_trans = NA, id_period_anterior = 1L)[["id_lulc"]])),
+  1:2
+)
+db$delete_from("trans_viability_t")
+
 # fetch back as rast
 expect_equal(
   db$lulc_data_as_rast()["id_run_0_id_period_1"],
