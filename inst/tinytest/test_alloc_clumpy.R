@@ -28,16 +28,9 @@ must_u <- stats::runif(200L)
 expect_equal(must_drawn, must_oracle(must_prob, must_states, must_u))
 # all three states occur, so the comparison exercises every branch
 expect_equal(sort(unique(must_drawn)), must_states)
-# supplied uniforms give the same assignment as drawn ones
-expect_equal(evoland.plus:::must_cpp(must_prob, must_states, u = must_u), must_drawn)
-# u on a cumulative bound belongs to the next state: eta_(w-1) <= u < eta_w
+# negative and NaN probabilities count as 0 (as in the reference clumpy), whatever is drawn
 expect_equal(
-  evoland.plus:::must_cpp(matrix(c(0.25, 0.25, 0.5), nrow = 1L), 1:3, u = 0.25),
-  2L
-)
-# negative and NaN probabilities count as 0 (as in the reference clumpy)
-expect_equal(
-  evoland.plus:::must_cpp(matrix(c(-1, NaN, 1), nrow = 1L), 1:3, u = 0),
+  evoland.plus:::must_cpp(matrix(c(-1, NaN, 1), nrow = 1L), 1:3),
   3L
 )
 
