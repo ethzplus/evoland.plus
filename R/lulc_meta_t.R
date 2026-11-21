@@ -1,38 +1,36 @@
+LULC_META_T <- table_spec(
+  "lulc_meta_t",
+  columns = c(
+    id_lulc = "int",
+    name = "char",
+    pretty_name = "char",
+    description = "char",
+    src_classes = "list"
+  ),
+  descriptions = c(
+    id_lulc = "Unique ID for each land use class",
+    name = "Concise name for use in code and queries, e.g. `forest_dense`",
+    pretty_name = "Long name for plots and output, e.g. _Dense/Old Growth Forest_",
+    description = "Long description / operationalisation",
+    src_classes = "List of the source class IDs that are aggregated into this class"
+  ),
+  key_cols = "name",
+  alternate_key_cols = "id_lulc"
+)
+
 #' Create LULC Metadata Table
 #'
 #' Create a `lulc_meta_t` table or rows thereof that meet the schema requirements. These
 #' metadata describe the characteristics of land use classes.
 #'
 #' @name lulc_meta_t
+#' @include ducklake_db_utils.R
 #'
 #' @param x List-like coercible to `lulc_meta_t` via [data.table::as.data.table()]
-#' @return A data.table of class "lulc_meta_t" with columns:
-#'   - `id_lulc`: Unique ID for each land use class
-#'   - `name`: Name for use in code and queries
-#'   - `pretty_name`: Long name for plots/output
-#'   - `description`: Long description / operationalisation
-#'   - `src_classes`: List of source class IDs aggregated into this class
+#' @eval table_spec_rd(LULC_META_T)
 #' @export
 as_lulc_meta_t <- function(x) {
-  if (missing(x)) {
-    x <- data.table::data.table(
-      id_lulc = integer(0),
-      name = character(0),
-      pretty_name = character(0),
-      description = character(0),
-      src_classes = list()
-    )
-  }
-
-  data.table::setDT(x) |>
-    cast_dt_col("id_lulc", "int")
-
-  as_ducklake_db_t(
-    x,
-    class_name = "lulc_meta_t",
-    key_cols = "name",
-    alternate_key_cols = "id_lulc"
-  )
+  as_table_t(x, LULC_META_T)
 }
 
 #' @describeIn lulc_meta_t Creates a lulc_meta_t table from land use class specifications
@@ -90,24 +88,7 @@ create_lulc_meta_t <- function(lulc_class_spec) {
 validate.lulc_meta_t <- function(x, ...) {
   NextMethod()
 
-  data.table::setcolorder(
-    x,
-    c(
-      "id_lulc",
-      "name",
-      "pretty_name",
-      "description",
-      "src_classes"
-    )
-  )
-
-  stopifnot(
-    is.integer(x[["id_lulc"]]),
-    is.character(x[["name"]]),
-    is.character(x[["pretty_name"]]),
-    is.character(x[["description"]]),
-    !any(x[["name"]] == "")
-  )
+  stopifnot("name cannot be empty" = !any(x[["name"]] == ""))
 
   return(x)
 }

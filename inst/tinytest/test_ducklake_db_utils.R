@@ -85,11 +85,19 @@ expect_identical(evoland.plus:::deserialize_metadata(NA_character_), list())
 expect_identical(evoland.plus:::deserialize_metadata(""), list())
 
 # a metadata list survives the round-trip unchanged
-roundtrip <- list(epsg = 2056L, resolution = 100.5, key_cols = c("id_run", "id_coord"))
+roundtrip <- list(
+  epsg = 2056L,
+  resolution = 100.5,
+  key_cols = c("id_run", "id_coord"),
+  note = c('a "quoted", value', "b")
+)
 expect_identical(
   evoland.plus:::deserialize_metadata(evoland.plus:::serialize_metadata(roundtrip)),
   roundtrip
 )
+
+expect_error(evoland.plus:::serialize_metadata(list(`a b` = 1)), "keys must match")
+expect_error(evoland.plus:::serialize_metadata(list(a = "x\ny")), "must not contain a newline")
 
 # ---- convert_list_cols ----
 x_conv <- data.table::data.table(map_col = list(list(a = 1, b = "x"), list(a = 2, b = "y")))
@@ -174,3 +182,36 @@ for (method in names(bound_methods)) {
     info = paste0("defaults of db$", method, "()")
   )
 }
+
+# ---- as_table_t, for every table_spec in EVOLAND_SCHEMA ----
+for (spec in evoland.plus:::EVOLAND_SCHEMA) {
+  as_fn <- get(paste0("as_", spec[["name"]]))
+  # empty table (runs_t: the base run) with the declared columns, keys and inheritance
+  empty <- as_fn()
+  expect_equal(names(empty), names(spec[["columns"]]), info = spec[["name"]])
+  expect_equal(class(empty)[1], spec[["name"]])
+  for (attribute in c("key_cols", "alternate_key_cols", "map_cols", "partition_cols")) {
+    expect_equal(attr(empty, attribute), spec[[attribute]], info = spec[["name"]])
+  }
+  expect_equal(attr(empty, "inherit_by"), spec[["inherit_by"]], info = spec[["name"]])
+  expect_stdout(print(empty), info = spec[["name"]])
+  # integer columns given as doubles are cast back; a closed table rejects other columns
+  doubled <- lapply(empty, \(col) if (is.integer(col)) as.double(col) else col)
+  expect_identical(lapply(as_fn(doubled), class), lapply(empty, class), info = spec[["name"]])
+  if (!spec[["allow_extra_cols"]]) {
+    expect_error(as_fn(c(as.list(empty), note = list(character(0)))), "drop note")
+  }
+  # inherit_by is what get_evoland_db_read_expr() used to guess from the column names; for
+  # trans_preds_t each (id_pred, id_trans) pair, on which deselection by is_selected relies
+  guessed <- if ("id_run" %in% names(empty) && spec[["name"]] != "runs_t") {
+    intersect(names(empty), c("id_period", "id_period_post", "id_trans", "id_pred"))
+  }
+  expect_true(setequal(spec[["inherit_by"]], guessed), info = spec[["name"]])
+  expect_equal(is.null(spec[["inherit_by"]]), is.null(guessed), info = spec[["name"]])
+}
+
+# a missing declared column is added; a single model without cross-validation reads back (#152)
+expect_equal(
+  as_trans_models_t(list(id_run = 0L, id_trans = 1L, learner_id = "a"))[["crossval_predictions"]],
+  list(NULL)
+)

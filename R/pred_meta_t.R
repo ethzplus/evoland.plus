@@ -1,84 +1,87 @@
+# leaving out POSIXct / Date for now; can be operationalized as int/float
+PRED_DATA_TYPES <- c("int", "float", "bool", "factor", "ordered")
+
+PRED_META_T <- table_spec(
+  "pred_meta_t",
+  columns = c(
+    id_pred = "int",
+    name = "char",
+    pretty_name = "char",
+    description = "char",
+    orig_format = "char",
+    sources = "list",
+    unit = "char",
+    factor_levels = "list",
+    data_type = "factor",
+    fill_value = "char"
+  ),
+  descriptions = c(
+    id_pred = "Unique ID for each predictor",
+    name = "Concise name for use in code and queries, e.g. `distance_road`",
+    pretty_name = "Name for plots and output, e.g. _Distance To Closest Road_",
+    description = "Long description / operationalisation",
+    orig_format = "Original format, e.g. \"100m raster, daily\"",
+    sources = paste(
+      "Where the data were fetched: list column of data.frames with columns `url` and",
+      "`md5sum`"
+    ),
+    unit = paste(
+      "SI units for physical properties, or more complex descriptors like \"bed nights/year\"",
+      "as a proxy for touristic activity; `NA` for categorical values"
+    ),
+    factor_levels = paste(
+      "List of character vectors, the ordered level labels when `data_type` is",
+      "\"factor\" or \"ordered\""
+    ),
+    data_type = paste(
+      "Factor with levels \"int\", \"float\", \"bool\", \"factor\", \"ordered\": the type",
+      "the stored values are cast back to"
+    ),
+    fill_value = paste(
+      "Value of the [coords_t] coordinate points that are not explicitly stored in",
+      "[pred_data_t]"
+    )
+  ),
+  key_cols = "name",
+  alternate_key_cols = "id_pred",
+  levels = list(data_type = PRED_DATA_TYPES)
+)
+
 #' Create Predictor Metadata Table
 #'
 #' Construct and validate `pred_meta_t` objects, which are used to store predictor
 #' metadata.
 #'
 #' @name pred_meta_t
+#' @include ducklake_db_utils.R
 #'
 #' @param x An object that is accepted by [data.table::setDT()]
 #'
-#' @return A data.table of class "pred_meta_t" with columns:
-#'   - `id_pred`: Unique ID for each predictor
-#'   - `name`: Name for use in code and queries
-#'   - `pretty_name`: Name for plots/output
-#'   - `description`: Long description / operationalisation
-#'   - `orig_format`: Original format description
-#'   - `sources`: Sources, list column of data.frames with cols `url` and `md5sum`
-#'   - `unit`: SI units for physical properties, or more complex descriptors
-#'     like "bed nights/year" as a proxy for touristic activity
-#'   - `data_type`: Factor with levels "int", "float", "bool", "factor".
-#'     Used for coercion.
-#'   - `fill_value`: Value to use for missing data for [coords_t] coordinate points that
-#'     are not explicitly stored.
-#'   - `factor_levels`: list of character vectors; order matters!
+#' @eval table_spec_rd(PRED_META_T)
 #' @export
 as_pred_meta_t <- function(x) {
-  if (missing(x)) {
-    x <- data.table::data.table(
-      id_pred = integer(0),
-      name = character(0),
-      pretty_name = character(0),
-      description = character(0),
-      orig_format = character(0),
-      sources = list(),
-      unit = character(0),
-      data_type = factor(
-        character(0),
-        # leaving out POSIXct / Date for now; can be operationalized as int/float
-        levels = c("int", "float", "bool", "factor", "ordered")
-      ),
-      fill_value = NA_character_,
-      factor_levels = list(character(0))
-    )
-  }
-
-  data.table::setDT(x) |>
-    cast_dt_col("id_pred", "int") |>
-    cast_dt_col("name", "char") |>
-    cast_dt_col("pretty_name", "char") |>
-    cast_dt_col("description", "char") |>
-    cast_dt_col("orig_format", "char") |>
-    cast_dt_col("unit", "char") |>
-    cast_dt_col("data_type", "factor", levels = c("int", "float", "bool", "factor", "ordered")) |>
-    cast_dt_col("fill_value", "char")
-
-  x[,
-    sources := lapply(
-      sources,
-      function(src) {
-        # coerce to data.table with exactly url & md5sum
-        if (
-          inherits(src, "data.frame") &&
-            all(utils::hasName(src, c("url", "md5sum")))
-        ) {
-          return(src[, c("url", "md5sum")])
+  as_table_t(x, PRED_META_T, derive = function(x) {
+    x[,
+      sources := lapply(
+        sources,
+        function(src) {
+          # coerce to data.table with exactly url & md5sum
+          if (
+            inherits(src, "data.frame") &&
+              all(utils::hasName(src, c("url", "md5sum")))
+          ) {
+            return(src[, c("url", "md5sum")])
+          }
+          src_dt <- data.table::rbindlist(src, use.names = TRUE)
+          if (length(src_dt) == 0L) {
+            # length 0 is a null data frame, e.g. if src is NULL or list()
+            src_dt <- data.table::data.table(url = character(), md5sum = character())
+          }
+          src_dt[, .(url, md5sum)]
         }
-        src_dt <- data.table::rbindlist(src, use.names = TRUE)
-        if (length(src_dt) == 0L) {
-          # length 0 is a null data frame, e.g. if src is NULL or list()
-          src_dt <- data.table::data.table(url = character(), md5sum = character())
-        }
-        src_dt[, .(url, md5sum)]
-      }
-    )
-  ]
-
-  as_ducklake_db_t(
-    x,
-    class_name = "pred_meta_t",
-    key_cols = "name",
-    alternate_key_cols = "id_pred"
-  )
+      )
+    ]
+  })
 }
 
 
@@ -162,9 +165,7 @@ create_pred_meta_t <- function(pred_spec, starting_id = 1L) {
         x %||% NA_character_
       }) |>
         unlist() |>
-        factor(
-          levels = c("int", "float", "bool", "factor", "ordered")
-        )
+        factor(levels = PRED_DATA_TYPES)
     },
     fill_value = unlist(
       lapply(pluck_wildcard(pred_spec, NA, "fill_value"), function(x) x %||% NA_character_)
@@ -182,37 +183,14 @@ create_pred_meta_t <- function(pred_spec, starting_id = 1L) {
 validate.pred_meta_t <- function(x, ...) {
   NextMethod()
 
-  data.table::setcolorder(
-    x,
-    c(
-      "name",
-      "pretty_name",
-      "description",
-      "orig_format",
-      "sources",
-      "unit",
-      "factor_levels"
-    )
-  )
-  # we don't know if there's an id_pred
-  data.table::setcolorder(x, "id_pred", before = "name", skip_absent = TRUE)
-
   sources_dt <- unique(data.table::rbindlist(x[["sources"]]))
 
   stopifnot(
-    is.character(x[["name"]]),
-    is.character(x[["pretty_name"]]),
-    is.character(x[["description"]]),
-    is.character(x[["orig_format"]]),
-    is.list(x[["sources"]]),
-    is.character(x[["unit"]]),
-    is.factor(x[["data_type"]]),
     "data_type must be set" = !any(is.na(x[["data_type"]])),
     "data_type can only be one of 'int', 'float', 'bool', 'factor', 'ordered'" = setequal(
       levels(x[["data_type"]]),
-      c("int", "float", "bool", "factor", "ordered")
+      PRED_DATA_TYPES
     ),
-    is.list(x[["factor_levels"]]),
     "name cannot be empty" = !any(x[["name"]] == ""),
     "single URL with multiple checksums present" = !anyDuplicated(sources_dt[["url"]]),
     "sources must hold exactly a url and an md5sum field" = length(sources_dt) == 0L ||

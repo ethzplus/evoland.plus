@@ -1,29 +1,22 @@
+REPORTING_T <- table_spec(
+  "reporting_t",
+  columns = c(key = "char", value = "char"),
+  descriptions = c(key = "Unique character key", value = "Value as character"),
+  key_cols = "key"
+)
+
 #' Create Reporting Table
 #'
 #' The reporting table holds information handy for writing out reports (tables,
 #' graphs...)
 #'
 #' @name reporting_t
+#' @include ducklake_db_utils.R
 #'
-#' @return A data.table of class "reporting_t" with columns:
-#'   - `key`: Unique character key
-#'   - `value`: Value as character
+#' @eval table_spec_rd(REPORTING_T)
 #' @export
 as_reporting_t <- function(x) {
-  if (missing(x)) {
-    # cannot name a column "key" in data.table(), which takes a `key` argument
-    x <- list(key = character(), value = character())
-  }
-
-  data.table::setDT(x) |>
-    cast_dt_col("key", "char") |>
-    cast_dt_col("value", "char")
-
-  as_ducklake_db_t(
-    x,
-    class_name = "reporting_t",
-    key_cols = "key"
-  )
+  as_table_t(x, REPORTING_T)
 }
 
 #' @describeIn reporting_t Set or update reporting metadata in the database.
@@ -49,20 +42,4 @@ db_set_report <- function(self, ...) {
     key = names(params), # cannot name a column "key" in data.table()
     value = unlist(params)
   ))
-}
-
-
-#' @export
-validate.reporting_t <- function(x, ...) {
-  NextMethod()
-
-  data.table::setcolorder(
-    x,
-    c(
-      "key",
-      "value"
-    )
-  )
-
-  return(x)
 }

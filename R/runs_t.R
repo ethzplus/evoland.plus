@@ -1,3 +1,25 @@
+RUNS_T <- table_spec(
+  "runs_t",
+  columns = c(
+    id_run = "int",
+    parent_id_run = "int",
+    description = "char",
+    rng_seed = "int",
+    id_period_eval_start = "int"
+  ),
+  descriptions = c(
+    id_run = "Unique ID for each run; 0 is the base run",
+    parent_id_run = "The run this run inherits data from; `NA` for the base run",
+    description = "Human-readable description of the run",
+    rng_seed = "Seed for the run's allocation, see [allocate()]; `NA` for none",
+    id_period_eval_start = paste(
+      "First period the run allocates itself, i.e. where it branches off its parent, see",
+      "[allocate()]; `NA` for none"
+    )
+  ),
+  key_cols = "id_run"
+)
+
 #' Create Runs Table
 #'
 #' Creates a runs_t table that stores the identities, hierarchy, and description of
@@ -12,16 +34,11 @@
 #' you assign or commit.
 #'
 #' @name runs_t
+#' @include ducklake_db_utils.R
 #'
 #' @param x A list or data.frame coercible to a data.table
 #'
-#' @return A data.table of class "runs_t" with columns:
-#'   - `id_run`: Unique ID for each run; 0 is the base run
-#'   - `parent_id_run`: The run this run inherits data from; `NA` for the base run
-#'   - `description`: Human-readable description of the run
-#'   - `rng_seed`: Seed for the run's allocation, see [allocate()]; `NA` for none
-#'   - `id_period_eval_start`: First period the run allocates itself, i.e. where it branches
-#'     off its parent, see [allocate()]; `NA` for none
+#' @eval table_spec_rd(RUNS_T)
 #' @export
 as_runs_t <- function(x) {
   if (missing(x)) {
@@ -32,40 +49,14 @@ as_runs_t <- function(x) {
     )
   }
 
-  # a missing column is cast from NULL, which data.table fills with NA
-  data.table::setDT(x) |>
-    cast_dt_col("id_run", "int") |>
-    cast_dt_col("parent_id_run", "int") |>
-    cast_dt_col("rng_seed", "int") |>
-    cast_dt_col("id_period_eval_start", "int")
-
-  as_ducklake_db_t(
-    x,
-    class_name = "runs_t",
-    key_cols = "id_run"
-  )
+  as_table_t(x, RUNS_T)
 }
 
 #' @export
 validate.runs_t <- function(x, ...) {
   NextMethod()
 
-  data.table::setcolorder(
-    x,
-    c(
-      "id_run",
-      "parent_id_run",
-      "description",
-      "rng_seed",
-      "id_period_eval_start"
-    )
-  )
-
   stopifnot(
-    "id_run is not integer" = is.integer(x[["id_run"]]),
-    "parent_id_run is not integer" = is.integer(x[["parent_id_run"]]),
-    "rng_seed is not integer" = is.integer(x[["rng_seed"]]),
-    "id_period_eval_start is not integer" = is.integer(x[["id_period_eval_start"]]),
     "all parent_id_run must be in id_run or NA" = all(
       is.na(x[["parent_id_run"]]) | x[["parent_id_run"]] %in% x[["id_run"]]
     ),

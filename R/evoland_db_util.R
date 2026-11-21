@@ -7,10 +7,12 @@
 NULL
 
 #' @describeIn evoland_db_util Gets the read expression for a given table, taking into
-#' account the run lineage and distinctness columns. If the table has no `id_run` column
-#' or is the `runs_t` table itself, falls back to the default read expression.
-#' Otherwise, constructs a read expression that filters for `id_run` and its lineage,
-#' using the distinctness columns to determine which slices of data to include.
+#' account the run lineage. Whether a table is run-scoped, and which columns form one
+#' inheritance slice, is the `inherit_by` of its `table_spec()` in `EVOLAND_SCHEMA`; a table
+#' that is not in the registry is run-scoped if its stored metadata carries `inherit_by`.
+#' A table that is not run-scoped, or a read without `id_run`, falls back to the default
+#' read expression. Otherwise, the read expression filters for `id_run` and its lineage,
+#' taking each slice from the closest run in the lineage that holds it.
 #' @param self The `evoland_db` instance
 #' @param super The superclass (parent class) environment.
 #' @param table_name The name of the table to read from
@@ -18,32 +20,20 @@ NULL
 #' @return A SQL expression string to read most specific data for slice
 get_evoland_db_read_expr <- function(self, super, table_name, id_run) {
   base_read_expr <- super$get_read_expr(table_name)
-  all_cols <- self$get_query(
-    "select column_name from (describe {base_read_expr})",
-    as_atomic = TRUE
-  )
-
-  if (
-    is.null(id_run) || # no run to read
-      !("id_run" %in% all_cols) || # no id_run in table
-      table_name == "runs_t" # runs_t table itself
-  ) {
-    return(super$get_read_expr(table_name))
+  if (is.null(id_run)) {
+    return(base_read_expr)
   }
 
-  # Hardcode the set of columns to probe for distinctness; i.e. if any value is present
-  # for a given distinctness tuple, the corresponding slice of data will be used. This
-  # is a tradeoff: we could also choose to fall through on each coordinate point, but
-  # that would blow up the query time.
-  theoretical_distinctness_cols <- c(
-    "id_run",
-    "id_period",
-    "id_period_post",
-    "id_trans",
-    "id_pred"
-  )
-  distinctness_cols <- intersect(all_cols, theoretical_distinctness_cols)
-  inheritance_key_cols <- setdiff(distinctness_cols, "id_run")
+  inherit_by <- if (table_name %in% names(EVOLAND_SCHEMA)) {
+    EVOLAND_SCHEMA[[table_name]][["inherit_by"]]
+  } else {
+    self$get_table_metadata(table_name)[["inherit_by"]]
+  }
+  if (is.null(inherit_by)) {
+    return(base_read_expr)
+  }
+
+  distinctness_cols <- c("id_run", inherit_by)
 
   run_lineage <- get_lineage(self$runs_t, as.integer(id_run))
 
@@ -79,9 +69,9 @@ get_evoland_db_read_expr <- function(self, super, table_name, id_run) {
 
   # Special case for id_period: need self-join on id_period AND id_period=0;
   # currently only relevant for pred_data_t, but let's generalize just in case
-  if ("id_period" %in% inheritance_key_cols) {
+  if ("id_period" %in% inherit_by) {
     join_conditions <- lapply(
-      inheritance_key_cols,
+      inherit_by,
       function(col) {
         if (col == "id_period") {
           # special case for id_period: self-join data_present to allow for
@@ -107,11 +97,11 @@ get_evoland_db_read_expr <- function(self, super, table_name, id_run) {
         {group_cols}
       ]",
       group_cols = glue::glue_sql_collapse(
-        self$interpolate_sql("b.{`inheritance_key_cols`}"),
+        self$interpolate_sql("b.{`inherit_by`}"),
         sep = ", "
       )
     )
-  } else if (length(inheritance_key_cols) > 0L) {
+  } else if (length(inherit_by) > 0L) {
     # general case: find minimum distance id_run for each tuple of inheritance key cols
     ctes[["best_run"]] <- self$interpolate_sql(
       r"[
@@ -124,7 +114,7 @@ get_evoland_db_read_expr <- function(self, super, table_name, id_run) {
         {group_cols}
       ]",
       group_cols = glue::glue_sql_collapse(
-        self$interpolate_sql("b.{`inheritance_key_cols`}"),
+        self$interpolate_sql("b.{`inherit_by`}"),
         sep = ", "
       )
     )

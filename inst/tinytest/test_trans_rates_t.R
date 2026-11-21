@@ -1,9 +1,5 @@
 library(tinytest)
 
-# Test empty trans_rates_t creation
-trans_rates_t <- as_trans_rates_t()
-expect_stdout(print(trans_rates_t), "empty")
-
 # Test extrapolation
 periods <-
   data.table::rowwiseDT(

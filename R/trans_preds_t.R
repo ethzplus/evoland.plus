@@ -1,3 +1,18 @@
+TRANS_PREDS_T <- table_spec(
+  "trans_preds_t",
+  columns = c(id_run = "int", id_pred = "int", id_trans = "int", is_selected = "bool"),
+  descriptions = c(
+    id_run = "Foreign key to [runs_t]",
+    id_pred = "Foreign key to [pred_meta_t]",
+    id_trans = "Foreign key to [trans_meta_t]",
+    is_selected = "Whether the models of the transition use the predictor"
+  ),
+  key_cols = c("id_run", "id_pred", "id_trans"),
+  # each pair is its own slice, so that a run deselects an inherited predictor by holding
+  # the pair with is_selected = FALSE
+  inherit_by = c("id_pred", "id_trans")
+)
+
 #' Create Transition-Predictor Relationship Table
 #'
 #' Creates a trans_preds_t table, which lists the transition / predictor pairs a run
@@ -8,17 +23,13 @@
 #' flags rather than a subset of it: rows left out of the assignment keep the flags they had.
 #'
 #' @name trans_preds_t
+#' @include ducklake_db_utils.R
 #'
 #' @param self An [evoland_db] instance with populated trans_meta_t and pred_meta_t tables
 #' @param x A list or data.frame coercible to a trans_preds_t object. If missing, an
 #' empty table will be created. If it has no `is_selected` column, every pair is selected.
 #'
-#' @return A data.table of class "trans_preds_t" with columns:
-#'   - `id_run`: Foreign key to runs_t
-#'   - `id_pred`: Foreign key to pred_meta_t
-#'   - `id_trans`: Foreign key to trans_meta_t
-#'   - `is_selected`: Logical, whether the models of the transition use the predictor
-#'   - any further columns, e.g. filter scores
+#' @eval table_spec_rd(TRANS_PREDS_T)
 #' @examples
 #' \dontrun{
 #' # a typical selection step
@@ -28,46 +39,19 @@
 #' }
 #' @export
 as_trans_preds_t <- function(x) {
-  if (missing(x)) {
-    x <- data.table::data.table(
-      id_run = integer(0),
-      id_pred = integer(0),
-      id_trans = integer(0),
-      is_selected = logical(0)
-    )
+  if (!missing(x)) {
+    data.table::setDT(x)
+    if (!"is_selected" %in% names(x)) {
+      x[, is_selected := TRUE]
+    }
   }
 
-  data.table::setDT(x)
-  if (!"is_selected" %in% names(x)) {
-    x[, is_selected := TRUE]
-  }
-
-  x |>
-    cast_dt_col("id_run", "int") |>
-    cast_dt_col("id_pred", "int") |>
-    cast_dt_col("id_trans", "int") |>
-    cast_dt_col("is_selected", "bool")
-
-  as_ducklake_db_t(
-    x,
-    "trans_preds_t",
-    key_cols = c("id_run", "id_pred", "id_trans")
-  )
+  as_table_t(x, TRANS_PREDS_T)
 }
 
 #' @export
 validate.trans_preds_t <- function(x, ...) {
   NextMethod()
-
-  data.table::setcolorder(
-    x,
-    c(
-      "id_run",
-      "id_pred",
-      "id_trans",
-      "is_selected"
-    )
-  )
 
   # Skip soft checks if empty
   if (nrow(x) == 0L) {
@@ -75,10 +59,6 @@ validate.trans_preds_t <- function(x, ...) {
   }
 
   stopifnot(
-    is.integer(x[["id_run"]]),
-    is.integer(x[["id_pred"]]),
-    is.integer(x[["id_trans"]]),
-    is.logical(x[["is_selected"]]),
     all(x[["id_pred"]] > 0),
     all(x[["id_trans"]] > 0),
     "is_selected must be TRUE or FALSE, not NA" = !anyNA(x[["is_selected"]])

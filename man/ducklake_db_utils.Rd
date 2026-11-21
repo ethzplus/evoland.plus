@@ -11,6 +11,9 @@
 \alias{kv_df_to_list}
 \alias{create_table_binding}
 \alias{create_method_binding}
+\alias{table_spec}
+\alias{as_table_t}
+\alias{table_spec_rd}
 \title{DuckLake database utility functions}
 \usage{
 as_ducklake_db_t(
@@ -40,6 +43,23 @@ create_table_binding(
 )
 
 create_method_binding(fun, with_private = FALSE, with_super = FALSE)
+
+table_spec(
+  name,
+  columns,
+  descriptions,
+  key_cols = NULL,
+  alternate_key_cols = NULL,
+  partition_cols = NULL,
+  inherit_by = NULL,
+  optional_cols = NULL,
+  levels = list(),
+  allow_extra_cols = TRUE
+)
+
+as_table_t(x, spec, derive = NULL)
+
+table_spec_rd(spec)
 }
 \arguments{
 \item{class_name}{Optional class name to prepend before "ducklake_db_t". Used
@@ -65,7 +85,7 @@ hive style partitioning of the data files.}
 
 \item{file}{Name of a SQL file in the installed package.}
 
-\item{metadata}{Named list of atomic vectors.}
+\item{metadata}{Named list of atomic vectors; keys match \verb{\\w+}, values hold no newline.}
 
 \item{comment}{Character scalar, or NA for a table without metadata.}
 
@@ -84,6 +104,28 @@ table doesn't exist), "upsert", "append", and "overwrite".}
 \item{with_private}{Whether to also pass the R6 reference to \code{private} as an argument}
 
 \item{with_super}{Whether to also pass the R6 reference to \code{super} as an argument}
+
+\item{name}{The table name, which is also the class of its objects.}
+
+\item{columns}{Named character vector, column name to type, in the canonical order. Types
+are those of \code{cast_dt_col()} (\code{"int"}, \code{"float"}, \code{"bool"}, \code{"char"}, \code{"date"},
+\code{"factor"}), \code{"list"}, and \code{"map"} for a list column stored as a DuckDB \code{MAP}.}
+
+\item{descriptions}{Named character vector, the meaning of every column, for the
+documentation.}
+
+\item{inherit_by}{\code{NULL} for a table that is not run-scoped; otherwise the columns
+besides \code{id_run} that form one slice of inheritance through the run lineage.}
+
+\item{optional_cols}{Like \code{columns}, for columns that are cast when present but not added.}
+
+\item{levels}{Named list, factor column to its levels.}
+
+\item{allow_extra_cols}{If \code{FALSE}, columns not declared are rejected.}
+
+\item{spec}{A \code{table_spec}.}
+
+\item{derive}{Optional function computing derived columns of the cast table by reference.}
 }
 \description{
 A set of utility functions for working with \link{ducklake_db}.
@@ -100,7 +142,7 @@ file are filled from the named arguments given alongside it.
 
 \item \code{serialize_metadata()}: Serialize a named list of atomic vectors into the
 single string that \link{ducklake_db} stores as a comment on the catalog table. Each
-entry becomes one line, \verb{key: "value1", "value2"}.
+entry becomes one line, \verb{key: "value1", "value2"}; a \verb{"} in a value is written \verb{\\"}.
 
 \item \code{deserialize_metadata()}: Recover the named list written by
 \code{\link[=serialize_metadata]{serialize_metadata()}}. Values are type-converted, so that a numeric
@@ -121,6 +163,17 @@ to fetch or commit data to that table. The active binding either returns the tab
 \item \code{create_method_binding()}: Helper function to bind a function as a method to an R6
 generator. Simply passes the R6 method's arguments as-is to the underlying "pure"
 function, passing the R6 reference to \code{self}, but not to \code{private}.
+
+\item \code{table_spec()}: Declare a table once, as data. Its constructor
+(\code{as_table_t()}), its help page's column list (\code{table_spec_rd()}) and, for the tables of
+\link{evoland_db}, the ER diagram and the reads through the run lineage are derived from it.
+
+\item \code{as_table_t()}: Coerce \code{x} (or, if missing, an empty table) to the table
+\code{spec} declares: cast every column, add the missing ones as \code{NA} (\code{NULL} for list
+columns), apply \code{derive}, set the column order and finish with \code{\link[=as_ducklake_db_t]{as_ducklake_db_t()}}.
+
+\item \code{table_spec_rd()}: The \verb{@return} section listing a table's columns, for
+\verb{#' @eval table_spec_rd(SPEC)}.
 
 }}
 \keyword{internal}

@@ -93,11 +93,11 @@ descriptors like "bed nights/year" as a proxy for touristic activity}
 \value{
 A data.table of class "pred_data_t" with columns:
 \itemize{
-\item \code{id_run}: Foreign key to runs_t
-\item \code{id_pred}: Foreign key to pred_meta_t
-\item \code{id_coord}: Foreign key to coords_t
-\item \code{id_period}: Foreign key to periods_t
-\item \code{value}: Predictor value (coerced to double, recoverable through \link{pred_meta_t})
+\item \code{id_run}: Foreign key to \link{runs_t}
+\item \code{id_period}: Foreign key to \link{periods_t}
+\item \code{id_pred}: Foreign key to \link{pred_meta_t}
+\item \code{id_coord}: Foreign key to \link{coords_t}
+\item \code{value}: Predictor value, stored as double and cast back through \link{pred_meta_t}
 }
 
 data.table with columns id_coord, id_period, did_transition (bool),

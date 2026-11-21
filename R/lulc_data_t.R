@@ -1,65 +1,33 @@
+LULC_DATA_T <- table_spec(
+  "lulc_data_t",
+  columns = c(id_run = "int", id_coord = "int", id_lulc = "int", id_period = "int"),
+  descriptions = c(
+    id_run = "Foreign key to [runs_t]",
+    id_coord = "Foreign key to [coords_t]",
+    id_lulc = "Foreign key to [lulc_meta_t]",
+    id_period = "Foreign key to [periods_t]"
+  ),
+  key_cols = c("id_run", "id_coord", "id_period"),
+  partition_cols = "id_run",
+  # run-scoped: read through the lineage, one slice per period
+  inherit_by = "id_period",
+  allow_extra_cols = FALSE
+)
+
 #' Create LULC Data Table
 #'
 #' Creates an `lulc_data_t` table and validates that it matches the schema.
 #'
 #' @name lulc_data_t
+#' @include ducklake_db_utils.R
 #'
 #' @param x An object that can be passed to [data.table::setDT()]
 #'
-#' @return A data.table of class "lulc_data_t" with columns:
-#'   - `id_run`: Foreign key to runs_t
-#'   - `id_period`: Foreign key to periods_t
-#'   - `id_lulc`: Foreign key to lulc_meta_t
-#'   - `id_coord`: Foreign key to coords_t
+#' @eval table_spec_rd(LULC_DATA_T)
 #'
 #' @export
 as_lulc_data_t <- function(x) {
-  if (missing(x)) {
-    x <- data.table::data.table(
-      id_run = integer(0),
-      id_period = integer(0),
-      id_lulc = integer(0),
-      id_coord = integer(0)
-    )
-  }
-
-  data.table::setDT(x) |>
-    cast_dt_col("id_run", "int") |>
-    cast_dt_col("id_period", "int") |>
-    cast_dt_col("id_lulc", "int") |>
-    cast_dt_col("id_coord", "int")
-
-  as_ducklake_db_t(
-    x = x,
-    class_name = "lulc_data_t",
-    key_cols = c("id_run", "id_coord", "id_period"),
-    partition_cols = "id_run"
-  )
-}
-
-#' @export
-validate.lulc_data_t <- function(x, ...) {
-  NextMethod()
-
-  data.table::setcolorder(
-    x,
-    c(
-      "id_run",
-      "id_coord",
-      "id_lulc",
-      "id_period"
-    )
-  )
-  stop_on_extra_cols(x, c("id_run", "id_coord", "id_lulc", "id_period"))
-
-  stopifnot(
-    is.integer(x[["id_run"]]),
-    is.integer(x[["id_coord"]]),
-    is.integer(x[["id_lulc"]]),
-    is.integer(x[["id_period"]])
-  )
-
-  return(x)
+  as_table_t(x, LULC_DATA_T)
 }
 
 #' @export

@@ -167,17 +167,21 @@ read_sql <- function(file) {
 
 #' @describeIn ducklake_db_utils Serialize a named list of atomic vectors into the
 #' single string that [ducklake_db] stores as a comment on the catalog table. Each
-#' entry becomes one line, `key: "value1", "value2"`.
-#' @param metadata Named list of atomic vectors.
+#' entry becomes one line, `key: "value1", "value2"`; a `"` in a value is written `\"`.
+#' @param metadata Named list of atomic vectors; keys match `\w+`, values hold no newline.
 #' @keywords internal
 serialize_metadata <- function(metadata) {
   if (length(metadata) == 0L) {
     return("")
   }
+  stopifnot(
+    "metadata keys must match \\w+" = all(grepl("^\\w+$", names(metadata))),
+    "metadata values must not contain a newline" = !any(grepl("\n", unlist(metadata)))
+  )
 
   values <- vapply(
     metadata,
-    function(value) paste0('"', value, '"', collapse = ", "),
+    function(value) paste0('"', gsub('"', '\\"', value, fixed = TRUE), '"', collapse = ", "),
     character(1)
   )
 
@@ -199,8 +203,9 @@ deserialize_metadata <- function(comment) {
   values <- sub("^[^:]*: ", "", entries)
 
   parsed <- lapply(values, function(value) {
-    strsplit(value, ", ", fixed = TRUE)[[1]] |>
+    strsplit(value, '(?<!\\\\)", "', perl = TRUE)[[1]] |>
       gsub('^"|"$', "", x = _) |>
+      gsub('\\"', '"', x = _, fixed = TRUE) |>
       utils::type.convert(as.is = TRUE)
   })
 
@@ -368,4 +373,122 @@ create_method_binding <- function(fun, with_private = FALSE, with_super = FALSE)
 
   # Evaluate in original environment. Preserves lazy evaluation of arguments.
   eval(cl, envir = parent.frame(2))
+}
+
+#' @describeIn ducklake_db_utils Declare a table once, as data. Its constructor
+#' (`as_table_t()`), its help page's column list (`table_spec_rd()`) and, for the tables of
+#' [evoland_db], the ER diagram and the reads through the run lineage are derived from it.
+#' @param name The table name, which is also the class of its objects.
+#' @param columns Named character vector, column name to type, in the canonical order. Types
+#'   are those of `cast_dt_col()` (`"int"`, `"float"`, `"bool"`, `"char"`, `"date"`,
+#'   `"factor"`), `"list"`, and `"map"` for a list column stored as a DuckDB `MAP`.
+#' @param descriptions Named character vector, the meaning of every column, for the
+#'   documentation.
+#' @param inherit_by `NULL` for a table that is not run-scoped; otherwise the columns
+#'   besides `id_run` that form one slice of inheritance through the run lineage.
+#' @param optional_cols Like `columns`, for columns that are cast when present but not added.
+#' @param levels Named list, factor column to its levels.
+#' @param allow_extra_cols If `FALSE`, columns not declared are rejected.
+table_spec <- function(
+  name,
+  columns,
+  descriptions,
+  key_cols = NULL,
+  alternate_key_cols = NULL,
+  partition_cols = NULL,
+  inherit_by = NULL,
+  optional_cols = NULL,
+  levels = list(),
+  allow_extra_cols = TRUE
+) {
+  stopifnot(
+    "descriptions must name every column" = setequal(
+      names(descriptions),
+      names(c(columns, optional_cols))
+    ),
+    "keys, partitions and inherit_by must be columns" = all(
+      c(key_cols, alternate_key_cols, partition_cols, inherit_by) %in% names(columns)
+    )
+  )
+  map_cols <- names(columns)[columns == "map"]
+  structure(
+    list(
+      name = name,
+      columns = columns,
+      optional_cols = optional_cols,
+      descriptions = descriptions[names(c(columns, optional_cols))],
+      key_cols = key_cols,
+      alternate_key_cols = alternate_key_cols,
+      partition_cols = partition_cols,
+      map_cols = if (length(map_cols)) map_cols,
+      inherit_by = inherit_by,
+      levels = levels,
+      allow_extra_cols = allow_extra_cols
+    ),
+    class = "table_spec"
+  )
+}
+
+#' @describeIn ducklake_db_utils Coerce `x` (or, if missing, an empty table) to the table
+#' `spec` declares: cast every column, add the missing ones as `NA` (`NULL` for list
+#' columns), apply `derive`, set the column order and finish with [as_ducklake_db_t()].
+#' @param spec A `table_spec`.
+#' @param derive Optional function computing derived columns of the cast table by reference.
+as_table_t <- function(x, spec, derive = NULL) {
+  x <- if (missing(x)) data.table::data.table() else data.table::setDT(x)
+  all_cols <- c(spec[["columns"]], spec[["optional_cols"]])
+  for (col in names(all_cols)) {
+    type <- all_cols[[col]]
+    if (!col %in% names(x)) {
+      if (col %in% names(spec[["optional_cols"]])) {
+        next
+      }
+      # wrapped in a list, or a single NULL would remove the column
+      value <- if (type %in% c("list", "map")) {
+        list(rep(list(NULL), nrow(x)))
+      } else {
+        rep(NA, nrow(x))
+      }
+      data.table::set(x, j = col, value = value)
+    }
+    if (!type %in% c("list", "map")) {
+      cast_dt_col(x, col, type, levels = spec[["levels"]][[col]])
+    }
+  }
+  if (!is.null(derive)) {
+    derive(x)
+  }
+  if (!spec[["allow_extra_cols"]]) {
+    stop_on_extra_cols(x, names(all_cols))
+  }
+  data.table::setcolorder(x, intersect(names(all_cols), names(x)))
+  data.table::setattr(x, "inherit_by", spec[["inherit_by"]])
+
+  as_ducklake_db_t(
+    x,
+    class_name = spec[["name"]],
+    key_cols = spec[["key_cols"]],
+    alternate_key_cols = spec[["alternate_key_cols"]],
+    map_cols = spec[["map_cols"]],
+    partition_cols = spec[["partition_cols"]]
+  )
+}
+
+#' @describeIn ducklake_db_utils The `@return` section listing a table's columns, for
+#' `#' @eval table_spec_rd(SPEC)`.
+table_spec_rd <- function(spec) {
+  optional <- names(spec[["descriptions"]]) %in% names(spec[["optional_cols"]])
+  paste(
+    c(
+      paste0('@return A data.table of class "', spec[["name"]], '" with columns:'),
+      paste0(
+        "  - `",
+        names(spec[["descriptions"]]),
+        "`: ",
+        ifelse(optional, "Optional. ", ""),
+        spec[["descriptions"]]
+      )
+    ),
+    collapse = "\n"
+  )
 }

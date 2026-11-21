@@ -88,8 +88,8 @@ Only write Rcpp-free headers when the code should also compile as a standalone p
   - Which columns serve which purpose is read from those attributes on the data being committed, and otherwise from the metadata the target table already carries -- `ducklake_db` makes no assumption about how domain constructors are named.
   - DuckLake supports no constraints, keys or indexes, and `MERGE` silently inserts duplicates from a source with duplicate keys, so `$commit()` checks uniqueness explicitly before merging. It has no ENUM type either; factors are stored as strings and cast back by the `as_*_t()` constructors.
 - Domain specific database elements are in `R/evoland_db.R`; `evoland_db` inherits from `ducklake_db`.
-  - The schema for this database is (for now) distributed across the class definitions: all `R/*_t.R` files contain `as_*_t` class constructors using `as_ducklake_db_t`.
+  - Each table's schema is declared once, as a `table_spec()` next to its `as_*_t` constructor in `R/*_t.R`: columns, types, keys, partitions, map columns and, for run-scoped tables, the slice a run inherits (`inherit_by`). The specs are collected in `EVOLAND_SCHEMA` (`R/evoland_db.R`); constructors, validation, help pages and the ER diagram read them.
   - Because the catalog may be read and written from external tools, it should be considered part of the API. Schema changes should be avoided as much as possible.
-  - After changing a table's columns or keys, regenerate the ER diagram with `Rscript devdocs/er_diagram.R`; CI fails if it is out of date.
+  - After changing a table's spec, regenerate the ER diagram and the column tables in `devdocs/design/database.md` with `Rscript devdocs/er_diagram.R`, and the help pages with roxygen; CI fails if the diagram is out of date.
   - Ad-hoc views are suffixed `_v` and generally exposed as active bindings, or as methods if they are parameterized.
   - Every new method must be added in `R/evoland_db.R` and _not_ with `$set`. This is because the roxygen documentation routine for R6 objects relies on all documentation being available in a single file.

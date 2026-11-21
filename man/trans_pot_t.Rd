@@ -44,10 +44,10 @@ read through its lineage, and the potentials are written under it}
 \value{
 A data.table of class "trans_pot_t" with columns:
 \itemize{
-\item \code{id_run}: Foreign key to \code{\link[=runs_t]{runs_t()}}
-\item \code{id_trans}: Foreign key to \code{\link[=trans_meta_t]{trans_meta_t()}}
-\item \code{id_period_post}: Foreign key to \code{\link[=periods_t]{periods_t()}}, the posterior period
-\item \code{id_coord}: Foreign key to \code{\link[=coords_t]{coords_t()}}
+\item \code{id_run}: Foreign key to \link{runs_t}
+\item \code{id_trans}: Foreign key to \link{trans_meta_t}
+\item \code{id_period_post}: Foreign key to \link{periods_t}, the posterior period
+\item \code{id_coord}: Foreign key to \link{coords_t}
 \item \code{value}: Raw transition potential in [0, 1], as predicted by the transition's model
 }
 

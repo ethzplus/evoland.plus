@@ -38,12 +38,15 @@ Not all methods follow this yet: the views in `R/evoland_db_views.R` are still a
 Each table has an S3 class inheriting from `ducklake_db_t`, which inherits from `data.table`.
 The class is defined in `R/<table>_t.R`, which holds:
 
-- `as_<table>_t()`, which coerces any list or data.frame, casts the columns and declares the table's keys, partitioning and map columns as attributes;
+- `<TABLE>_T`, a `table_spec()` declaring the table once, as data: its columns with their types and descriptions, its keys, partitioning and map columns, and, for a run-scoped table, `inherit_by`, the columns that form one slice of inheritance through the run lineage;
+- `as_<table>_t()`, which coerces any list or data.frame to the table its spec declares (`as_table_t()`): it casts the columns and declares the table's keys, partitioning and map columns as attributes;
 - optionally `create_<table>_t()`, which derives the table from a specification (`create_periods_t(period_length_str = "P10Y", ...)`);
-- `validate.<table>_t()`, which checks invariants (non-overlapping periods, a base run), called by every constructor;
+- `validate.<table>_t()`, which checks the declared columns and the invariants of the table (non-overlapping periods, a base run), called by every constructor;
 - `print.<table>_t()`, which prints a summary before the data.
 
-Because `ducklake_db` reads keys and partitioning from these attributes, the schema is defined in R, one file per table, and `ducklake_db` itself needs no knowledge of it.
+The registry `EVOLAND_SCHEMA` (`R/evoland_db.R`) lists every spec.
+`evoland_db` reads from it which tables are run-scoped and how, and `devdocs/er_diagram.R` generates the ER diagram and the column tables of [database.md](database.md) from it; the help pages list the columns from the same specs.
+Because `ducklake_db` reads keys and partitioning from the attributes, the schema is defined in R, one file per table, and `ducklake_db` itself needs no knowledge of it.
 This also leaves room for ad-hoc adaptations in a specific analysis: a table can carry an additional column that is useful in one scenario while keeping the guarantees of the schema, and entirely new tables can be committed with `as_ducklake_db_t()` or even as a plain `data.table`.
 
 ## Allocation backends

@@ -26,10 +26,10 @@ create_lulc_meta_t(lulc_class_spec)
 A data.table of class "lulc_meta_t" with columns:
 \itemize{
 \item \code{id_lulc}: Unique ID for each land use class
-\item \code{name}: Name for use in code and queries
-\item \code{pretty_name}: Long name for plots/output
+\item \code{name}: Concise name for use in code and queries, e.g. \code{forest_dense}
+\item \code{pretty_name}: Long name for plots and output, e.g. \emph{Dense/Old Growth Forest}
 \item \code{description}: Long description / operationalisation
-\item \code{src_classes}: List of source class IDs aggregated into this class
+\item \code{src_classes}: List of the source class IDs that are aggregated into this class
 }
 }
 \description{
