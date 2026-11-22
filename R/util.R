@@ -173,7 +173,6 @@ stop_on_extra_cols <- function(x, cols) {
 
 #' @describeIn util Print a dataframe in a row-wise yaml style
 #' @param df A data.frame or data.table to print
-#' @export
 print_rowwise_yaml <- function(df) {
   for (i in seq_len(nrow(df))) {
     cat(sprintf("- row %d:\n", i))
