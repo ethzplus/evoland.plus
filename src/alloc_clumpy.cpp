@@ -552,6 +552,258 @@ IntegerVector grow_patch_cpp(IntegerVector landscape,
 }
 
 // ---------------------------------------------------------------------------
+// Allocation of one anterior class
+// ---------------------------------------------------------------------------
+
+// What every anterior class of one allocation shares: the working and the
+// anterior landscape, the neighbours, and the per-transition potentials and
+// patch parameters (indexed by transition t, as the exported arguments).
+struct Allocation {
+  std::vector<int> land; // working layer, written by allocated cells
+  std::vector<int> ant;  // anterior snapshot, never written
+  std::vector<int> up, down, left, right;
+  int ncol = 0;
+  std::vector<SparseColumn> cols;
+  IntegerVector trans_to;
+  NumericVector area_mean, area_var, elongation;
+  int area_dist = 0;
+  bool rarefy = true, shuffle = true, avoid_aggregation = true;
+
+  // a cell of anterior class `fc` that no patch of this step has taken
+  bool available(int cell, int fc) const {
+    return land[cell] == fc && ant[cell] == fc;
+  }
+
+  // Cells of anterior class `fc` not yet changed, in raster order.
+  std::vector<int> class_cells(int fc) const {
+    std::vector<int> cells;
+    for (int idx = 0; idx < (int)land.size(); ++idx) {
+      if (available(idx, fc)) cells.push_back(idx);
+    }
+    return cells;
+  }
+
+  // Effective (clamped, optionally rarefied) pivot-selection probability.
+  // Mazy Fig. 3.2: the pivot-cell probability fed to MuST is the per-pixel
+  // transition probability divided by the mean patch area E(sigma).  Each pivot
+  // grows into a patch of mean size E(sigma), so to allocate the target
+  // quantity of change P(v|u)#J (eq. 3.11: E(#Jv^c) E(sigma) = P(v|u)#J) the
+  // pivots must be rarefied by 1/E(sigma); otherwise allocation overshoots by
+  // ~E(sigma).
+  double pivot_prob(int cell, int t) const {
+    double p = cols[t].value_at(cell);
+    if (ISNAN(p) || p < 0.0) p = 0.0;
+    if (rarefy) {
+      const double am = area_mean[t];
+      if (!ISNAN(am) && am > 1.0) p /= am; // 1/E(sigma); mono-pixel needs none
+    }
+    return p;
+  }
+
+  // Draw a patch area for transition t and grow the patch from `pivot`; see
+  // grow_one_patch() for the return value and `out`.
+  int grow(int pivot, int t, int fc, std::vector<int> &out) {
+    const int area = draw_area(area_mean[t], area_var[t], area_dist);
+    const SparseColumn &col = cols[t];
+    return grow_one_patch(
+        land, ant, [&](int c) { return col.value_at(c); }, up, down, left,
+        right, pivot, area, fc, trans_to[t], elongation[t], ncol,
+        avoid_aggregation, out);
+  }
+};
+
+// uSAM: a single MuST pass over the cells of class `fc`, mono-pixel
+// allocation.  `at` holds the transitions from `fc`.
+static void allocate_usam_class(Allocation &alloc, int fc,
+                                const std::vector<int> &at) {
+  const int k = (int)at.size();
+  const std::vector<int> pool = alloc.class_cells(fc);
+  const int m = (int)pool.size();
+  std::vector<int> sampled(m);
+  for (int i = 0; i < m; ++i) {
+    const int cell = pool[i];
+    const int sel =
+        must_draw_one(k, [&](int q) { return alloc.pivot_prob(cell, at[q]); });
+    sampled[i] = (sel < 0) ? -1 : at[sel];
+  }
+  for (int i = 0; i < m; ++i) {
+    if (sampled[i] < 0) continue;
+    const int pv = pool[i];
+    if (alloc.available(pv, fc)) alloc.land[pv] = alloc.trans_to[sampled[i]];
+  }
+}
+
+// uPAM state of one anterior class.  A *slot* is a cell's position in the
+// initial pool (the class's cells in raster order); per-transition quantities
+// are indexed by q, the position of the transition in `trans`.
+struct UpamClass {
+  int fc;
+  std::vector<int> trans;        // q -> transition index t
+  std::vector<int> cell_of_slot; // 0-based raster cell of each slot
+  std::vector<char> in_pool;     // per slot: not allocated, not failed
+  std::vector<int> pool;         // slots still in the pool, ascending
+  std::vector<double> pivot_p;   // [q * n_slots + slot]: pivot probability
+  std::vector<double> remaining; // per q: quota still to allocate, cells
+
+  UpamClass(const Allocation &alloc, int fc_, const std::vector<int> &at)
+      : fc(fc_), trans(at), cell_of_slot(alloc.class_cells(fc_)) {
+    const int n_slots = (int)cell_of_slot.size();
+    in_pool.assign(n_slots, 1);
+    pool.resize(n_slots);
+    for (int s = 0; s < n_slots; ++s) pool[s] = s;
+    pivot_p.resize((size_t)trans.size() * n_slots);
+    for (size_t q = 0; q < trans.size(); ++q) {
+      for (int s = 0; s < n_slots; ++s) {
+        pivot_p[q * n_slots + s] = alloc.pivot_prob(cell_of_slot[s], trans[q]);
+      }
+    }
+  }
+
+  int k() const { return (int)trans.size(); }
+  int n_slots() const { return (int)cell_of_slot.size(); }
+  double pivot_prob(int slot, int q) const {
+    return pivot_p[(size_t)q * n_slots() + slot];
+  }
+
+  bool any_quota() const {
+    for (double r : remaining) {
+      if (r > 0.0) return true;
+    }
+    return false;
+  }
+
+  // Drop the slots that left the pool since the last pass.
+  void compact() {
+    pool.erase(std::remove_if(pool.begin(), pool.end(),
+                              [&](int s) { return !in_pool[s]; }),
+               pool.end());
+  }
+
+  // Take the cells of an attempted patch out of the pool (sampling without
+  // replacement); cells that are not in it (other classes, already failed)
+  // are skipped.
+  void remove_cells(const std::vector<int> &cells,
+                    const std::vector<int> &slot_of_cell) {
+    for (int c : cells) {
+      const int s = slot_of_cell[c];
+      if (s >= 0) in_pool[s] = 0;
+    }
+  }
+};
+
+// Per-transition quota in whole cells: N_{u->v} = P(v|u) #J (Mazy App. 3.E.2
+// Algorithm 3, line 3; eq. 3.11), rounded half to even as R's round(), so that
+// it is the quota allocate() documents.
+static std::vector<double> class_quota(const NumericVector &target_rate,
+                                       const std::vector<int> &trans,
+                                       int n_cells) {
+  std::vector<double> quota(trans.size());
+  for (size_t q = 0; q < trans.size(); ++q) {
+    double rt = target_rate[trans[q]];
+    if (ISNAN(rt) || rt < 0.0) rt = 0.0;
+    quota[q] = std::nearbyint(rt * (double)n_cells);
+  }
+  return quota;
+}
+
+// Pivots attempted per MuST pass:
+//   > 0  explicit cap;
+//   < 0  all candidates in a single pass;
+//    0   AUTO: ~1% of this class's pool, so the number of MuST passes is
+//        bounded (~100) and the per-pass pool re-scan does not blow up to
+//        the O(#patches x pool) cost of strict batch=1 on large rasters.
+static int batch_cap(int batch_size, int pool_size) {
+  if (batch_size > 0) return batch_size;
+  if (batch_size < 0) return INT_MAX;
+  return std::max(1, pool_size / 100);
+}
+
+// One MuST pass over the pool, restricted to the transitions still in quota:
+// the slots that draw a change, and the transition (q) each draws.  Returns
+// the sum of the pivot probabilities tested, complete when no pivot is
+// selected, which is the only case it is read in.
+static double must_pass(const UpamClass &cls, std::vector<int> &cand_slot,
+                        std::vector<int> &cand_q) {
+  cand_slot.clear();
+  cand_q.clear();
+  double mass = 0.0;
+  for (int s : cls.pool) {
+    const int sel = must_draw_one(cls.k(), [&](int q) {
+      const double p = cls.remaining[q] > 0.0 ? cls.pivot_prob(s, q) : 0.0;
+      mass += p;
+      return p;
+    });
+    if (sel >= 0) {
+      cand_slot.push_back(s);
+      cand_q.push_back(sel);
+    }
+  }
+  return mass;
+}
+
+// Grow up to `cap` of the candidate pivots into patches, in the order given.
+// A successful patch uses up quota; the cells of every attempt leave the pool.
+static void grow_batch(Allocation &alloc, UpamClass &cls,
+                       const std::vector<int> &cand_slot,
+                       const std::vector<int> &cand_q, int cap,
+                       const std::vector<int> &slot_of_cell) {
+  int processed = 0;
+  std::vector<int> out;
+  for (size_t c = 0; c < cand_slot.size() && processed < cap; ++c) {
+    const int q = cand_q[c];
+    if (cls.remaining[q] <= 0.0) continue;
+    const int s = cand_slot[c];
+    if (!cls.in_pool[s]) continue; // taken by an earlier patch of this pass
+    const int size = alloc.grow(cls.cell_of_slot[s], cls.trans[q], cls.fc, out);
+    ++processed; // every attempt counts toward the batch
+    if (size > 0) cls.remaining[q] -= (double)size;
+    cls.remove_cells(out, slot_of_cell);
+  }
+}
+
+// uPAM (Mazy sec. 3.4.2, Fig. 3.2) for the cells of class `fc`: MuST passes
+// over the remaining pool, a batch of pivots grown into patches per pass,
+// until every transition's quota is used up or no pivot can be drawn.
+static void allocate_upam_class(Allocation &alloc, int fc,
+                                const std::vector<int> &at,
+                                const NumericVector &target_rate,
+                                int batch_size) {
+  UpamClass cls(alloc, fc, at);
+  if (cls.n_slots() == 0) return;
+  cls.remaining = class_quota(target_rate, cls.trans, cls.n_slots());
+  const int cap = batch_cap(batch_size, cls.n_slots());
+  std::vector<int> slot_of_cell(alloc.land.size(), -1);
+  for (int s = 0; s < cls.n_slots(); ++s) slot_of_cell[cls.cell_of_slot[s]] = s;
+
+  // A pass that selects no pivot is repeated: the chance of one is about
+  // exp(-quota / E(sigma)), so stopping there would leave rare transitions
+  // short.  The number of such passes in a row is bounded (as clumpy's
+  // n_try), in case the remaining potentials are too small to ever select.
+  // Each pass with candidates removes >= 1 cell from the pool (a success
+  // commits to_class, a failure removes the attempted cells), so the loop
+  // terminates.
+  int empty_passes = 0;
+  const int empty_passes_max = 1000;
+  std::vector<int> cand_slot, cand_q;
+  while (cls.any_quota()) {
+    cls.compact();
+    if (cls.pool.empty()) break;
+    const double mass = must_pass(cls, cand_slot, cand_q);
+    if (cand_slot.empty()) {
+      // no potential left for the transitions still in quota: no patch can
+      // be formed (Mazy sec. 3.4.2, third stopping condition)
+      if (mass <= 0.0 || ++empty_passes >= empty_passes_max) break;
+      Rcpp::checkUserInterrupt();
+      continue;
+    }
+    empty_passes = 0;
+    if (alloc.shuffle) shuffle_pair(cand_slot, cand_q);
+    grow_batch(alloc, cls, cand_slot, cand_q, cap, slot_of_cell);
+    Rcpp::checkUserInterrupt();
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Exported: full allocation routine
 // ---------------------------------------------------------------------------
 
@@ -604,187 +856,43 @@ IntegerVector allocate_clumpy_cpp(
   const int n = landscape.size();
   const int T = trans_from.size();
 
-  std::vector<int> land(landscape.begin(), landscape.end());
-  const std::vector<int> ant(land); // immutable anterior snapshot
-
-  std::vector<int> up, down, left, right;
-  build_neighbors(nrow, ncol, up, down, left, right);
-
   // Build the sparse per-transition potential columns from the R lists.
   if (prob_cell.size() != T || prob_value.size() != T) {
     stop("prob_cell and prob_value must each have length(trans_from) elements");
   }
-  std::vector<SparseColumn> cols;
-  cols.reserve(T);
+  Allocation alloc;
+  alloc.land.assign(landscape.begin(), landscape.end());
+  alloc.ant = alloc.land; // immutable anterior snapshot
+  build_neighbors(nrow, ncol, alloc.up, alloc.down, alloc.left, alloc.right);
+  alloc.ncol = ncol;
+  alloc.cols.reserve(T);
   for (int t = 0; t < T; ++t) {
-    cols.push_back(build_sparse_column(as<IntegerVector>(prob_cell[t]),
-                                       as<NumericVector>(prob_value[t]), n));
+    alloc.cols.push_back(build_sparse_column(
+        as<IntegerVector>(prob_cell[t]), as<NumericVector>(prob_value[t]), n));
   }
+  alloc.trans_to = trans_to;
+  alloc.area_mean = area_mean;
+  alloc.area_var = area_var;
+  alloc.elongation = elongation;
+  alloc.area_dist = area_dist;
+  alloc.rarefy = rarefy;
+  alloc.shuffle = shuffle;
+  alloc.avoid_aggregation = avoid_aggregation;
 
   // Anterior classes to process, derived from trans_from.
-  std::set<int> from_set(trans_from.begin(), trans_from.end());
-
-  // Effective (clamped, optionally rarefied) pivot-selection probability.
-  // Mazy Fig. 3.2: the pivot-cell probability fed to MuST is the per-pixel
-  // transition probability divided by the mean patch area E(sigma).  Each pivot
-  // grows into a patch of mean size E(sigma), so to allocate the target quantity
-  // of change P(v|u)#J (eq. 3.11: E(#Jv^c) E(sigma) = P(v|u)#J) the pivots must
-  // be rarefied by 1/E(sigma); otherwise allocation overshoots by ~E(sigma).
-  auto pivot_prob = [&](int cell, int t) -> double {
-    double p = cols[t].value_at(cell);
-    if (ISNAN(p) || p < 0.0) p = 0.0;
-    if (rarefy) {
-      const double am = area_mean[t];
-      if (!ISNAN(am) && am > 1.0) p /= am; // 1/E(sigma); mono-pixel needs none
-    }
-    return p;
-  };
-
+  const std::set<int> from_set(trans_from.begin(), trans_from.end());
   for (int fc : from_set) {
     std::vector<int> at; // transition indices with trans_from == fc
     for (int t = 0; t < T; ++t) {
       if (trans_from[t] == fc) at.push_back(t);
     }
-    if (at.empty()) continue;
-    const int k = (int)at.size();
-
-    // Pool of available source cells (originally fc and not yet changed).
-    std::vector<int> pool;
-    for (int idx = 0; idx < n; ++idx) {
-      if (land[idx] == fc && ant[idx] == fc) pool.push_back(idx);
-    }
-    if (pool.empty()) continue;
-
     if (method == 0) {
-      // ---- uSAM: single MuST pass, mono-pixel allocation ----------------
-      const int m = (int)pool.size();
-      std::vector<int> sampled(m);
-      for (int i = 0; i < m; ++i) {
-        const int cell = pool[i];
-        const int sel =
-            must_draw_one(k, [&](int q) { return pivot_prob(cell, at[q]); });
-        sampled[i] = (sel < 0) ? -1 : at[sel];
-      }
-      for (int i = 0; i < m; ++i) {
-        if (sampled[i] < 0) continue;
-        const int pv = pool[i];
-        if (land[pv] == fc && ant[pv] == fc) land[pv] = trans_to[sampled[i]];
-      }
+      allocate_usam_class(alloc, fc, at);
     } else {
-      // ---- uPAM: iterative MuST + quota + without-replacement ------------
-      // Mazy sec. 3.4.2 (Fig. 3.2): per-transition quantity-of-change quota in
-      // pixels, N_{u->v} = P(v|u) #J (App. 3.E.2 Algorithm 3, line 3; eq. 3.11);
-      // decremented by each successful patch's size sigma until exhausted. The
-      // pool is sampled without replacement (allocated and failed-attempt cells
-      // are removed), which is what keeps the post-allocation distributions
-      // unbiased.
-      std::vector<double> remaining(k);
-      const double m0 = (double)pool.size();
-      for (int q = 0; q < k; ++q) {
-        double rt = target_rate[at[q]];
-        if (ISNAN(rt) || rt < 0.0) rt = 0.0;
-        // N_{u->v} = P(v|u) * #J in whole cells, rounded half to even as R's
-        // round(), so that it is the quota allocate() documents
-        remaining[q] = std::nearbyint(rt * m0);
-      }
-      std::vector<char> blocked(n, 0); // attempted-but-failed cells (removed)
-      // batch_size controls how many pivots are grown per MuST re-draw:
-      //   > 0  explicit cap;
-      //   < 0  all candidates in a single pass;
-      //    0   AUTO: ~1% of this class's pool, so the number of MuST passes is
-      //        bounded (~100) and the per-pass pool re-scan does not blow up to
-      //        the O(#patches x pool) cost of strict batch=1 on large rasters.
-      int bs;
-      if (batch_size > 0) {
-        bs = batch_size;
-      } else if (batch_size < 0) {
-        bs = INT_MAX;
-      } else {
-        bs = std::max(1, (int)(pool.size() / 100));
-      }
-
-      // A pass that selects no pivot is repeated: the chance of one is about
-      // exp(-quota / E(sigma)), so stopping there would leave rare transitions
-      // short.  The number of such passes in a row is bounded (as clumpy's
-      // n_try), in case the remaining potentials are too small to ever select.
-      int guard = 0;
-      const int guard_max = n + 16;
-      int empty_passes = 0;
-      const int empty_passes_max = 1000;
-      while (guard < guard_max) {
-        bool any_quota = false;
-        for (int q = 0; q < k; ++q) {
-          if (remaining[q] > 0.0) {
-            any_quota = true;
-            break;
-          }
-        }
-        if (!any_quota) break;
-
-        // Compact the pool to cells still available and not blocked.
-        pool.erase(std::remove_if(pool.begin(), pool.end(),
-                                  [&](int idx) {
-                                    return blocked[idx] ||
-                                           !(land[idx] == fc && ant[idx] == fc);
-                                  }),
-                   pool.end());
-        if (pool.empty()) break;
-
-        // MuST over the current pool, restricted to in-quota transitions.
-        std::vector<int> cand_cell, cand_q;
-        // sum of the pivot probabilities tested; complete when no pivot is
-        // selected, which is the only case it is read in
-        double mass = 0.0;
-        for (int idx : pool) {
-          const int sel = must_draw_one(k, [&](int q) {
-            const double p = remaining[q] > 0.0 ? pivot_prob(idx, at[q]) : 0.0;
-            mass += p;
-            return p;
-          });
-          if (sel >= 0) {
-            cand_cell.push_back(idx);
-            cand_q.push_back(sel);
-          }
-        }
-        if (cand_cell.empty()) {
-          // no potential left for the transitions still in quota: no patch can
-          // be formed (Mazy sec. 3.4.2, third stopping condition)
-          if (mass <= 0.0 || ++empty_passes >= empty_passes_max) break;
-          Rcpp::checkUserInterrupt();
-          continue;
-        }
-        empty_passes = 0;
-        ++guard;
-        if (shuffle) shuffle_pair(cand_cell, cand_q);
-
-        int processed = 0;
-        std::vector<int> out;
-        for (size_t c = 0; c < cand_cell.size() && processed < bs; ++c) {
-          const int q = cand_q[c];
-          if (remaining[q] <= 0.0) continue;
-          const int pv = cand_cell[c];
-          if (blocked[pv] || land[pv] != fc || ant[pv] != fc) continue;
-          const int t = at[q];
-          const int to = trans_to[t];
-          const int area = draw_area(area_mean[t], area_var[t], area_dist);
-          const SparseColumn &col = cols[t];
-          const int s = grow_one_patch(
-              land, ant, [&](int c) { return col.value_at(c); }, up, down, left,
-              right, pv, area, fc, to, elongation[t], ncol, avoid_aggregation,
-              out);
-          ++processed; // every attempt counts toward the batch
-          if (s > 0) {
-            remaining[q] -= (double)s;
-          } else {
-            for (int b : out) blocked[b] = 1; // remove attempted cells
-          }
-        }
-        // Each pass with candidates removes >= 1 cell from the pool (a success
-        // commits to_class, a failure blocks the attempted cells), and passes
-        // without candidates are bounded, so the loop terminates.
-      }
+      allocate_upam_class(alloc, fc, at, target_rate, batch_size);
     }
   }
+  const std::vector<int> &land = alloc.land;
 
   IntegerVector res(n);
   for (int i = 0; i < n; ++i) res[i] = land[i];
