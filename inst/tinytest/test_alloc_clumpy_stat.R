@@ -87,22 +87,16 @@ expect_true(all(within_binomial(
 )))
 
 # uPAM pivots ####
-# Mazy eq. 3.7, App. 3.D: with mono-pixel patches, the pivots are the allocated cells. In one
-# pass over all candidates (batch_size < 0) they follow the potentials as in uSAM.
+# Mazy eq. 3.7, App. 3.D: with mono-pixel patches, the pivots are the allocated cells. uPAM
+# draws them in repeated MuST passes from a shrinking pool; with the probabilities updated as an
+# urn per bin of potential (Mazy & Longaretti 2023, App. D.3, E.2.3), they follow the
+# potentials as in uSAM, in one pass over all candidates (batch_size < 0) as in the default
+# batches of about 1 % of the pool. Without the update, the cells of high potential, drawn
+# early and then gone from the pool, were under-represented (0.4755 instead of 0.5).
 upam_one_pass <- allocate_strata(seed = 2L, method = 1L, batch_size = -1L)
 expect_true(all(within_binomial(changed_by_stratum(upam_one_pass), strata, n_stratum)))
-# Over several passes they do not: updating the potentials on the remaining pool (sec. 3.4.2,
-# "Iteration and updating") is not yet implemented, so the cells of high potential, drawn
-# early and then gone from the pool, are under-represented and the others over-represented.
-# The shift is pinned at its mean over 30 seeds so that a change of it is noticed; once the
-# update is implemented, this becomes the unbiasedness check above.
 upam_passes <- allocate_strata(seed = 2L, method = 1L)
-expect_true(all(within_binomial(
-  changed_by_stratum(upam_passes),
-  c(0.0252, 0.1197, 0.4751),
-  n_stratum
-)))
-expect_false(within_binomial(changed_by_stratum(upam_passes)[3L], 0.5, n_stratum))
+expect_true(all(within_binomial(changed_by_stratum(upam_passes), strata, n_stratum)))
 # the quantity is exact all the same: 0.62 / 3 of 150 000 cells
 expect_equal(sum(upam_passes == 2L), 31000L)
 

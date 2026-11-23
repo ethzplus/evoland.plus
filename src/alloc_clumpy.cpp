@@ -17,25 +17,66 @@
 //                avoid_aggregation) are ignored.
 //
 //   method = 1  (uPAM, Unbiased Patch Allocation Method, thesis sec. 3.4.2,
-//                Fig. 3.2):  iterative.  MuST is run over the remaining pool, a
-//                batch of pivots is drawn and grown into patches, allocated (or
-//                failed) pixels are removed from the pool (sampling without
-//                replacement) and the per-transition quota is decremented; the
-//                loop repeats until the quota is met or the pool is exhausted.
+//                Fig. 3.2; Mazy & Longaretti 2023, sec. 4.2, Fig. 2,
+//                Algorithm 2):  iterative.  MuST is run over the remaining
+//                pool, a batch of pivots is drawn and grown into patches,
+//                allocated (or failed) pixels are removed from the pool
+//                (sampling without replacement), the per-transition quota is
+//                decremented and the probabilities are updated; the loop
+//                repeats until the quota is met or no pivot can be drawn.
 //                This is the general multi-pixel method (and also covers
 //                mono-pixel patches, with a quota).
 //
-//                Not yet implemented: updating the potentials as the pool
-//                shrinks.  The reference clumpy re-estimates the transition
-//                probabilities on the remaining pool before each pass (thesis
-//                sec. 3.4.2), which is currently too expensive to run here, so
-//                the potentials stay fixed.  Re-drawing pivots from them pass
-//                after pass is successive sampling: the most probable cells
-//                are included slightly less often than their potential, the
-//                others slightly more (about 3 % in the top decile; one pass
-//                over all candidates, batch_size < 0, shows no such shift).
-//                Measured in evoland-experiments
-//                2026-09-paper-figures/010-verify-upam-bias.
+// Updating the probabilities (uPAM).  Drawing pivots pass after pass from
+// potentials that stay fixed while the pool shrinks turns each potential p
+// into a hazard rate: a cell ends up allocated with probability about
+// 1 - exp(-c p), not p, which over-represents cells of low potential.  Mazy &
+// Longaretti (2023, doi:10.1016/j.envsoft.2023.105706) update P(v|u) and
+// rho(z|u) after every patch (sec. 4.2; App. D.4 re-estimates rho(z|u) by
+// kernel density in z).  Here the binned form is used instead (App. D.3,
+// E.2.2-E.2.3: an urn per bin, N_v balls of state v among N), with bins of
+// the potential in place of bins of z: cells of equal potential are
+// exchangeable for the transition, which is all the urn argument needs, and
+// the update needs neither the predictors nor the fitted model.  Per
+// transition (PotentialBins):
+//   * the cells with a potential are sorted by it and cut into at most
+//     `n_bins` bins of about equal potential mass, never between equal
+//     potentials (so a few distinct values get a bin each); the bin count is
+//     capped at one per ten expected pivots, quota / (10 E(sigma)), because a
+//     bin expecting about one patch gets either a whole patch or none;
+//   * each bin keeps its cells still in the pool, the sum of their potentials
+//     (mass), and the cells still expected to transition, initially its mass
+//     scaled so the bins sum to the quota (N_v = P(v|u,z) N, App. E.2.1);
+//   * the MuST probability of a cell is p * expected / mass of its bin (over
+//     E(sigma) for pivots).  Within a bin, the update factor is shared in
+//     proportion to each cell's own potential rather than as expected / cells:
+//     binning then only coarsens the update, and the first pass is the
+//     potentials themselves (up to the quota scaling); sharing it equally
+//     gives every cell of a wide bin its mean, a bias of several times the
+//     potential in the lowest bins of a skewed distribution;
+//   * a successful patch of sigma cells takes sigma from the expected count of
+//     its pivot's bin: the urn of App. E.2.2 removes sigma balls of state v
+//     with the pivot, a patch being sigma cells of one bin.  Its other cells
+//     leave the pool and the mass of their own bins, as failed cells do (u
+//     balls, App. E.2.3), which raises the probability of the cells left
+//     there.  Counting each cell against its own bin instead would steer
+//     pivots to make the patch cells follow the potentials, which the grower's
+//     deterministic choice of neighbours defeats: measured on potentials that
+//     vary within a patch, it barely moved the cells and biased the pivots
+//     by a factor 2 to 0.6 across deciles;
+//   * several transitions from one class (App. D.3.4) each have their own
+//     bins; a cell sits in one bin per transition and leaves all of them when
+//     it leaves the pool; MuST stays one draw per cell over the transitions
+//     still in quota.  Joint bins would need a grid over all transitions.
+// Probabilities are recomputed for every pass, so a batch of pivots shares
+// one update: strict uPAM (batch_size = 1) updates after every patch, as the
+// article does, and a pass that takes all candidates (batch_size < 0) relies
+// on the first pass alone where it meets the quota.  All are unbiased within
+// Monte Carlo error, but the fewer pivots share an update, the closer each
+// bin's allocation comes to its expected count: the spread of the count per
+// decile of potential around the sum of its potentials is about 0.9 binomial
+// standard errors in one pass, 0.4 with the default 1 % batches and 0.2 with
+// batches of 100 pivots (mono-pixel, 150 000 cells).
 //
 // The R layer auto-selects the method from the patch parameters (all mono-pixel
 // => uSAM, otherwise uPAM); the explicit `method` flag here is kept so the
@@ -590,14 +631,21 @@ struct Allocation {
   // quantity of change P(v|u)#J (eq. 3.11: E(#Jv^c) E(sigma) = P(v|u)#J) the
   // pivots must be rarefied by 1/E(sigma); otherwise allocation overshoots by
   // ~E(sigma).
-  double pivot_prob(int cell, int t) const {
-    double p = cols[t].value_at(cell);
-    if (ISNAN(p) || p < 0.0) p = 0.0;
+  // the potential P(v|u,z) of a cell for transition t; NaN and negative as 0
+  double potential(int cell, int t) const {
+    const double p = cols[t].value_at(cell);
+    return (ISNAN(p) || p < 0.0) ? 0.0 : p;
+  }
+
+  double rarefied(double p, int t) const {
     if (rarefy) {
       const double am = area_mean[t];
       if (!ISNAN(am) && am > 1.0) p /= am; // 1/E(sigma); mono-pixel needs none
     }
     return p;
+  }
+  double pivot_prob(int cell, int t) const {
+    return rarefied(potential(cell, t), t);
   }
 
   // Draw a patch area for transition t and grow the patch from `pivot`; see
@@ -633,6 +681,110 @@ static void allocate_usam_class(Allocation &alloc, int fc,
   }
 }
 
+// Per-transition quota in whole cells: N_{u->v} = P(v|u) #J (Mazy App. 3.E.2
+// Algorithm 3, line 3; eq. 3.11), rounded half to even as R's round(), so that
+// it is the quota allocate() documents.
+static std::vector<double> class_quota(const NumericVector &target_rate,
+                                       const std::vector<int> &trans,
+                                       int n_cells) {
+  std::vector<double> quota(trans.size());
+  for (size_t q = 0; q < trans.size(); ++q) {
+    double rt = target_rate[trans[q]];
+    if (ISNAN(rt) || rt < 0.0) rt = 0.0;
+    quota[q] = std::nearbyint(rt * (double)n_cells);
+  }
+  return quota;
+}
+
+// Number of potential bins for a transition: `n_bins`, but at most one per
+// ten pivots expected, quota / (10 E(sigma)).  The urn decrements a bin's
+// expected count by whole patches, so a bin expecting less than a patch or two
+// over-allocates (it gets a whole patch or none), while fewer, wider bins
+// share one update factor among more different potentials.
+static int urn_bin_count(int n_bins, double quota, double area_mean) {
+  const double e_sigma =
+      (ISNAN(area_mean) || area_mean < 1.0) ? 1.0 : area_mean;
+  const double cap = std::floor(quota / (10.0 * e_sigma));
+  return (int)std::max(1.0, std::min((double)n_bins, cap));
+}
+
+// The urn of one transition over the cells of an anterior class (Mazy &
+// Longaretti 2023, App. D.3, E.2.3), with bins of the potential in place of
+// bins of the explanatory variables z: cells of equal potential are
+// exchangeable for the transition, which is what the urn argument needs.  A
+// bin keeps the cells still in the pool, the sum of their potentials, and the
+// number of cells still expected to make the transition; a cell's
+// probability is its own potential times expected / mass of its bin.
+struct PotentialBins {
+  std::vector<int> bin_of_slot;    // -1: no potential for this transition
+  std::vector<double> pot_of_slot; // clamped potential P(v|u,z)
+  std::vector<int> n_cells;        // per bin: cells in the pool
+  std::vector<double> mass;        // per bin: their potentials, summed
+  std::vector<double> expected;    // per bin: cells still to transition
+
+  // Bin the slots with a positive potential into at most `n_bins` bins of
+  // about equal potential mass, i.e. equal expected counts, by ascending
+  // potential; cells of equal potential are never split, so a few distinct
+  // values get a bin each.  The expected counts start at the potential mass of
+  // each bin, scaled to sum to the quota.
+  PotentialBins(std::vector<double> pot, int n_bins, double quota)
+      : bin_of_slot(pot.size(), -1), pot_of_slot(std::move(pot)) {
+    if (quota <= 0.0) return; // never drawn: every slot without a bin
+    std::vector<std::pair<double, int>> order; // (potential, slot)
+    double total = 0.0;
+    for (int s = 0; s < (int)pot_of_slot.size(); ++s) {
+      if (pot_of_slot[s] > 0.0) {
+        order.emplace_back(pot_of_slot[s], s);
+        total += pot_of_slot[s];
+      }
+    }
+    std::sort(order.begin(), order.end());
+    const double mass_per_bin = total / n_bins;
+    for (size_t i = 0; i < order.size(); ++i) {
+      if (i == 0 || (mass.back() >= mass_per_bin &&
+                     order[i].first != order[i - 1].first)) {
+        n_cells.push_back(0);
+        mass.push_back(0.0);
+      }
+      bin_of_slot[order[i].second] = (int)n_cells.size() - 1;
+      ++n_cells.back();
+      mass.back() += order[i].first;
+    }
+    expected.resize(mass.size());
+    for (size_t b = 0; b < mass.size(); ++b) {
+      expected[b] = mass[b] * quota / total;
+    }
+  }
+
+  // Update factor of a slot's bin: remaining expected count over remaining
+  // potential mass, 0 once the bin is used up or empty.
+  double factor(int slot) const {
+    const int b = bin_of_slot[slot];
+    if (b < 0 || n_cells[b] <= 0 || mass[b] <= 0.0 || expected[b] <= 0.0) {
+      return 0.0;
+    }
+    return expected[b] / mass[b];
+  }
+
+  // A patch of `size` cells grown from the pivot in `slot` uses up `size` of
+  // the expected count of the pivot's bin: the patch counts as cells of that
+  // bin (App. E.2.3), wherever its other cells lie.
+  void allocate(int slot, double size) {
+    const int b = bin_of_slot[slot];
+    if (b >= 0) expected[b] -= size;
+  }
+
+  // The slot leaves the pool, and so its bin.
+  void remove(int slot) {
+    const int b = bin_of_slot[slot];
+    if (b < 0) return;
+    --n_cells[b];
+    // reset rather than subtract the last potential, so round-off cannot
+    // leave a positive mass in an empty bin
+    mass[b] = n_cells[b] > 0 ? mass[b] - pot_of_slot[slot] : 0.0;
+  }
+};
+
 // uPAM state of one anterior class.  A *slot* is a cell's position in the
 // initial pool (the class's cells in raster order); per-transition quantities
 // are indexed by q, the position of the transition in `trans`.
@@ -644,25 +796,35 @@ struct UpamClass {
   std::vector<int> pool;         // slots still in the pool, ascending
   std::vector<double> pivot_p;   // [q * n_slots + slot]: pivot probability
   std::vector<double> remaining; // per q: quota still to allocate, cells
+  std::vector<PotentialBins> bins; // per q: the urn of the transition
 
-  UpamClass(const Allocation &alloc, int fc_, const std::vector<int> &at)
+  UpamClass(const Allocation &alloc, int fc_, const std::vector<int> &at,
+            const NumericVector &target_rate, int n_bins)
       : fc(fc_), trans(at), cell_of_slot(alloc.class_cells(fc_)) {
     const int n_slots = (int)cell_of_slot.size();
     in_pool.assign(n_slots, 1);
     pool.resize(n_slots);
     for (int s = 0; s < n_slots; ++s) pool[s] = s;
+    remaining = class_quota(target_rate, trans, n_slots);
     pivot_p.resize((size_t)trans.size() * n_slots);
     for (size_t q = 0; q < trans.size(); ++q) {
+      std::vector<double> pot(n_slots);
       for (int s = 0; s < n_slots; ++s) {
-        pivot_p[q * n_slots + s] = alloc.pivot_prob(cell_of_slot[s], trans[q]);
+        pot[s] = alloc.potential(cell_of_slot[s], trans[q]);
+        pivot_p[q * n_slots + s] = alloc.rarefied(pot[s], trans[q]);
       }
+      bins.emplace_back(
+          std::move(pot),
+          urn_bin_count(n_bins, remaining[q], alloc.area_mean[trans[q]]),
+          remaining[q]);
     }
   }
 
   int k() const { return (int)trans.size(); }
   int n_slots() const { return (int)cell_of_slot.size(); }
+  // The pivot probability of a slot for transition q, updated by its urn.
   double pivot_prob(int slot, int q) const {
-    return pivot_p[(size_t)q * n_slots() + slot];
+    return pivot_p[(size_t)q * n_slots() + slot] * bins[q].factor(slot);
   }
 
   bool any_quota() const {
@@ -679,32 +841,26 @@ struct UpamClass {
                pool.end());
   }
 
-  // Take the cells of an attempted patch out of the pool (sampling without
-  // replacement); cells that are not in it (other classes, already failed)
-  // are skipped.
+  // Take the cells of an attempted patch out of the pool and out of their
+  // bins (sampling without replacement); cells that are not in the pool
+  // (other classes, failed patches) are skipped.
   void remove_cells(const std::vector<int> &cells,
                     const std::vector<int> &slot_of_cell) {
     for (int c : cells) {
       const int s = slot_of_cell[c];
-      if (s >= 0) in_pool[s] = 0;
+      if (s < 0 || !in_pool[s]) continue;
+      in_pool[s] = 0;
+      for (PotentialBins &b : bins) b.remove(s);
     }
   }
-};
 
-// Per-transition quota in whole cells: N_{u->v} = P(v|u) #J (Mazy App. 3.E.2
-// Algorithm 3, line 3; eq. 3.11), rounded half to even as R's round(), so that
-// it is the quota allocate() documents.
-static std::vector<double> class_quota(const NumericVector &target_rate,
-                                       const std::vector<int> &trans,
-                                       int n_cells) {
-  std::vector<double> quota(trans.size());
-  for (size_t q = 0; q < trans.size(); ++q) {
-    double rt = target_rate[trans[q]];
-    if (ISNAN(rt) || rt < 0.0) rt = 0.0;
-    quota[q] = std::nearbyint(rt * (double)n_cells);
+  // A patch of `size` cells grown from the pivot in `slot` for transition q
+  // uses up quota and the expected count of the pivot's bin.
+  void allocated(int slot, int q, int size) {
+    remaining[q] -= (double)size;
+    bins[q].allocate(slot, (double)size);
   }
-  return quota;
-}
+};
 
 // Pivots attempted per MuST pass:
 //   > 0  explicit cap;
@@ -756,7 +912,7 @@ static void grow_batch(Allocation &alloc, UpamClass &cls,
     if (!cls.in_pool[s]) continue; // taken by an earlier patch of this pass
     const int size = alloc.grow(cls.cell_of_slot[s], cls.trans[q], cls.fc, out);
     ++processed; // every attempt counts toward the batch
-    if (size > 0) cls.remaining[q] -= (double)size;
+    if (size > 0) cls.allocated(s, q, size);
     cls.remove_cells(out, slot_of_cell);
   }
 }
@@ -767,10 +923,9 @@ static void grow_batch(Allocation &alloc, UpamClass &cls,
 static void allocate_upam_class(Allocation &alloc, int fc,
                                 const std::vector<int> &at,
                                 const NumericVector &target_rate,
-                                int batch_size) {
-  UpamClass cls(alloc, fc, at);
+                                int batch_size, int n_bins) {
+  UpamClass cls(alloc, fc, at, target_rate, n_bins);
   if (cls.n_slots() == 0) return;
-  cls.remaining = class_quota(target_rate, cls.trans, cls.n_slots());
   const int cap = batch_cap(batch_size, cls.n_slots());
   std::vector<int> slot_of_cell(alloc.land.size(), -1);
   for (int s = 0; s < cls.n_slots(); ++s) slot_of_cell[cls.cell_of_slot[s]] = s;
@@ -801,6 +956,58 @@ static void allocate_upam_class(Allocation &alloc, int fc,
     grow_batch(alloc, cls, cand_slot, cand_q, cap, slot_of_cell);
     Rcpp::checkUserInterrupt();
   }
+}
+
+//' Potential bins of the uPAM urn (C++)
+//'
+//' Bins the potentials of one transition as uPAM does, applies a sequence of
+//' allocated patches and of removals from the pool, and returns the
+//' probabilities the next MuST pass would use (before rarefaction).  For unit
+//' tests of the bookkeeping; [allocate_clumpy_cpp()] does the same inside.
+//'
+//' @param potential NumericVector of the potentials P(v|u,z) of the cells of
+//'   the anterior class; NaN and negative values count as 0.
+//' @param quota Cells the transition is to allocate; the expected counts of
+//'   the bins are scaled to sum to it.
+//' @param n_bins Maximum number of bins (the cap by quota / (10 E(sigma)) of
+//'   [allocate_clumpy_cpp()] is not applied).
+//' @param pivot,size IntegerVectors of equal length: 1-based cells used as
+//'   pivots of allocated patches, and the size of each patch, in cells.
+//' @param removed 1-based cells that leave the pool (allocated or failed),
+//'   applied after the patches.
+//' @return List with `bin` (1-based bin of each cell, 0 for a cell without
+//'   potential), `probability` (potential times the update factor of its bin,
+//'   0 for a cell out of the pool) and `expected` (remaining expected count of
+//'   each bin).
+//' @keywords internal
+// [[Rcpp::export]]
+List urn_bins_cpp(NumericVector potential, double quota, int n_bins,
+                  IntegerVector pivot, IntegerVector size,
+                  IntegerVector removed) {
+  const int m = potential.size();
+  std::vector<double> pot(m);
+  for (int s = 0; s < m; ++s) {
+    pot[s] = (ISNAN(potential[s]) || potential[s] < 0.0) ? 0.0 : potential[s];
+  }
+  PotentialBins bins(pot, n_bins, quota);
+  for (int i = 0; i < pivot.size(); ++i) {
+    bins.allocate(pivot[i] - 1, (double)size[i]);
+  }
+  std::vector<char> in_pool(m, 1);
+  for (int c : removed) {
+    if (!in_pool[c - 1]) continue;
+    in_pool[c - 1] = 0;
+    bins.remove(c - 1);
+  }
+  IntegerVector bin(m);
+  NumericVector probability(m);
+  for (int s = 0; s < m; ++s) {
+    bin[s] = bins.bin_of_slot[s] + 1;
+    probability[s] = in_pool[s] ? pot[s] * bins.factor(s) : 0.0;
+  }
+  return List::create(_["bin"] = bin, _["probability"] = probability,
+                      _["expected"] = NumericVector(bins.expected.begin(),
+                                                    bins.expected.end()));
 }
 
 // ---------------------------------------------------------------------------
@@ -834,16 +1041,19 @@ static void allocate_upam_class(Allocation &alloc, int fc,
 //'   by uPAM to set the per-transition pixel quota, the rate times the number
 //'   of cells of the source class, rounded to whole cells.
 //' @param method 0 = uSAM (mono-pixel single pass), 1 = uPAM (iterative, quota).
-//' @param batch_size uPAM only: pivots attempted per MuST re-draw. `> 0` is an
-//'   explicit cap (1 = strict uPAM); `< 0` processes all candidates in one pass;
-//'   `0` auto-scales to ~1% of each class's pool (bounds MuST passes so large
-//'   rasters avoid the O(#patches x pool) cost of strict batch=1).
+//' @param batch_size uPAM only: pivots attempted per MuST pass, between two
+//'   updates of the probabilities. `> 0` is an explicit cap (1 = strict uPAM);
+//'   `< 0` processes all candidates of a pass; `0` auto-scales to ~1% of each
+//'   class's pool (bounds the number of MuST passes on large rasters).
 //' @param rarefy If TRUE, divide pivot probabilities by `area_mean` (the
 //'   1/E(sigma) factor) so the allocated quantity of change matches the target.
 //' @param shuffle If TRUE, randomise pivot processing order.
 //' @param avoid_aggregation uPAM only: if TRUE, patches that would merge fail
 //'   and allocate nothing (clumpy GaussianPatcher semantics).
 //' @param area_dist Patch-area distribution: 0 = log-normal, 1 = normal.
+//' @param n_bins uPAM only: maximum number of bins of potential per
+//'   transition for the update of the probabilities (>= 1); fewer where the
+//'   quota allows fewer than ten patches per bin.
 //' @return IntegerVector (length n_cells) of the posterior LULC state.
 //' @keywords internal
 // [[Rcpp::export]]
@@ -852,9 +1062,10 @@ IntegerVector allocate_clumpy_cpp(
     IntegerVector trans_to, List prob_cell, List prob_value,
     NumericVector area_mean, NumericVector area_var, NumericVector elongation,
     NumericVector target_rate, int method, int batch_size, bool rarefy,
-    bool shuffle, bool avoid_aggregation, int area_dist) {
+    bool shuffle, bool avoid_aggregation, int area_dist, int n_bins = 100) {
   const int n = landscape.size();
   const int T = trans_from.size();
+  if (n_bins < 1) stop("n_bins must be at least 1");
 
   // Build the sparse per-transition potential columns from the R lists.
   if (prob_cell.size() != T || prob_value.size() != T) {
@@ -889,7 +1100,7 @@ IntegerVector allocate_clumpy_cpp(
     if (method == 0) {
       allocate_usam_class(alloc, fc, at);
     } else {
-      allocate_upam_class(alloc, fc, at, target_rate, batch_size);
+      allocate_upam_class(alloc, fc, at, target_rate, batch_size, n_bins);
     }
   }
   const std::vector<int> &land = alloc.land;
