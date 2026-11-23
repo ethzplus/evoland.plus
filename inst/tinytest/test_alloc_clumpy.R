@@ -311,6 +311,51 @@ expect_equal(
   c(1L, 7L, 13L, 19L, 25L)
 )
 
+## uPAM: updating the probabilities ####
+# Mazy & Longaretti (2023), App. D.1, E.2.2: an urn per bin, here a bin of potential, with N
+# cells left and N_v of them still due to change; a cell's probability is its own potential
+# times N_v over the potentials of the N cells. 10 cells at 0.2 and 10 at 0.6, quota 8: two
+# bins, as equal potentials are never split, expecting 2 and 6 cells
+urn <- function(potential, quota, n_bins, pivot = integer(0), size = integer(0), removed = pivot) {
+  evoland.plus:::urn_bins_cpp(potential, quota, n_bins, pivot, size, removed)
+}
+two_strata <- rep(c(0.2, 0.6), each = 10L)
+expect_equal(
+  urn(two_strata, 8, n_bins = 10L),
+  list(bin = rep(1:2, each = 10L), probability = two_strata, expected = c(2, 6))
+)
+# three cells of the second bin allocated, two of the first failed: 3 balls of state v among 7
+# in the second, 2 among 8 in the first
+after <- urn(
+  two_strata,
+  8,
+  n_bins = 10L,
+  pivot = 11:13,
+  size = rep(1L, 3L),
+  removed = c(1:2, 11:13)
+)
+expect_equal(after[["expected"]], c(2, 3))
+expect_equal(after[["probability"]], c(0, 0, rep(2 / 8, 8L), 0, 0, 0, rep(3 / 7, 7L)))
+# a patch of 3 cells from a pivot in the second bin, spilling into the first, counts as 3 cells
+# of the second bin; its other cells leave the first bin as failed cells do
+spilled <- urn(two_strata, 8, n_bins = 10L, pivot = 11L, size = 3L, removed = c(1:2, 11L))
+expect_equal(spilled[["expected"]], c(2, 3))
+expect_equal(spilled[["probability"]][c(3L, 12L)], c(0.2 * 2 / 1.6, 0.6 * 3 / 5.4))
+# the expected counts are scaled to the quota, here half the sum of the potentials
+expect_equal(urn(two_strata, 4, n_bins = 10L)[["probability"]], two_strata / 2)
+# within a bin, the update is shared in proportion to the potentials: one bin of 0.2 and 0.6,
+# expecting 1.6 cells; once one cell is allocated, 0.6 cells are due from a mass of 1
+shared <- urn(c(0.2, 0.6, 0.2, 0.6), 1.6, n_bins = 1L, pivot = 2L, size = 1L)
+expect_equal(shared[["probability"]], c(0.12, 0, 0.12, 0.36))
+# bins of about equal potential mass: 0.01, ..., 0.10 in two bins, the first closed once it
+# holds half the mass (0.01 + ... + 0.07 = 0.28 >= 0.275); cells without potential have none
+expect_equal(urn(c(1:10 / 100, 0), 0.55, n_bins = 2L)[["bin"]], c(rep(1L, 7L), rep(2L, 3L), 0L))
+# once a bin's expected count is used up, its cells are not drawn any more
+expect_equal(
+  urn(two_strata, 8, n_bins = 10L, pivot = 1L, size = 2L)[["probability"]],
+  c(0, rep(0, 9L), rep(0.6, 10L))
+)
+
 ## uPAM: quantity of change ####
 # Mazy sec. 3.4.2: patches are allocated until the quantity of change of the transition is
 # used up, so the allocated cells reach the quota and exceed it by less than one patch. The
@@ -536,3 +581,4 @@ expect_message(
 expect_equal(sum(patch_posterior[["id_lulc"]] == 2L), 20L)
 
 expect_error(alloc_clumpy_spec(default_elongation = 2), "default_elongation")
+expect_error(alloc_clumpy_spec(n_bins = 0), "n_bins")
