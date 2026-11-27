@@ -16,7 +16,8 @@ column.}
 \value{
 Integer vector of length \code{nrow(P)} with the sampled state per cell.
 One uniform is drawn from R's generator per row, so \code{\link[=set.seed]{set.seed()}} fixes the
-result.
+result.  A row summing above 1 is rescaled to sum to 1, with one warning
+for all such rows.
 }
 \description{
 Inverse-CDF multinomial draw of a final state per cell (Mazy 2022,

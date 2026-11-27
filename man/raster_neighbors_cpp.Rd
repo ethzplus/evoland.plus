@@ -2,7 +2,7 @@
 % Please edit documentation in R/RcppExports.R
 \name{raster_neighbors_cpp}
 \alias{raster_neighbors_cpp}
-\title{Rook-adjacency neighbour indices for a raster (C++)}
+\title{Rook-adjacency neighbor indices for a raster (C++)}
 \usage{
 raster_neighbors_cpp(nrow, ncol)
 }
@@ -11,9 +11,9 @@ raster_neighbors_cpp(nrow, ncol)
 }
 \value{
 Named list \code{above}/\code{below}/\code{left}/\code{right}, each a 1-based cell index
-per cell (row-major) with 0 meaning "no neighbour" (edge).
+per cell (row-major) with 0 meaning "no neighbor" (edge).
 }
 \description{
-Rook-adjacency neighbour indices for a raster (C++)
+Rook-adjacency neighbor indices for a raster (C++)
 }
 \keyword{internal}

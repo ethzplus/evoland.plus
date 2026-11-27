@@ -21,7 +21,8 @@ allocate_clumpy_cpp(
   rarefy,
   shuffle,
   avoid_aggregation,
-  area_dist
+  area_dist,
+  n_bins = 100L
 )
 }
 \arguments{
@@ -50,29 +51,37 @@ of cells of the source class, rounded to whole cells.}
 
 \item{method}{0 = uSAM (mono-pixel single pass), 1 = uPAM (iterative, quota).}
 
-\item{batch_size}{uPAM only: pivots attempted per MuST re-draw. \verb{> 0} is an
-explicit cap (1 = strict uPAM); \verb{< 0} processes all candidates in one pass;
-\code{0} auto-scales to ~1\% of each class's pool (bounds MuST passes so large
-rasters avoid the O(#patches x pool) cost of strict batch=1).}
+\item{batch_size}{uPAM only: pivots attempted per MuST pass, between two
+updates of the probabilities. \verb{> 0} is an explicit cap (1 = strict uPAM);
+\verb{< 0} processes all candidates of a pass; \code{0} auto-scales to ~1\% of each
+class's pool (bounds the number of MuST passes on large rasters).}
 
 \item{rarefy}{If TRUE, divide pivot probabilities by \code{area_mean} (the
 1/E(sigma) factor) so the allocated quantity of change matches the target.}
 
-\item{shuffle}{If TRUE, randomise pivot processing order.}
+\item{shuffle}{uPAM only: if TRUE, randomise pivot processing order.}
 
 \item{avoid_aggregation}{uPAM only: if TRUE, patches that would merge fail
 and allocate nothing (clumpy GaussianPatcher semantics).}
 
 \item{area_dist}{Patch-area distribution: 0 = log-normal, 1 = normal.}
+
+\item{n_bins}{uPAM only: maximum number of joint bins of potential per
+anterior class for the update of the probabilities (>= 1); fewer where
+the quotas allow fewer than ten patches per bin.}
 }
 \value{
-IntegerVector (length n_cells) of the posterior LULC state.
+IntegerVector (length n_cells) of the posterior LULC state.  Where
+the probabilities of a cell sum above 1 (uPAM update factors above 1 on
+cells of high potential), they are rescaled to sum to 1 for that draw,
+and one warning gives the number of such cell draws and the largest sum.
 }
 \description{
-Allocates LULC change for a single period.  See the file header for the
-uSAM vs uPAM methods and the meaning of \code{rarefy} / \code{avoid_aggregation} /
-\code{area_dist}.  The anterior reference is snapshotted internally from
-\code{landscape}, so a cell is eligible as a pivot only while it still equals its
-original source class (prevents a cell changing twice in one time step).
+Allocates LULC change for a single period.  See the header of
+\code{src/alloc_clumpy.cpp} for the uSAM and uPAM methods and the meaning of
+\code{rarefy}, \code{avoid_aggregation} and \code{area_dist}.  The anterior reference is
+snapshotted internally from \code{landscape}, so a cell is eligible as a pivot
+only while it still equals its original source class (prevents a cell
+changing twice in one time step).
 }
 \keyword{internal}

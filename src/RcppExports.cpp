@@ -82,9 +82,27 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// urn_bins_cpp
+List urn_bins_cpp(NumericMatrix potential, NumericVector quota, int n_bins, NumericVector min_expected, IntegerVector pivot, IntegerVector trans, IntegerVector size, IntegerVector removed);
+RcppExport SEXP _evoland_plus_urn_bins_cpp(SEXP potentialSEXP, SEXP quotaSEXP, SEXP n_binsSEXP, SEXP min_expectedSEXP, SEXP pivotSEXP, SEXP transSEXP, SEXP sizeSEXP, SEXP removedSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< NumericMatrix >::type potential(potentialSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type quota(quotaSEXP);
+    Rcpp::traits::input_parameter< int >::type n_bins(n_binsSEXP);
+    Rcpp::traits::input_parameter< NumericVector >::type min_expected(min_expectedSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type pivot(pivotSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type trans(transSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type size(sizeSEXP);
+    Rcpp::traits::input_parameter< IntegerVector >::type removed(removedSEXP);
+    rcpp_result_gen = Rcpp::wrap(urn_bins_cpp(potential, quota, n_bins, min_expected, pivot, trans, size, removed));
+    return rcpp_result_gen;
+END_RCPP
+}
 // allocate_clumpy_cpp
-IntegerVector allocate_clumpy_cpp(IntegerVector landscape, int nrow, int ncol, IntegerVector trans_from, IntegerVector trans_to, List prob_cell, List prob_value, NumericVector area_mean, NumericVector area_var, NumericVector elongation, NumericVector target_rate, int method, int batch_size, bool rarefy, bool shuffle, bool avoid_aggregation, int area_dist);
-RcppExport SEXP _evoland_plus_allocate_clumpy_cpp(SEXP landscapeSEXP, SEXP nrowSEXP, SEXP ncolSEXP, SEXP trans_fromSEXP, SEXP trans_toSEXP, SEXP prob_cellSEXP, SEXP prob_valueSEXP, SEXP area_meanSEXP, SEXP area_varSEXP, SEXP elongationSEXP, SEXP target_rateSEXP, SEXP methodSEXP, SEXP batch_sizeSEXP, SEXP rarefySEXP, SEXP shuffleSEXP, SEXP avoid_aggregationSEXP, SEXP area_distSEXP) {
+IntegerVector allocate_clumpy_cpp(IntegerVector landscape, int nrow, int ncol, IntegerVector trans_from, IntegerVector trans_to, List prob_cell, List prob_value, NumericVector area_mean, NumericVector area_var, NumericVector elongation, NumericVector target_rate, int method, int batch_size, bool rarefy, bool shuffle, bool avoid_aggregation, int area_dist, int n_bins);
+RcppExport SEXP _evoland_plus_allocate_clumpy_cpp(SEXP landscapeSEXP, SEXP nrowSEXP, SEXP ncolSEXP, SEXP trans_fromSEXP, SEXP trans_toSEXP, SEXP prob_cellSEXP, SEXP prob_valueSEXP, SEXP area_meanSEXP, SEXP area_varSEXP, SEXP elongationSEXP, SEXP target_rateSEXP, SEXP methodSEXP, SEXP batch_sizeSEXP, SEXP rarefySEXP, SEXP shuffleSEXP, SEXP avoid_aggregationSEXP, SEXP area_distSEXP, SEXP n_binsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -105,7 +123,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< bool >::type shuffle(shuffleSEXP);
     Rcpp::traits::input_parameter< bool >::type avoid_aggregation(avoid_aggregationSEXP);
     Rcpp::traits::input_parameter< int >::type area_dist(area_distSEXP);
-    rcpp_result_gen = Rcpp::wrap(allocate_clumpy_cpp(landscape, nrow, ncol, trans_from, trans_to, prob_cell, prob_value, area_mean, area_var, elongation, target_rate, method, batch_size, rarefy, shuffle, avoid_aggregation, area_dist));
+    Rcpp::traits::input_parameter< int >::type n_bins(n_binsSEXP);
+    rcpp_result_gen = Rcpp::wrap(allocate_clumpy_cpp(landscape, nrow, ncol, trans_from, trans_to, prob_cell, prob_value, area_mean, area_var, elongation, target_rate, method, batch_size, rarefy, shuffle, avoid_aggregation, area_dist, n_bins));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -159,7 +178,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_evoland_plus_sample_lognorm_area_cpp", (DL_FUNC) &_evoland_plus_sample_lognorm_area_cpp, 2},
     {"_evoland_plus_sample_normal_area_cpp", (DL_FUNC) &_evoland_plus_sample_normal_area_cpp, 2},
     {"_evoland_plus_grow_patch_cpp", (DL_FUNC) &_evoland_plus_grow_patch_cpp, 14},
-    {"_evoland_plus_allocate_clumpy_cpp", (DL_FUNC) &_evoland_plus_allocate_clumpy_cpp, 17},
+    {"_evoland_plus_urn_bins_cpp", (DL_FUNC) &_evoland_plus_urn_bins_cpp, 8},
+    {"_evoland_plus_allocate_clumpy_cpp", (DL_FUNC) &_evoland_plus_allocate_clumpy_cpp, 18},
     {"_evoland_plus_greedy_fill_cpp", (DL_FUNC) &_evoland_plus_greedy_fill_cpp, 4},
     {"_evoland_plus_distance_neighbors_chunked_cpp", (DL_FUNC) &_evoland_plus_distance_neighbors_chunked_cpp, 6},
     {"_evoland_plus_calculate_class_stats_cpp", (DL_FUNC) &_evoland_plus_calculate_class_stats_cpp, 3},

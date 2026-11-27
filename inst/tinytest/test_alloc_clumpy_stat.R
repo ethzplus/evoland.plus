@@ -87,24 +87,166 @@ expect_true(all(within_binomial(
 )))
 
 # uPAM pivots ####
-# Mazy eq. 3.7, App. 3.D: with mono-pixel patches, the pivots are the allocated cells. In one
-# pass over all candidates (batch_size < 0) they follow the potentials as in uSAM.
+# Mazy eq. 3.7, App. 3.D: with mono-pixel patches, the pivots are the allocated cells. uPAM
+# draws them in repeated MuST passes from a shrinking pool; with the probabilities updated as an
+# urn per bin of potential (Mazy & Longaretti 2023, App. D.3, E.2.3), they follow the
+# potentials as in uSAM, in one pass over all candidates (batch_size < 0) as in the default
+# batches of about 1 % of the pool. Without the update, the cells of high potential, drawn
+# early and then gone from the pool, were under-represented (0.4755 instead of 0.5).
 upam_one_pass <- allocate_strata(seed = 2L, method = 1L, batch_size = -1L)
 expect_true(all(within_binomial(changed_by_stratum(upam_one_pass), strata, n_stratum)))
-# Over several passes they do not: updating the potentials on the remaining pool (sec. 3.4.2,
-# "Iteration and updating") is not yet implemented, so the cells of high potential, drawn
-# early and then gone from the pool, are under-represented and the others over-represented.
-# The shift is pinned at its mean over 30 seeds so that a change of it is noticed; once the
-# update is implemented, this becomes the unbiasedness check above.
 upam_passes <- allocate_strata(seed = 2L, method = 1L)
-expect_true(all(within_binomial(
-  changed_by_stratum(upam_passes),
-  c(0.0252, 0.1197, 0.4751),
-  n_stratum
-)))
-expect_false(within_binomial(changed_by_stratum(upam_passes)[3L], 0.5, n_stratum))
+expect_true(all(within_binomial(changed_by_stratum(upam_passes), strata, n_stratum)))
 # the quantity is exact all the same: 0.62 / 3 of 150 000 cells
 expect_equal(sum(upam_passes == 2L), 31000L)
+
+# The same with continuous potentials, which the update bins: the cells allocated per decile of
+# potential against the sum of the potentials in the decile. The quota fixes the total, so the
+# binomial standard error is conservative.
+# TRUE where counts lie within z_max binomial standard errors of the sums of the potentials p
+# in each group, a patch of `area` cells counting as `area` cells drawn together
+within_expected <- function(allocated, p, group, area = 1) {
+  expected <- tapply(p, group, sum)
+  abs(tapply(allocated, group, sum) - expected) <=
+    z_max * sqrt(area * tapply(p * (1 - p), group, sum))
+}
+deciles <- function(p) cut(p, stats::quantile(p, 0:10 / 10), include.lowest = TRUE, labels = FALSE)
+set.seed(1L)
+continuous <- stats::runif(150000L, 0, 0.6)
+set.seed(2L)
+upam_continuous <- evoland.plus:::allocate_clumpy_cpp(
+  landscape = rep(1L, 150000L),
+  nrow = 300L,
+  ncol = 500L,
+  trans_from = 1L,
+  trans_to = 2L,
+  prob_cell = list(1:150000),
+  prob_value = list(continuous),
+  area_mean = 1,
+  area_var = 0,
+  elongation = 0,
+  target_rate = mean(continuous),
+  method = 1L,
+  batch_size = 0L,
+  rarefy = TRUE,
+  shuffle = TRUE,
+  avoid_aggregation = FALSE,
+  area_dist = 1L
+)
+expect_true(all(within_expected(upam_continuous == 2L, continuous, deciles(continuous))))
+
+# two transitions from one class (Mazy & Longaretti 2023, App. D.3.4) share joint bins of their
+# potentials, and one MuST draw per cell decides between them
+set.seed(1L)
+continuous_two <- list(stats::runif(150000L, 0, 0.4), stats::runif(150000L, 0, 0.2))
+set.seed(3L)
+upam_two_way <- evoland.plus:::allocate_clumpy_cpp(
+  landscape = rep(1L, 150000L),
+  nrow = 300L,
+  ncol = 500L,
+  trans_from = c(1L, 1L),
+  trans_to = c(2L, 3L),
+  prob_cell = list(1:150000, 1:150000),
+  prob_value = continuous_two,
+  area_mean = c(1, 1),
+  area_var = c(0, 0),
+  elongation = c(0, 0),
+  target_rate = vapply(continuous_two, mean, numeric(1)),
+  method = 1L,
+  batch_size = 0L,
+  rarefy = TRUE,
+  shuffle = TRUE,
+  avoid_aggregation = FALSE,
+  area_dist = 1L
+)
+expect_true(all(within_expected(
+  upam_two_way == 2L,
+  continuous_two[[1L]],
+  deciles(continuous_two[[1L]])
+)))
+expect_true(all(within_expected(
+  upam_two_way == 3L,
+  continuous_two[[2L]],
+  deciles(continuous_two[[2L]])
+)))
+
+# The bins are joint so that a cell taken by one transition gives the probability another loses
+# back to cells with the same potentials for both. B, independent of A, is allocated alike
+# where A is high and where it is low; with bins per transition, the cells A took, mostly where
+# it is high, gave B's probability back to all the cells of the same bin of B, so that B was
+# allocated on 0.121 of the cells where A is high and 0.180 where it is low, instead of 0.150.
+set.seed(1L)
+is_high <- stats::runif(40000L) < 0.5
+crossed <- list(ifelse(is_high, 0.6, 0.02), stats::runif(40000L, 0, 0.3))
+set.seed(5L)
+upam_crossed <- evoland.plus:::allocate_clumpy_cpp(
+  landscape = rep(1L, 40000L),
+  nrow = 200L,
+  ncol = 200L,
+  trans_from = c(1L, 1L),
+  trans_to = c(2L, 3L),
+  prob_cell = list(1:40000, 1:40000),
+  prob_value = crossed,
+  area_mean = c(1, 1),
+  area_var = c(0, 0),
+  elongation = c(0, 0),
+  target_rate = vapply(crossed, mean, numeric(1)),
+  method = 1L,
+  batch_size = 0L,
+  rarefy = TRUE,
+  shuffle = TRUE,
+  avoid_aggregation = FALSE,
+  area_dist = 1L
+)
+expect_true(all(within_binomial(
+  tapply(upam_crossed == 3L, is_high, mean),
+  tapply(crossed[[2L]], is_high, mean),
+  as.vector(table(is_high))
+)))
+
+# With patches, a patch counts as cells of its pivot's bin (App. E.2.3), so it is the pivots
+# that follow the potentials. They are seen in the cells where every patch lies in the block of
+# its pivot: blocks of 9 x 9 cells of class 1, walled by class 3 and with a potential each,
+# patches of 4 cells. Where patches avoid each other, the cells of failed patches leave the pool
+# without using up their bin's expected count, which raises the probability of the cells left
+# there; without the update, blocks of high potential, where patches crowd and fail, were
+# allocated less than their potential.
+block_row <- rep(0:299, each = 500L)
+block_col <- rep(0:499, times = 300L)
+is_wall <- block_row %% 10L == 0L | block_col %% 10L == 0L
+block_cells <- which(!is_wall)
+set.seed(1L)
+block_potential <- stats::runif(30L * 50L, 0.02, 0.3)[
+  (block_row[block_cells] %/% 10L) * 50L + block_col[block_cells] %/% 10L + 1L
+]
+for (avoid_aggregation in c(TRUE, FALSE)) {
+  set.seed(4L)
+  upam_blocks <- evoland.plus:::allocate_clumpy_cpp(
+    landscape = ifelse(is_wall, 3L, 1L),
+    nrow = 300L,
+    ncol = 500L,
+    trans_from = 1L,
+    trans_to = 2L,
+    prob_cell = list(block_cells),
+    prob_value = list(block_potential),
+    area_mean = 4,
+    area_var = 0,
+    elongation = 0.5,
+    target_rate = mean(block_potential),
+    method = 1L,
+    batch_size = 0L,
+    rarefy = TRUE,
+    shuffle = TRUE,
+    avoid_aggregation = avoid_aggregation,
+    area_dist = 1L
+  )
+  expect_true(all(within_expected(
+    upam_blocks[block_cells] == 2L,
+    block_potential,
+    deciles(block_potential),
+    area = 4
+  )))
+}
 
 # rarefaction ####
 # Mazy eqs. 3.11 and 3.12, Fig. 3.2: a pivot grows into a patch of E(sigma) cells on average,

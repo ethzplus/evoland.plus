@@ -13,8 +13,9 @@
 #'   met on average: every cell changes with its own probability, so the number of changed
 #'   cells varies between realisations.
 #' * **uPAM** (Unbiased Patch Allocation Method, Mazy sec. 3.4.2, Fig. 3.2) otherwise: iterative
-#'   MuST with a per-transition pixel quota and sampling without replacement. Each pivot grows
-#'   into a patch (Mazy App. 3.I.3). Patches are allocated until the quota,
+#'   MuST with a per-transition pixel quota and sampling without replacement, updating the
+#'   probabilities as the pool shrinks (see below). Each pivot grows into a patch (Mazy App.
+#'   3.I.3). Patches are allocated until the quota,
 #'   `round(rate * n_anterior)` cells, is used up, so the changed cells reach it and exceed it by
 #'   less than the last patch. They fall short only where the cells of the anterior class run
 #'   out, or patches fail (see `avoid_aggregation`).
@@ -26,14 +27,45 @@
 #' Mazy Fig. 3.2) so that the allocated quantity of change matches the target transition rate;
 #' without it allocation over-shoots by roughly the mean patch size.
 #'
-#' **What uPAM is unbiased about.** The pivot cells are drawn from the potentials without bias,
+#' **Updating the probabilities.** uPAM draws pivots in repeated MuST passes from a pool that
+#' shrinks. With potentials that stay fixed, a cell's potential would act as a hazard rate: by
+#' the end, cells of low potential are allocated more often than their potential, and cells of
+#' high potential less often. Mazy & Longaretti (2023, \doi{10.1016/j.envsoft.2023.105706},
+#' sec. 4.2, App. D.3, E.2.3) update the probabilities after each patch, as an urn per bin
+#' that holds the cells still in the pool and the cells still expected to change. Here the bins
+#' are bins of the potential, joint over the transitions from one anterior class: cells with
+#' the same potential for every transition are exchangeable for all of them, so the update needs
+#' neither the predictors nor the model. The cells with a potential are cut in two, again and
+#' again, at about the median of the potential mass of the transition whose potentials spread most,
+#' never between equal potentials, into at most `n_bins` bins. Each transition expects at least
+#' ten patches in each of its bins: where a cut would leave it less on one side, it keeps the
+#' uncut group as one bin. With one transition, this gives bins of about equal potential mass,
+#' at most one per ten patches of the quota. Per transition, a bin starts with the sum of its
+#' potentials as its expected count, scaled so that the bins sum to the quota. A cell's
+#' probability is its own potential times the bin's remaining expected count over the remaining
+#' sum of potentials of its cells, so that cells of different potential within a bin keep their
+#' ratio, and the first pass draws from the potentials as they are. A successful patch counts as
+#' cells of its pivot's bin, as in the article's urn; all its cells, and those of failed
+#' patches, leave the pool and their bin of every transition. Because the bins are joint, the
+#' probability that one transition loses where another takes cells goes back to cells with the
+#' same potentials for both, not to cells that only share its own potential.
+#' Where the update raises the probabilities of a cell to a sum above 1, which happens where
+#' cells of high potential are left in a bin that lost cells without using up its expected
+#' count, they are rescaled to sum to 1 for that draw, and a warning says how often.
+#' The probabilities are recomputed for every MuST pass, so `batch_size` sets how many pivots
+#' share one update.
+#'
+#' **What uPAM is unbiased about.** The pivot cells are drawn in proportion to the potentials,
 #' and so are the patch sizes and elongations if same-step patches do not merge (Mazy App. 3.B.2,
 #' 3.D.1.2). The other cells of a patch are not drawn: the grower adds the neighbour with the
 #' best score, potential over distance to the target elongation. The allocated cells as a whole
 #' follow the potentials only where these vary slowly over the extent of a patch (Mazy App.
 #' 3.A.2: patch scale much smaller than the scale of the explanatory variables). Where
 #' potentials vary from cell to cell, uPAM places change where the potentials are high in a
-#' cell's neighbourhood, not cell by cell; with mono-pixel patches, use uSAM.
+#' cell's neighbourhood, not cell by cell; with mono-pixel patches, use uSAM. The update does not
+#' change this: counting each cell of a patch against its own bin would steer the pivots so
+#' that the patch cells follow the potentials, which the grower's deterministic choice of
+#' neighbours defeats, and the pivots would no longer follow the potentials.
 #'
 #' **Differences from the reference CLUMPY.** Checked against clumpy's patch grower on 2000
 #' scenarios (evoland-experiments, `2026-09-paper-figures/010-verify-clumpy.r`):
@@ -46,12 +78,9 @@
 #'   (half a cell above the prescribed mean on average);
 #' * without `avoid_aggregation`, a patch that runs out of neighbours of its class is kept as
 #'   grown, where clumpy discards it;
-#' * updating the potentials between passes is not yet implemented: clumpy re-estimates the
-#'   transition probabilities on the remaining pool before each pass (Mazy sec. 3.4.2), which is
-#'   currently too expensive to run here, so the potentials stay fixed. Re-drawing from fixed
-#'   potentials over a shrinking pool includes the most probable cells slightly less often than
-#'   their potential (about 3 % in the top decile with several passes, none with one pass,
-#'   `batch_size < 0`; `2026-09-paper-figures/010-verify-upam-bias.r`).
+#' * the probabilities are updated on bins of the potential (Mazy & Longaretti 2023, App. D.3,
+#'   E.2.3), where clumpy re-estimates the density of the remaining pool in the space of the
+#'   explanatory variables (App. D.4).
 #'
 #' With the connectedness step and the elongation aligned, both grow the same patch, except where
 #' equally scored candidates are separated by floating-point round-off. uSAM matches clumpy bit
@@ -76,16 +105,27 @@
 #'   existing areas expand with avoidance on. Failed patches remove their cells from the pool, so
 #'   where patches crowd, the quota can be left slightly unmet. `FALSE` lets same-period patches
 #'   merge and keeps patches that run out of neighbours. Ignored for the mono-pixel uSAM path.
-#' @param batch_size Integer; uPAM pivots attempted per MuST re-draw. `0` (default) auto-scales
-#'   to ~1% of each class's source pool, bounding the number of MuST passes so large rasters
-#'   stay tractable; `> 0` is an explicit cap (1 = strict uPAM); `< 0` processes all candidates
-#'   in a single pass. Ignored for uSAM.
+#' @param batch_size Integer; uPAM pivots attempted per MuST pass, i.e. between two updates of
+#'   the probabilities. `0` (default) auto-scales to ~1% of each class's source pool, bounding
+#'   the number of MuST passes so large rasters stay tractable; `> 0` is an explicit cap (1 =
+#'   strict uPAM, an update after every patch); `< 0` processes all candidates of a pass, and
+#'   updates only where one pass falls short of the quota. All three are unbiased; the fewer
+#'   pivots share an update, the closer the count allocated in each range of potential comes to
+#'   the sum of its potentials, at the cost of more passes. Ignored for uSAM.
 #' @param default_elongation Numeric in \[0, 1\]; patch elongation for transitions whose
 #'   `patch_elongation` is missing (0 isometric, 1 linear).
+#' @param n_bins Integer >= 1; uPAM maximum number of joint bins of potential per anterior class
+#'   for the update of the probabilities (default 100), and so of bins per transition. Fewer,
+#'   wider bins share one update among more different potentials; bins expecting few patches
+#'   each get a whole patch or none. Ignored for uSAM.
 #'
 #' @return An allocator specification for [allocate()].
 #'
 #' @references Mazy, 2022 (\url{https://theses.hal.science/tel-04382012v1}), Ch. 3.
+#'
+#' Mazy, F.-R., Longaretti, P.-Y., 2023. Towards a generic theoretical framework for
+#' pattern-based LUCC modeling. Environmental Modelling & Software 166, 105706.
+#' \doi{10.1016/j.envsoft.2023.105706}
 #'
 #' @include allocate.R
 #' @export
@@ -93,7 +133,8 @@ alloc_clumpy_spec <- function(
   area_dist = c("lognormal", "normal"),
   avoid_aggregation = TRUE,
   batch_size = 0L,
-  default_elongation = 0.5
+  default_elongation = 0.5,
+  n_bins = 100L
 ) {
   area_dist <- match.arg(area_dist)
   stopifnot(
@@ -101,13 +142,15 @@ alloc_clumpy_spec <- function(
     "batch_size must be a single integer" = is_scalar_integerish(batch_size),
     "default_elongation must be a number in [0, 1]" = {
       is_scalar_numeric(default_elongation) && default_elongation >= 0 && default_elongation <= 1
-    }
+    },
+    "n_bins must be a single integer, 1 or more" = is_scalar_integerish(n_bins) && n_bins >= 1
   )
   args <- list(
     area_dist = area_dist,
     avoid_aggregation = avoid_aggregation,
     batch_size = as.integer(batch_size),
-    default_elongation = default_elongation
+    default_elongation = default_elongation,
+    n_bins = as.integer(n_bins)
   )
 
   new_allocator_spec(
@@ -171,7 +214,8 @@ alloc_clumpy_one_period <- function(ctx, args) {
     shuffle = TRUE,
     avoid_aggregation = args[["avoid_aggregation"]],
     # integer code used by allocate_clumpy_cpp: 0 = log-normal, 1 = normal
-    area_dist = if (args[["area_dist"]] == "lognormal") 0L else 1L
+    area_dist = if (args[["area_dist"]] == "lognormal") 0L else 1L,
+    n_bins = args[["n_bins"]]
   )
 
   cells[ctx$anterior[, .(id_coord)], on = "id_coord"][,
