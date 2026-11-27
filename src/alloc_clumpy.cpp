@@ -438,14 +438,52 @@ static int grow_one_patch(std::vector<int> &land, const std::vector<int> &ant,
 // https://github.com/mmyrte/evoland-experiments/blob/548cedf60340b3ab176b6637e97438702c9dc1b8/2026-09-paper-figures/010-verify-clumpy/replay_rng.c
 // and
 // https://github.com/mmyrte/evoland-experiments/blob/548cedf60340b3ab176b6637e97438702c9dc1b8/2026-09-paper-figures/010-verify-clumpy.r#L154-L159
-template <typename F> static int must_draw_one(int k, F cum_prob) {
+//
+// Where the probabilities of a cell sum above 1 (the uPAM update factors can
+// push them there), they are rescaled to sum to 1 for the draw, by scaling the
+// uniform instead, and the draw is recorded in `overflow`; sums within
+// round-off of 1 are left as they are.  Only such cells evaluate their
+// probabilities twice.
+struct ProbabilityOverflow {
+  long long n_draws = 0; // cell draws whose probabilities summed above 1
+  double max_sum = 0.0;
+
+  void warn() const {
+    if (n_draws == 0) return;
+    Rcpp::warning("the transition probabilities of %lld cell draws summed "
+                  "above 1 (at most %.4g); they were rescaled to sum to 1",
+                  n_draws, max_sum);
+  }
+};
+
+// A selected transition, -1 for "stay", and the sum of the probabilities.
+struct MustDraw {
+  int q;
+  double sum;
+};
+
+template <typename F>
+static MustDraw must_draw_one(int k, F probability,
+                              ProbabilityOverflow &overflow) {
   const double u = R::unif_rand();
+  int selected = -1;
   double cs = 0.0;
   for (int q = 0; q < k; ++q) {
-    cs += cum_prob(q);
-    if (u < cs) return q; // first q with u < eta_q  (eta_{q-1} <= u < eta_q)
+    cs += probability(q);
+    // first q with u < eta_q  (eta_{q-1} <= u < eta_q)
+    if (selected < 0 && u < cs) selected = q;
   }
-  return -1; // stay
+  if (cs <= 1.0 + 1e-12) return {selected, cs};
+
+  ++overflow.n_draws;
+  overflow.max_sum = std::max(overflow.max_sum, cs);
+  const double scaled_u = u * cs;
+  double rescaled_cs = 0.0;
+  for (int q = 0; q < k; ++q) {
+    rescaled_cs += probability(q);
+    if (scaled_u < rescaled_cs) return {q, cs};
+  }
+  return {k - 1, cs}; // round-off: the sum is reached by the last one
 }
 
 // ---------------------------------------------------------------------------
@@ -489,7 +527,8 @@ List raster_neighbors_cpp(int nrow, int ncol) {
 //'   column.
 //' @return Integer vector of length `nrow(P)` with the sampled state per cell.
 //'   One uniform is drawn from R's generator per row, so [set.seed()] fixes the
-//'   result.
+//'   result.  A row summing above 1 is rescaled to sum to 1, with one warning
+//'   for all such rows.
 //' @keywords internal
 // [[Rcpp::export]]
 IntegerVector must_cpp(NumericMatrix P, IntegerVector states) {
@@ -499,6 +538,7 @@ IntegerVector must_cpp(NumericMatrix P, IntegerVector states) {
     stop("length(states) must equal ncol(P)");
   }
   IntegerVector y(n);
+  ProbabilityOverflow overflow;
   auto cum = [&](int i) {
     return [&, i](int q) {
       double p = P(i, q);
@@ -507,9 +547,10 @@ IntegerVector must_cpp(NumericMatrix P, IntegerVector states) {
     };
   };
   for (int i = 0; i < n; ++i) {
-    const int sel = must_draw_one(k, cum(i));
+    const int sel = must_draw_one(k, cum(i), overflow).q;
     y[i] = states[sel < 0 ? k - 1 : sel]; // sel<0 only if row sums < u
   }
+  overflow.warn();
   return y;
 }
 
@@ -616,6 +657,7 @@ struct Allocation {
   NumericVector area_mean, area_var, elongation;
   int area_dist = 0;
   bool rarefy = true, shuffle = true, avoid_aggregation = true;
+  ProbabilityOverflow overflow;
 
   // a cell of anterior class `fc` that no patch of this step has taken
   bool available(int cell, int fc) const {
@@ -676,8 +718,10 @@ static void allocate_usam_class(Allocation &alloc, int fc,
   std::vector<int> sampled(m);
   for (int i = 0; i < m; ++i) {
     const int cell = pool[i];
-    const int sel =
-        must_draw_one(k, [&](int q) { return alloc.pivot_prob(cell, at[q]); });
+    const int sel = must_draw_one(
+                        k, [&](int q) { return alloc.pivot_prob(cell, at[q]); },
+                        alloc.overflow)
+                        .q;
     sampled[i] = (sel < 0) ? -1 : at[sel];
   }
   for (int i = 0; i < m; ++i) {
@@ -1160,19 +1204,22 @@ static int batch_cap(int batch_size, int pool_size) {
 
 // One MuST pass over the pool, restricted to the transitions still in quota:
 // the slots that draw a change, and the transition (q) each draws.  Returns
-// the sum of the pivot probabilities tested, complete when no pivot is
-// selected, which is the only case it is read in.
+// the sum of the pivot probabilities tested.
 static double must_pass(const UpamClass &cls, std::vector<int> &cand_slot,
-                        std::vector<int> &cand_q) {
+                        std::vector<int> &cand_q,
+                        ProbabilityOverflow &overflow) {
   cand_slot.clear();
   cand_q.clear();
   double mass = 0.0;
   for (int s : cls.pool) {
-    const int sel = must_draw_one(cls.k(), [&](int q) {
-      const double p = cls.remaining[q] > 0.0 ? cls.pivot_prob(s, q) : 0.0;
-      mass += p;
-      return p;
-    });
+    const MustDraw draw = must_draw_one(
+        cls.k(),
+        [&](int q) {
+          return cls.remaining[q] > 0.0 ? cls.pivot_prob(s, q) : 0.0;
+        },
+        overflow);
+    mass += draw.sum;
+    const int sel = draw.q;
     if (sel >= 0) {
       cand_slot.push_back(s);
       cand_q.push_back(sel);
@@ -1227,7 +1274,7 @@ static void allocate_upam_class(Allocation &alloc, int fc,
   while (cls.any_quota()) {
     cls.compact();
     if (cls.pool.empty()) break;
-    const double mass = must_pass(cls, cand_slot, cand_q);
+    const double mass = must_pass(cls, cand_slot, cand_q, alloc.overflow);
     if (cand_slot.empty()) {
       // no potential left for the transitions still in quota: no patch can
       // be formed (Mazy sec. 3.4.2, third stopping condition)
@@ -1356,7 +1403,10 @@ List urn_bins_cpp(NumericMatrix potential, NumericVector quota, int n_bins,
 //' @param n_bins uPAM only: maximum number of joint bins of potential per
 //'   anterior class for the update of the probabilities (>= 1); fewer where
 //'   the quotas allow fewer than ten patches per bin.
-//' @return IntegerVector (length n_cells) of the posterior LULC state.
+//' @return IntegerVector (length n_cells) of the posterior LULC state.  Where
+//'   the probabilities of a cell sum above 1 (uPAM update factors above 1 on
+//'   cells of high potential), they are rescaled to sum to 1 for that draw,
+//'   and one warning gives the number of such cell draws and the largest sum.
 //' @keywords internal
 // [[Rcpp::export]]
 IntegerVector allocate_clumpy_cpp(
@@ -1405,6 +1455,7 @@ IntegerVector allocate_clumpy_cpp(
       allocate_upam_class(alloc, fc, at, target_rate, batch_size, n_bins);
     }
   }
+  alloc.overflow.warn();
   const std::vector<int> &land = alloc.land;
 
   IntegerVector res(n);

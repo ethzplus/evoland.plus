@@ -33,6 +33,18 @@ expect_equal(
   evoland.plus:::must_cpp(matrix(c(-1, NaN, 1), nrow = 1L), 1:3),
   3L
 )
+# a row summing above 1 is rescaled to sum to 1 for its draw, and one warning says how many
+# rows were: here the rows tripled, of which those summing above 1
+must_tripled <- must_prob * 3
+set.seed(2L)
+expect_warning(
+  must_rescaled <- evoland.plus:::must_cpp(must_tripled, must_states),
+  paste0(sum(rowSums(must_tripled) > 1), " cell draws summed above 1")
+)
+expect_equal(
+  must_rescaled,
+  must_oracle(must_tripled / pmax(rowSums(must_tripled), 1), must_states, must_u)
+)
 
 # area samplers ####
 # both are parameterised by the mean E and variance V of the patch area in cells, rounded to
@@ -521,7 +533,17 @@ allocate_row <- function(avoid_aggregation) {
   )
 }
 expect_equal(allocate_row(avoid_aggregation = FALSE), c(2L, 2L, 2L, 2L, 2L))
-expect_equal(allocate_row(avoid_aggregation = TRUE), c(2L, 2L, 1L, 2L, 2L))
+# Failed patches leave the bin without using up its expected count, so the 3 cells still due
+# are drawn from fewer cells at a potential of 1: 1.5 for cells 4 and 5 once the patch from 3
+# failed, 3 for cell 5 once the one from 4 failed too. Such probabilities are rescaled to 1, with
+# one warning.
+expect_warning(
+  row_avoiding <- allocate_row(avoid_aggregation = TRUE),
+  "of 3 cell draws summed above 1 \\(at most 3\\)"
+)
+expect_equal(row_avoiding, c(2L, 2L, 1L, 2L, 2L))
+# where the probabilities stay below 1, nothing is said
+expect_silent(allocate_square(40L, 0.05, 0.05, area_mean = 6))
 
 ## relabeling ####
 # the realisation depends on the classes only through which cells belong to which transition:

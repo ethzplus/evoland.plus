@@ -71,7 +71,10 @@ anterior class for the update of the probabilities (>= 1); fewer where
 the quotas allow fewer than ten patches per bin.}
 }
 \value{
-IntegerVector (length n_cells) of the posterior LULC state.
+IntegerVector (length n_cells) of the posterior LULC state.  Where
+the probabilities of a cell sum above 1 (uPAM update factors above 1 on
+cells of high potential), they are rescaled to sum to 1 for that draw,
+and one warning gives the number of such cell draws and the largest sum.
 }
 \description{
 Allocates LULC change for a single period.  See the file header for the

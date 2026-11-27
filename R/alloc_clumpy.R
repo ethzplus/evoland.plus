@@ -49,6 +49,9 @@
 #' patches, leave the pool and their bin of every transition. Because the bins are joint, the
 #' probability that one transition loses where another takes cells goes back to cells with the
 #' same potentials for both, not to cells that only share its own potential.
+#' Where the update raises the probabilities of a cell to a sum above 1, which happens where
+#' cells of high potential are left in a bin that lost cells without using up its expected
+#' count, they are rescaled to sum to 1 for that draw, and a warning says how often.
 #' The probabilities are recomputed for every MuST pass, so `batch_size` sets how many pivots
 #' share one update.
 #'

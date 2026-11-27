@@ -25,7 +25,8 @@ raster_neighbors_cpp <- function(nrow, ncol) {
 #'   column.
 #' @return Integer vector of length `nrow(P)` with the sampled state per cell.
 #'   One uniform is drawn from R's generator per row, so [set.seed()] fixes the
-#'   result.
+#'   result.  A row summing above 1 is rescaled to sum to 1, with one warning
+#'   for all such rows.
 #' @keywords internal
 must_cpp <- function(P, states) {
     .Call(`_evoland_plus_must_cpp`, P, states)
@@ -151,7 +152,10 @@ urn_bins_cpp <- function(potential, quota, n_bins, min_expected, pivot, trans, s
 #' @param n_bins uPAM only: maximum number of joint bins of potential per
 #'   anterior class for the update of the probabilities (>= 1); fewer where
 #'   the quotas allow fewer than ten patches per bin.
-#' @return IntegerVector (length n_cells) of the posterior LULC state.
+#' @return IntegerVector (length n_cells) of the posterior LULC state.  Where
+#'   the probabilities of a cell sum above 1 (uPAM update factors above 1 on
+#'   cells of high potential), they are rescaled to sum to 1 for that draw,
+#'   and one warning gives the number of such cell draws and the largest sum.
 #' @keywords internal
 allocate_clumpy_cpp <- function(landscape, nrow, ncol, trans_from, trans_to, prob_cell, prob_value, area_mean, area_var, elongation, target_rate, method, batch_size, rarefy, shuffle, avoid_aggregation, area_dist, n_bins = 100L) {
     .Call(`_evoland_plus_allocate_clumpy_cpp`, landscape, nrow, ncol, trans_from, trans_to, prob_cell, prob_value, area_mean, area_var, elongation, target_rate, method, batch_size, rarefy, shuffle, avoid_aggregation, area_dist, n_bins)
