@@ -9,7 +9,8 @@ sample_lognorm_area_cpp(area_mean, area_var)
 \arguments{
 \item{area_mean}{Mean patch area (cells); NA / <= 0 returns 1.}
 
-\item{area_var}{Patch-area variance (cells^2); NA / <= 0 treated as 1.}
+\item{area_var}{Patch-area variance (cells^2); NA / <= 0 returns the mean,
+rounded.}
 }
 \value{
 Integer >= 1.

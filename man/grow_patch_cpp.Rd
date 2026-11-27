@@ -28,7 +28,7 @@ grow_patch_cpp(
 
 \item{probs}{NumericVector of transition probabilities (length == landscape).}
 
-\item{nbr_above, nbr_below, nbr_left, nbr_right}{Neighbour index vectors.}
+\item{nbr_above, nbr_below, nbr_left, nbr_right}{Neighbor index vectors.}
 
 \item{pivot}{1-based pivot cell index.}
 
@@ -48,11 +48,9 @@ would merge with another patch or cannot reach \code{target_area}.}
 empty if the patch failed / the pivot is not an available \code{from_class} cell.
 }
 \description{
-Low-level patch grower (the building block where the mutable working layer
-and the immutable anterior reference are distinct), kept for direct use /
-unit testing.  On success the allocated cells are written back into
-\code{landscape} (set to \code{to_class}); on failure nothing is committed.  Neighbour
-vectors are 1-based with 0 == no neighbour, as produced by
-\code{\link[=raster_neighbors_cpp]{raster_neighbors_cpp()}}.
+The patch grower of \code{\link[=allocate_clumpy_cpp]{allocate_clumpy_cpp()}}, for tests and comparisons.  On
+success the allocated cells are written back into \code{landscape} (set to
+\code{to_class}); on failure nothing is committed.  Neighbor vectors are 1-based
+with 0 == no neighbor, as produced by \code{\link[=raster_neighbors_cpp]{raster_neighbors_cpp()}}.
 }
 \keyword{internal}
