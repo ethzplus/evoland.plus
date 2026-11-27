@@ -37,16 +37,21 @@
 // E.2.2-E.2.3: an urn per bin, N_v balls of state v among N), with bins of
 // the potential in place of bins of z: cells of equal potential are
 // exchangeable for the transition, which is all the urn argument needs, and
-// the update needs neither the predictors nor the fitted model.  Per
-// transition (PotentialBins):
-//   * the cells with a potential are sorted by it and cut into at most
-//     `n_bins` bins of about equal potential mass, never between equal
-//     potentials (so a few distinct values get a bin each); the bin count is
-//     capped at one per ten expected pivots, quota / (10 E(sigma)), because a
-//     bin expecting about one patch gets either a whole patch or none;
-//   * each bin keeps its cells still in the pool, the sum of their potentials
-//     (mass), and the cells still expected to transition, initially its mass
-//     scaled so the bins sum to the quota (N_v = P(v|u,z) N, App. E.2.1);
+// the update needs neither the predictors nor the fitted model.  The bins are
+// joint over the transitions from one class (App. D.3.4; JointBins), so that a
+// cell taken by one transition gives the probability another loses back to
+// cells with the same potentials for both:
+//   * the cells with a potential are cut recursively, at the potential-mass
+//     median of the transition whose potentials spread most, never between
+//     equal potentials, into at most `n_bins` bins.  A transition expects at
+//     least ten patches, 10 E(sigma) cells, in each of its bins, because a bin
+//     expecting about one patch gets either a whole patch or none: where a cut
+//     would leave it less on a side, it keeps the uncut group as one bin.
+//     With one transition, the bins are of about equal potential mass;
+//   * per transition, each bin keeps its cells still in the pool, the sum of
+//     their potentials (mass), and the cells still expected to transition,
+//     initially its mass scaled so the bins sum to the quota (N_v = P(v|u,z) N,
+//     App. E.2.1);
 //   * the MuST probability of a cell is p * expected / mass of its bin (over
 //     E(sigma) for pivots).  Within a bin, the update factor is shared in
 //     proportion to each cell's own potential rather than as expected / cells:
@@ -64,10 +69,12 @@
 //     deterministic choice of neighbours defeats: measured on potentials that
 //     vary within a patch, it barely moved the cells and biased the pivots
 //     by a factor 2 to 0.6 across deciles;
-//   * several transitions from one class (App. D.3.4) each have their own
-//     bins; a cell sits in one bin per transition and leaves all of them when
-//     it leaves the pool; MuST stays one draw per cell over the transitions
-//     still in quota.  Joint bins would need a grid over all transitions.
+//   * a cell leaving the pool leaves its bin of every transition; MuST stays
+//     one draw per cell over the transitions still in quota.  With bins per
+//     transition, a cell taken by A gave B's probability back to all cells of
+//     its bin of B, whatever their potential for A: with A at 0.6 on half the
+//     cells and 0.02 on the others and B independent of A, B was allocated on
+//     0.121 and 0.180 of the halves instead of 0.150.
 // Probabilities are recomputed for every pass, so a batch of pivots shares
 // one update: strict uPAM (batch_size = 1) updates after every patch, as the
 // article does, and a pass that takes all candidates (batch_size < 0) relies
@@ -637,13 +644,12 @@ struct Allocation {
     return (ISNAN(p) || p < 0.0) ? 0.0 : p;
   }
 
-  double rarefied(double p, int t) const {
-    if (rarefy) {
-      const double am = area_mean[t];
-      if (!ISNAN(am) && am > 1.0) p /= am; // 1/E(sigma); mono-pixel needs none
-    }
-    return p;
+  // 1/E(sigma) where rarefied; mono-pixel needs none
+  double area_divisor(int t) const {
+    const double am = area_mean[t];
+    return (rarefy && !ISNAN(am) && am > 1.0) ? am : 1.0;
   }
+  double rarefied(double p, int t) const { return p / area_divisor(t); }
   double pivot_prob(int cell, int t) const {
     return rarefied(potential(cell, t), t);
   }
@@ -696,96 +702,361 @@ static std::vector<double> class_quota(const NumericVector &target_rate,
   return quota;
 }
 
-// Number of potential bins for a transition: `n_bins`, but at most one per
-// ten pivots expected, quota / (10 E(sigma)).  The urn decrements a bin's
-// expected count by whole patches, so a bin expecting less than a patch or two
-// over-allocates (it gets a whole patch or none), while fewer, wider bins
-// share one update factor among more different potentials.
-static int urn_bin_count(int n_bins, double quota, double area_mean) {
+// Cells a bin must expect of a transition, ten patches of E(sigma) cells: the
+// urn decrements a bin's expected count by whole patches, so a bin expecting
+// a patch or two gets a whole patch or none, which over-allocates bins of low
+// potential, while fewer, wider bins share one update among more different
+// potentials.
+static double min_bin_expected(double area_mean) {
   const double e_sigma =
       (ISNAN(area_mean) || area_mean < 1.0) ? 1.0 : area_mean;
-  const double cap = std::floor(quota / (10.0 * e_sigma));
-  return (int)std::max(1.0, std::min((double)n_bins, cap));
+  return 10.0 * e_sigma;
 }
 
-// The urn of one transition over the cells of an anterior class (Mazy &
-// Longaretti 2023, App. D.3, E.2.3), with bins of the potential in place of
-// bins of the explanatory variables z: cells of equal potential are
-// exchangeable for the transition, which is what the urn argument needs.  A
-// bin keeps the cells still in the pool, the sum of their potentials, and the
-// number of cells still expected to make the transition; a cell's
-// probability is its own potential times expected / mass of its bin.
-struct PotentialBins {
-  std::vector<int> bin_of_slot;    // -1: no potential for this transition
-  std::vector<double> pot_of_slot; // clamped potential P(v|u,z)
-  std::vector<int> n_cells;        // per bin: cells in the pool
-  std::vector<double> mass;        // per bin: their potentials, summed
-  std::vector<double> expected;    // per bin: cells still to transition
-
-  // Bin the slots with a positive potential into at most `n_bins` bins of
-  // about equal potential mass, i.e. equal expected counts, by ascending
-  // potential; cells of equal potential are never split, so a few distinct
-  // values get a bin each.  The expected counts start at the potential mass of
-  // each bin, scaled to sum to the quota.
-  PotentialBins(std::vector<double> pot, int n_bins, double quota)
-      : bin_of_slot(pot.size(), -1), pot_of_slot(std::move(pot)) {
-    if (quota <= 0.0) return; // never drawn: every slot without a bin
-    std::vector<std::pair<double, int>> order; // (potential, slot)
-    double total = 0.0;
-    for (int s = 0; s < (int)pot_of_slot.size(); ++s) {
-      if (pot_of_slot[s] > 0.0) {
-        order.emplace_back(pot_of_slot[s], s);
-        total += pot_of_slot[s];
-      }
-    }
-    std::sort(order.begin(), order.end());
-    const double mass_per_bin = total / n_bins;
-    for (size_t i = 0; i < order.size(); ++i) {
-      if (i == 0 || (mass.back() >= mass_per_bin &&
-                     order[i].first != order[i - 1].first)) {
-        n_cells.push_back(0);
-        mass.push_back(0.0);
-      }
-      bin_of_slot[order[i].second] = (int)n_cells.size() - 1;
-      ++n_cells.back();
-      mass.back() += order[i].first;
-    }
-    expected.resize(mass.size());
-    for (size_t b = 0; b < mass.size(); ++b) {
-      expected[b] = mass[b] * quota / total;
-    }
+// The urns of the transitions from one anterior class (Mazy & Longaretti
+// 2023, App. D.3, E.2.3), on joint bins of the potentials: cells with the same
+// potential for every transition are exchangeable for all of them, which is
+// what the urn argument needs. Per transition, a bin keeps the cells still in
+// the pool that have a potential, the sum of their potentials (mass), and the
+// cells still expected to make the transition; a cell's probability is its own
+// potential times expected / mass of its bin.
+//
+// The joint bins are the leaves of a tree of cuts. A node is cut at the
+// potential-mass median of the transition whose potentials spread most within
+// it (as the standard deviation), never between equal potentials, as long as
+// that transition expects at least min_expected cells on each side and the
+// budget of `n_bins` leaves allows. A transition takes its bins from the
+// leaves, unless a cut would leave it fewer than min_expected cells on a side
+// where it has a potential: it then keeps the node as one bin, so that every
+// bin of a transition expects at least min_expected cells, as with bins per
+// transition. With one transition, the leaves are bins of equal potential
+// mass, at most one per min_expected cells.
+class JointBins {
+public:
+  // `potential` holds the clamped potentials, slot-major:
+  // [slot * n_trans + q]. A transition without quota or potential gets no
+  // bins.
+  JointBins(std::vector<double> potential, int n_trans,
+            const std::vector<double> &quota,
+            const std::vector<double> &min_expected, int n_bins)
+      : n_trans_(n_trans), potential_(std::move(potential)), urns_(n_trans) {
+    build(quota, min_expected, n_bins);
   }
 
-  // Update factor of a slot's bin: remaining expected count over remaining
-  // potential mass, 0 once the bin is used up or empty.
-  double factor(int slot) const {
-    const int b = bin_of_slot[slot];
-    if (b < 0 || n_cells[b] <= 0 || mass[b] <= 0.0 || expected[b] <= 0.0) {
+  double potential(int slot, int q) const {
+    return potential_[(size_t)slot * n_trans_ + q];
+  }
+
+  // 0-based leaf of a slot, -1 for a slot without a potential.
+  int leaf(int slot) const { return leaf_of_slot_[slot]; }
+
+  // 0-based bin of a slot for transition q, -1 where it has no potential.
+  int bin(int slot, int q) const {
+    const int l = leaf_of_slot_[slot];
+    if (l < 0 || potential(slot, q) <= 0.0) return -1;
+    return urns_[q].bin_of_leaf[l];
+  }
+
+  // Update factor of a slot's bin for transition q: remaining expected count
+  // over remaining potential mass, 0 once the bin is used up or empty.
+  double factor(int slot, int q) const {
+    const int l = leaf_of_slot_[slot];
+    if (l < 0) return 0.0;
+    const Urn &urn = urns_[q];
+    const int b = urn.bin_of_leaf[l];
+    if (b < 0 || urn.n_cells[b] <= 0 || urn.mass[b] <= 0.0 ||
+        urn.expected[b] <= 0.0) {
       return 0.0;
     }
-    return expected[b] / mass[b];
+    return urn.expected[b] / urn.mass[b];
   }
 
-  // A patch of `size` cells grown from the pivot in `slot` uses up `size` of
-  // the expected count of the pivot's bin: the patch counts as cells of that
-  // bin (App. E.2.3), wherever its other cells lie.
-  void allocate(int slot, double size) {
-    const int b = bin_of_slot[slot];
-    if (b >= 0) expected[b] -= size;
+  // A patch of `size` cells grown for transition q from the pivot in `slot`
+  // uses up `size` of the expected count of the pivot's bin: the patch counts
+  // as cells of that bin (App. E.2.3), wherever its other cells lie.
+  void allocate(int slot, int q, double size) {
+    const int l = leaf_of_slot_[slot];
+    if (l < 0) return;
+    Urn &urn = urns_[q];
+    const int b = urn.bin_of_leaf[l];
+    if (b >= 0) urn.expected[b] -= size;
   }
 
-  // The slot leaves the pool, and so its bin.
+  // The slot leaves the pool, and so its bin of every transition.
   void remove(int slot) {
-    const int b = bin_of_slot[slot];
-    if (b < 0) return;
-    --n_cells[b];
-    // reset rather than subtract the last potential, so round-off cannot
-    // leave a positive mass in an empty bin
-    mass[b] = n_cells[b] > 0 ? mass[b] - pot_of_slot[slot] : 0.0;
+    const int l = leaf_of_slot_[slot];
+    if (l < 0) return;
+    for (int q = 0; q < n_trans_; ++q) {
+      const double p = potential(slot, q);
+      Urn &urn = urns_[q];
+      const int b = urn.bin_of_leaf[l];
+      if (b < 0 || p <= 0.0) continue;
+      --urn.n_cells[b];
+      // reset rather than subtract the last potential, so round-off cannot
+      // leave a positive mass in an empty bin
+      urn.mass[b] = urn.n_cells[b] > 0 ? urn.mass[b] - p : 0.0;
+    }
+  }
+
+  const std::vector<double> &expected(int q) const { return urns_[q].expected; }
+
+private:
+  // The bins of one transition, each a union of leaves.
+  struct Urn {
+    std::vector<int> bin_of_leaf; // -1: the transition is never drawn
+    std::vector<int> n_cells;     // per bin: cells in the pool
+    std::vector<double> mass;     // per bin: their potentials, summed
+    std::vector<double> expected; // per bin: cells still to transition
+  };
+
+  // A node of the tree: the rows [begin, end) of a Rows, the leaves it may
+  // still be cut into, the transition its rows are sorted by (-1: none), and
+  // per transition its bin, or follows_below while the transition takes its
+  // bins from further down.
+  struct Node {
+    int begin, end, budget, sorted_by;
+    std::vector<int> bin;
+  };
+  static const int follows_below = -2;
+
+  // The slots to bin with their potentials, in the order of the nodes, so
+  // that a node is a contiguous range of rows, read sequentially.
+  struct Rows {
+    int n_trans;
+    std::vector<int> slot;
+    std::vector<double> potential; // [row * n_trans + q]
+
+    double at(int row, int q) const {
+      return potential[(size_t)row * n_trans + q];
+    }
+
+    // The potential mass of transition q over rows [begin, end), and whether
+    // their potentials differ.
+    std::pair<double, bool> mass(int begin, int end, int q) const {
+      double sum = 0.0;
+      bool varies = false;
+      for (int r = begin; r < end; ++r) {
+        sum += at(r, q);
+        varies = varies || at(r, q) != at(begin, q);
+      }
+      return {sum, varies};
+    }
+
+    // Sort rows [begin, end) by the potential of transition q, ties by slot.
+    void sort_by(int begin, int end, int q) {
+      struct Key {
+        double potential;
+        int slot, row;
+      };
+      std::vector<Key> keys;
+      keys.reserve(end - begin);
+      for (int r = begin; r < end; ++r) keys.push_back({at(r, q), slot[r], r});
+      std::sort(keys.begin(), keys.end(), [](const Key &a, const Key &b) {
+        return a.potential < b.potential ||
+               (a.potential == b.potential && a.slot < b.slot);
+      });
+      const std::vector<double> old(potential.begin() + (size_t)begin * n_trans,
+                                    potential.begin() + (size_t)end * n_trans);
+      for (int r = begin; r < end; ++r) {
+        const Key &key = keys[r - begin];
+        slot[r] = key.slot;
+        std::copy_n(old.begin() + (size_t)(key.row - begin) * n_trans, n_trans,
+                    potential.begin() + (size_t)r * n_trans);
+      }
+    }
+  };
+
+  struct Cut {
+    int q = -1;     // transition cut on; -1: no cut
+    int at = 0;     // first row of the right side
+    int budget = 0; // leaves the node may be cut into
+  };
+
+  int n_trans_;
+  std::vector<double> potential_;
+  std::vector<int> leaf_of_slot_;
+  std::vector<Urn> urns_;
+
+  int new_bin(int q) {
+    Urn &urn = urns_[q];
+    urn.n_cells.push_back(0);
+    urn.mass.push_back(0.0);
+    urn.expected.push_back(0.0);
+    return (int)urn.mass.size() - 1;
+  }
+
+  // The cut of `node`, sorting its rows by the potential cut on. A
+  // transition whose potentials are all equal in the node stops following:
+  // its cells there are exchangeable already.
+  Cut choose_cut(Rows &rows, Node &node, const std::vector<double> &scale,
+                 const std::vector<double> &min_expected) {
+    Cut cut;
+    // the transitions still following, their mass and spread
+    std::vector<double> mass(n_trans_, 0.0);
+    std::vector<std::pair<double, int>> spread; // (-variance, q)
+    int budget = 1;
+    const double n = node.end - node.begin;
+    for (int q = 0; q < n_trans_; ++q) {
+      if (node.bin[q] != follows_below) continue;
+      double lo = R_PosInf, hi = R_NegInf, sum = 0.0, sum_sq = 0.0;
+      for (int r = node.begin; r < node.end; ++r) {
+        const double p = rows.at(r, q);
+        lo = std::min(lo, p);
+        hi = std::max(hi, p);
+        sum += p;
+        sum_sq += p * p;
+      }
+      mass[q] = sum;
+      if (!(hi > lo)) {
+        node.bin[q] = new_bin(q);
+        continue;
+      }
+      const double cap = min_expected[q] > 0.0
+                             ? std::floor(sum * scale[q] / min_expected[q])
+                             : (double)node.budget;
+      budget = std::max(budget, (int)std::min((double)node.budget, cap));
+      spread.emplace_back(-(sum_sq / n - (sum / n) * (sum / n)), q);
+    }
+    if (budget < 2) return cut;
+    std::sort(spread.begin(), spread.end());
+
+    for (const auto &candidate : spread) {
+      const int q = candidate.second;
+      if (node.sorted_by != q) {
+        rows.sort_by(node.begin, node.end, q);
+        node.sorted_by = q;
+      }
+      // the first boundary between distinct potentials at or past the
+      // target mass, else the last one before it
+      const double target = mass[q] * (budget / 2) / budget;
+      double cum = 0.0, left = 0.0;
+      int at = -1;
+      for (int r = node.begin + 1; r < node.end; ++r) {
+        cum += rows.at(r - 1, q);
+        if (rows.at(r - 1, q) == rows.at(r, q)) continue;
+        at = r;
+        left = cum;
+        if (cum >= target) break;
+      }
+      const double right = mass[q] - left;
+      if (at < 0 || left * scale[q] < min_expected[q] ||
+          right * scale[q] < min_expected[q]) {
+        continue;
+      }
+      cut.q = q;
+      cut.at = at;
+      cut.budget = budget;
+      return cut;
+    }
+    return cut;
+  }
+
+  void build(const std::vector<double> &quota,
+             const std::vector<double> &min_expected, int n_bins) {
+    const int n_slots = (int)(potential_.size() / n_trans_);
+    leaf_of_slot_.assign(n_slots, -1);
+    // expected cells per unit of potential mass; the bins of a transition
+    // start at their mass, scaled so that they sum to the quota
+    std::vector<double> total(n_trans_, 0.0), scale(n_trans_, 0.0);
+    Node root{0, 0, n_bins, -1, std::vector<int>(n_trans_, -1)};
+    for (int q = 0; q < n_trans_; ++q) {
+      for (int s = 0; s < n_slots; ++s) total[q] += potential(s, q);
+      if (quota[q] > 0.0 && total[q] > 0.0) {
+        scale[q] = quota[q] / total[q];
+        root.bin[q] = follows_below;
+      }
+    }
+    Rows rows{n_trans_, {}, {}};
+    for (int s = 0; s < n_slots; ++s) {
+      bool drawn = false;
+      for (int q = 0; q < n_trans_; ++q) {
+        drawn = drawn || (scale[q] > 0.0 && potential(s, q) > 0.0);
+      }
+      if (!drawn) continue;
+      rows.slot.push_back(s);
+      rows.potential.insert(rows.potential.end(),
+                            potential_.begin() + (size_t)s * n_trans_,
+                            potential_.begin() + (size_t)(s + 1) * n_trans_);
+    }
+    root.end = (int)rows.slot.size();
+
+    int n_leaves = 0;
+    std::vector<Node> stack;
+    if (root.end > 0) stack.push_back(std::move(root));
+    while (!stack.empty()) {
+      Node node = std::move(stack.back());
+      stack.pop_back();
+      const Cut cut = choose_cut(rows, node, scale, min_expected);
+      if (cut.q < 0) { // a leaf: the transitions still following get a bin
+        for (int q = 0; q < n_trans_; ++q) {
+          if (node.bin[q] == follows_below) node.bin[q] = new_bin(q);
+          urns_[q].bin_of_leaf.push_back(node.bin[q]);
+        }
+        for (int r = node.begin; r < node.end; ++r) {
+          leaf_of_slot_[rows.slot[r]] = n_leaves;
+        }
+        ++n_leaves;
+        continue;
+      }
+      // A transition stops following where it would be left with less than
+      // min_expected cells on a side where it has a potential. The leaves are
+      // shared in proportion to the bins each side could hold of the
+      // transition that could hold most among those whose potentials still
+      // differ there, so that with one transition they are bins of equal
+      // mass.
+      double capacity_left = 0.0, capacity_right = 0.0;
+      for (int q = 0; q < n_trans_; ++q) {
+        if (node.bin[q] != follows_below) continue;
+        const auto left = rows.mass(node.begin, cut.at, q);
+        const auto right = rows.mass(cut.at, node.end, q);
+        const double expected_left = left.first * scale[q];
+        const double expected_right = right.first * scale[q];
+        if ((expected_left > 0.0 && expected_left < min_expected[q]) ||
+            (expected_right > 0.0 && expected_right < min_expected[q])) {
+          node.bin[q] = new_bin(q);
+          continue;
+        }
+        const double per_bin = min_expected[q] > 0.0 ? min_expected[q] : 1.0;
+        if (left.second) {
+          capacity_left = std::max(capacity_left, expected_left / per_bin);
+        }
+        if (right.second) {
+          capacity_right = std::max(capacity_right, expected_right / per_bin);
+        }
+      }
+      if (capacity_left + capacity_right <= 0.0) capacity_left = 1.0;
+      const double share =
+          capacity_left / (capacity_left + capacity_right) * cut.budget;
+      const int budget_left =
+          std::min(cut.budget - 1, std::max(1, (int)std::nearbyint(share)));
+      // right first, so that the leaves are numbered from the left
+      stack.push_back(Node{cut.at, node.end, cut.budget - budget_left,
+                           node.sorted_by, node.bin});
+      stack.push_back(
+          Node{node.begin, cut.at, budget_left, node.sorted_by, node.bin});
+    }
+
+    for (int s = 0; s < n_slots; ++s) {
+      const int l = leaf_of_slot_[s];
+      if (l < 0) continue;
+      for (int q = 0; q < n_trans_; ++q) {
+        const int b = urns_[q].bin_of_leaf[l];
+        const double p = potential(s, q);
+        if (b < 0 || p <= 0.0) continue;
+        ++urns_[q].n_cells[b];
+        urns_[q].mass[b] += p;
+      }
+    }
+    for (int q = 0; q < n_trans_; ++q) {
+      Urn &urn = urns_[q];
+      for (size_t b = 0; b < urn.mass.size(); ++b) {
+        urn.expected[b] = urn.mass[b] * quota[q] / total[q];
+      }
+    }
   }
 };
 
-// uPAM state of one anterior class.  A *slot* is a cell's position in the
+// uPAM state of one anterior class. A *slot* is a cell's position in the
 // initial pool (the class's cells in raster order); per-transition quantities
 // are indexed by q, the position of the transition in `trans`.
 struct UpamClass {
@@ -794,37 +1065,50 @@ struct UpamClass {
   std::vector<int> cell_of_slot; // 0-based raster cell of each slot
   std::vector<char> in_pool;     // per slot: not allocated, not failed
   std::vector<int> pool;         // slots still in the pool, ascending
-  std::vector<double> pivot_p;   // [q * n_slots + slot]: pivot probability
+  std::vector<double> rarefy_by; // per q: divisor of the pivot probability
   std::vector<double> remaining; // per q: quota still to allocate, cells
-  std::vector<PotentialBins> bins; // per q: the urn of the transition
+  JointBins bins;                // the urns of the transitions
 
   UpamClass(const Allocation &alloc, int fc_, const std::vector<int> &at,
             const NumericVector &target_rate, int n_bins)
-      : fc(fc_), trans(at), cell_of_slot(alloc.class_cells(fc_)) {
+      : fc(fc_), trans(at), cell_of_slot(alloc.class_cells(fc_)),
+        rarefy_by(at.size()),
+        remaining(class_quota(target_rate, trans, (int)cell_of_slot.size())),
+        bins(class_potentials(alloc), (int)at.size(), remaining,
+             class_min_expected(alloc), n_bins) {
     const int n_slots = (int)cell_of_slot.size();
     in_pool.assign(n_slots, 1);
     pool.resize(n_slots);
     for (int s = 0; s < n_slots; ++s) pool[s] = s;
-    remaining = class_quota(target_rate, trans, n_slots);
-    pivot_p.resize((size_t)trans.size() * n_slots);
     for (size_t q = 0; q < trans.size(); ++q) {
-      std::vector<double> pot(n_slots);
-      for (int s = 0; s < n_slots; ++s) {
-        pot[s] = alloc.potential(cell_of_slot[s], trans[q]);
-        pivot_p[q * n_slots + s] = alloc.rarefied(pot[s], trans[q]);
-      }
-      bins.emplace_back(
-          std::move(pot),
-          urn_bin_count(n_bins, remaining[q], alloc.area_mean[trans[q]]),
-          remaining[q]);
+      rarefy_by[q] = alloc.area_divisor(trans[q]);
     }
+  }
+
+  std::vector<double> class_potentials(const Allocation &alloc) const {
+    const size_t k = trans.size();
+    std::vector<double> pot(cell_of_slot.size() * k);
+    for (size_t s = 0; s < cell_of_slot.size(); ++s) {
+      for (size_t q = 0; q < k; ++q) {
+        pot[s * k + q] = alloc.potential(cell_of_slot[s], trans[q]);
+      }
+    }
+    return pot;
+  }
+
+  std::vector<double> class_min_expected(const Allocation &alloc) const {
+    std::vector<double> min_expected(trans.size());
+    for (size_t q = 0; q < trans.size(); ++q) {
+      min_expected[q] = min_bin_expected(alloc.area_mean[trans[q]]);
+    }
+    return min_expected;
   }
 
   int k() const { return (int)trans.size(); }
   int n_slots() const { return (int)cell_of_slot.size(); }
   // The pivot probability of a slot for transition q, updated by its urn.
   double pivot_prob(int slot, int q) const {
-    return pivot_p[(size_t)q * n_slots() + slot] * bins[q].factor(slot);
+    return bins.potential(slot, q) / rarefy_by[q] * bins.factor(slot, q);
   }
 
   bool any_quota() const {
@@ -850,7 +1134,7 @@ struct UpamClass {
       const int s = slot_of_cell[c];
       if (s < 0 || !in_pool[s]) continue;
       in_pool[s] = 0;
-      for (PotentialBins &b : bins) b.remove(s);
+      bins.remove(s);
     }
   }
 
@@ -858,7 +1142,7 @@ struct UpamClass {
   // uses up quota and the expected count of the pivot's bin.
   void allocated(int slot, int q, int size) {
     remaining[q] -= (double)size;
-    bins[q].allocate(slot, (double)size);
+    bins.allocate(slot, q, (double)size);
   }
 };
 
@@ -958,40 +1242,52 @@ static void allocate_upam_class(Allocation &alloc, int fc,
   }
 }
 
-//' Potential bins of the uPAM urn (C++)
+//' Joint bins of the uPAM urns (C++)
 //'
-//' Bins the potentials of one transition as uPAM does, applies a sequence of
-//' allocated patches and of removals from the pool, and returns the
-//' probabilities the next MuST pass would use (before rarefaction).  For unit
-//' tests of the bookkeeping; [allocate_clumpy_cpp()] does the same inside.
+//' Bins the potentials of the transitions from one anterior class as uPAM
+//' does, applies a sequence of allocated patches and of removals from the
+//' pool, and returns the probabilities the next MuST pass would use (before
+//' rarefaction).  For unit tests of the bookkeeping; [allocate_clumpy_cpp()]
+//' does the same inside.
 //'
-//' @param potential NumericVector of the potentials P(v|u,z) of the cells of
-//'   the anterior class; NaN and negative values count as 0.
-//' @param quota Cells the transition is to allocate; the expected counts of
-//'   the bins are scaled to sum to it.
-//' @param n_bins Maximum number of bins (the cap by quota / (10 E(sigma)) of
-//'   [allocate_clumpy_cpp()] is not applied).
-//' @param pivot,size IntegerVectors of equal length: 1-based cells used as
-//'   pivots of allocated patches, and the size of each patch, in cells.
+//' @param potential NumericMatrix (cells x transitions) of the potentials
+//'   P(v|u,z) of the cells of the anterior class; NaN and negative values
+//'   count as 0.
+//' @param quota NumericVector (per transition) of the cells to allocate; the
+//'   expected counts of a transition's bins are scaled to sum to it.
+//' @param n_bins Maximum number of joint bins.
+//' @param min_expected NumericVector (per transition) of the cells a bin must
+//'   expect; [allocate_clumpy_cpp()] uses ten patches, 10 E(sigma).
+//' @param pivot,trans,size IntegerVectors of equal length: 1-based cells used
+//'   as pivots of allocated patches, the 1-based transition (column of
+//'   `potential`) of each patch, and its size, in cells.
 //' @param removed 1-based cells that leave the pool (allocated or failed),
 //'   applied after the patches.
-//' @return List with `bin` (1-based bin of each cell, 0 for a cell without
-//'   potential), `probability` (potential times the update factor of its bin,
-//'   0 for a cell out of the pool) and `expected` (remaining expected count of
-//'   each bin).
+//' @return List with `leaf` (1-based joint bin of each cell, 0 for a cell
+//'   without potential), `bin` (integer matrix like `potential`: 1-based bin of
+//'   each cell for each transition, 0 where it has no potential),
+//'   `probability` (matrix like `potential`: potential times the update factor
+//'   of its bin, 0 for a cell out of the pool) and `expected` (list per
+//'   transition of the remaining expected count of each bin).
 //' @keywords internal
 // [[Rcpp::export]]
-List urn_bins_cpp(NumericVector potential, double quota, int n_bins,
-                  IntegerVector pivot, IntegerVector size,
+List urn_bins_cpp(NumericMatrix potential, NumericVector quota, int n_bins,
+                  NumericVector min_expected, IntegerVector pivot,
+                  IntegerVector trans, IntegerVector size,
                   IntegerVector removed) {
-  const int m = potential.size();
-  std::vector<double> pot(m);
+  const int m = potential.nrow();
+  const int k = potential.ncol();
+  std::vector<double> pot((size_t)m * k);
   for (int s = 0; s < m; ++s) {
-    pot[s] = (ISNAN(potential[s]) || potential[s] < 0.0) ? 0.0 : potential[s];
+    for (int q = 0; q < k; ++q) {
+      const double p = potential(s, q);
+      pot[(size_t)s * k + q] = (ISNAN(p) || p < 0.0) ? 0.0 : p;
+    }
   }
-  PotentialBins bins(pot, n_bins, quota);
+  JointBins bins(std::move(pot), k, as<std::vector<double>>(quota),
+                 as<std::vector<double>>(min_expected), n_bins);
   for (int i = 0; i < pivot.size(); ++i) {
-    bins.allocate(pivot[i] - 1, (double)size[i]);
+    bins.allocate(pivot[i] - 1, trans[i] - 1, (double)size[i]);
   }
   std::vector<char> in_pool(m, 1);
   for (int c : removed) {
@@ -999,15 +1295,21 @@ List urn_bins_cpp(NumericVector potential, double quota, int n_bins,
     in_pool[c - 1] = 0;
     bins.remove(c - 1);
   }
-  IntegerVector bin(m);
-  NumericVector probability(m);
+  IntegerVector leaf(m);
+  IntegerMatrix bin(m, k);
+  NumericMatrix probability(m, k);
+  List expected(k);
   for (int s = 0; s < m; ++s) {
-    bin[s] = bins.bin_of_slot[s] + 1;
-    probability[s] = in_pool[s] ? pot[s] * bins.factor(s) : 0.0;
+    leaf[s] = bins.leaf(s) + 1;
+    for (int q = 0; q < k; ++q) {
+      bin(s, q) = bins.bin(s, q) + 1;
+      probability(s, q) =
+          in_pool[s] ? bins.potential(s, q) * bins.factor(s, q) : 0.0;
+    }
   }
-  return List::create(_["bin"] = bin, _["probability"] = probability,
-                      _["expected"] = NumericVector(bins.expected.begin(),
-                                                    bins.expected.end()));
+  for (int q = 0; q < k; ++q) expected[q] = wrap(bins.expected(q));
+  return List::create(_["leaf"] = leaf, _["bin"] = bin,
+                      _["probability"] = probability, _["expected"] = expected);
 }
 
 // ---------------------------------------------------------------------------
@@ -1051,9 +1353,9 @@ List urn_bins_cpp(NumericVector potential, double quota, int n_bins,
 //' @param avoid_aggregation uPAM only: if TRUE, patches that would merge fail
 //'   and allocate nothing (clumpy GaussianPatcher semantics).
 //' @param area_dist Patch-area distribution: 0 = log-normal, 1 = normal.
-//' @param n_bins uPAM only: maximum number of bins of potential per
-//'   transition for the update of the probabilities (>= 1); fewer where the
-//'   quota allows fewer than ten patches per bin.
+//' @param n_bins uPAM only: maximum number of joint bins of potential per
+//'   anterior class for the update of the probabilities (>= 1); fewer where
+//'   the quotas allow fewer than ten patches per bin.
 //' @return IntegerVector (length n_cells) of the posterior LULC state.
 //' @keywords internal
 // [[Rcpp::export]]

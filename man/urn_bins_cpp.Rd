@@ -2,36 +2,52 @@
 % Please edit documentation in R/RcppExports.R
 \name{urn_bins_cpp}
 \alias{urn_bins_cpp}
-\title{Potential bins of the uPAM urn (C++)}
+\title{Joint bins of the uPAM urns (C++)}
 \usage{
-urn_bins_cpp(potential, quota, n_bins, pivot, size, removed)
+urn_bins_cpp(
+  potential,
+  quota,
+  n_bins,
+  min_expected,
+  pivot,
+  trans,
+  size,
+  removed
+)
 }
 \arguments{
-\item{potential}{NumericVector of the potentials P(v|u,z) of the cells of
-the anterior class; NaN and negative values count as 0.}
+\item{potential}{NumericMatrix (cells x transitions) of the potentials
+P(v|u,z) of the cells of the anterior class; NaN and negative values
+count as 0.}
 
-\item{quota}{Cells the transition is to allocate; the expected counts of
-the bins are scaled to sum to it.}
+\item{quota}{NumericVector (per transition) of the cells to allocate; the
+expected counts of a transition's bins are scaled to sum to it.}
 
-\item{n_bins}{Maximum number of bins (the cap by quota / (10 E(sigma)) of
-\code{\link[=allocate_clumpy_cpp]{allocate_clumpy_cpp()}} is not applied).}
+\item{n_bins}{Maximum number of joint bins.}
 
-\item{pivot, size}{IntegerVectors of equal length: 1-based cells used as
-pivots of allocated patches, and the size of each patch, in cells.}
+\item{min_expected}{NumericVector (per transition) of the cells a bin must
+expect; \code{\link[=allocate_clumpy_cpp]{allocate_clumpy_cpp()}} uses ten patches, 10 E(sigma).}
+
+\item{pivot, trans, size}{IntegerVectors of equal length: 1-based cells used
+as pivots of allocated patches, the 1-based transition (column of
+\code{potential}) of each patch, and its size, in cells.}
 
 \item{removed}{1-based cells that leave the pool (allocated or failed),
 applied after the patches.}
 }
 \value{
-List with \code{bin} (1-based bin of each cell, 0 for a cell without
-potential), \code{probability} (potential times the update factor of its bin,
-0 for a cell out of the pool) and \code{expected} (remaining expected count of
-each bin).
+List with \code{leaf} (1-based joint bin of each cell, 0 for a cell
+without potential), \code{bin} (integer matrix like \code{potential}: 1-based bin of
+each cell for each transition, 0 where it has no potential),
+\code{probability} (matrix like \code{potential}: potential times the update factor
+of its bin, 0 for a cell out of the pool) and \code{expected} (list per
+transition of the remaining expected count of each bin).
 }
 \description{
-Bins the potentials of one transition as uPAM does, applies a sequence of
-allocated patches and of removals from the pool, and returns the
-probabilities the next MuST pass would use (before rarefaction).  For unit
-tests of the bookkeeping; \code{\link[=allocate_clumpy_cpp]{allocate_clumpy_cpp()}} does the same inside.
+Bins the potentials of the transitions from one anterior class as uPAM
+does, applies a sequence of allocated patches and of removals from the
+pool, and returns the probabilities the next MuST pass would use (before
+rarefaction).  For unit tests of the bookkeeping; \code{\link[=allocate_clumpy_cpp]{allocate_clumpy_cpp()}}
+does the same inside.
 }
 \keyword{internal}

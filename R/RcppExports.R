@@ -79,30 +79,36 @@ grow_patch_cpp <- function(landscape, ant_landscape, probs, nbr_above, nbr_below
     .Call(`_evoland_plus_grow_patch_cpp`, landscape, ant_landscape, probs, nbr_above, nbr_below, nbr_left, nbr_right, pivot, target_area, from_class, to_class, elongation, ncol, avoid_aggregation)
 }
 
-#' Potential bins of the uPAM urn (C++)
+#' Joint bins of the uPAM urns (C++)
 #'
-#' Bins the potentials of one transition as uPAM does, applies a sequence of
-#' allocated patches and of removals from the pool, and returns the
-#' probabilities the next MuST pass would use (before rarefaction).  For unit
-#' tests of the bookkeeping; [allocate_clumpy_cpp()] does the same inside.
+#' Bins the potentials of the transitions from one anterior class as uPAM
+#' does, applies a sequence of allocated patches and of removals from the
+#' pool, and returns the probabilities the next MuST pass would use (before
+#' rarefaction).  For unit tests of the bookkeeping; [allocate_clumpy_cpp()]
+#' does the same inside.
 #'
-#' @param potential NumericVector of the potentials P(v|u,z) of the cells of
-#'   the anterior class; NaN and negative values count as 0.
-#' @param quota Cells the transition is to allocate; the expected counts of
-#'   the bins are scaled to sum to it.
-#' @param n_bins Maximum number of bins (the cap by quota / (10 E(sigma)) of
-#'   [allocate_clumpy_cpp()] is not applied).
-#' @param pivot,size IntegerVectors of equal length: 1-based cells used as
-#'   pivots of allocated patches, and the size of each patch, in cells.
+#' @param potential NumericMatrix (cells x transitions) of the potentials
+#'   P(v|u,z) of the cells of the anterior class; NaN and negative values
+#'   count as 0.
+#' @param quota NumericVector (per transition) of the cells to allocate; the
+#'   expected counts of a transition's bins are scaled to sum to it.
+#' @param n_bins Maximum number of joint bins.
+#' @param min_expected NumericVector (per transition) of the cells a bin must
+#'   expect; [allocate_clumpy_cpp()] uses ten patches, 10 E(sigma).
+#' @param pivot,trans,size IntegerVectors of equal length: 1-based cells used
+#'   as pivots of allocated patches, the 1-based transition (column of
+#'   `potential`) of each patch, and its size, in cells.
 #' @param removed 1-based cells that leave the pool (allocated or failed),
 #'   applied after the patches.
-#' @return List with `bin` (1-based bin of each cell, 0 for a cell without
-#'   potential), `probability` (potential times the update factor of its bin,
-#'   0 for a cell out of the pool) and `expected` (remaining expected count of
-#'   each bin).
+#' @return List with `leaf` (1-based joint bin of each cell, 0 for a cell
+#'   without potential), `bin` (integer matrix like `potential`: 1-based bin of
+#'   each cell for each transition, 0 where it has no potential),
+#'   `probability` (matrix like `potential`: potential times the update factor
+#'   of its bin, 0 for a cell out of the pool) and `expected` (list per
+#'   transition of the remaining expected count of each bin).
 #' @keywords internal
-urn_bins_cpp <- function(potential, quota, n_bins, pivot, size, removed) {
-    .Call(`_evoland_plus_urn_bins_cpp`, potential, quota, n_bins, pivot, size, removed)
+urn_bins_cpp <- function(potential, quota, n_bins, min_expected, pivot, trans, size, removed) {
+    .Call(`_evoland_plus_urn_bins_cpp`, potential, quota, n_bins, min_expected, pivot, trans, size, removed)
 }
 
 #' Run the CLUMPY allocation routine (C++)
@@ -142,9 +148,9 @@ urn_bins_cpp <- function(potential, quota, n_bins, pivot, size, removed) {
 #' @param avoid_aggregation uPAM only: if TRUE, patches that would merge fail
 #'   and allocate nothing (clumpy GaussianPatcher semantics).
 #' @param area_dist Patch-area distribution: 0 = log-normal, 1 = normal.
-#' @param n_bins uPAM only: maximum number of bins of potential per
-#'   transition for the update of the probabilities (>= 1); fewer where the
-#'   quota allows fewer than ten patches per bin.
+#' @param n_bins uPAM only: maximum number of joint bins of potential per
+#'   anterior class for the update of the probabilities (>= 1); fewer where
+#'   the quotas allow fewer than ten patches per bin.
 #' @return IntegerVector (length n_cells) of the posterior LULC state.
 #' @keywords internal
 allocate_clumpy_cpp <- function(landscape, nrow, ncol, trans_from, trans_to, prob_cell, prob_value, area_mean, area_var, elongation, target_rate, method, batch_size, rarefy, shuffle, avoid_aggregation, area_dist, n_bins = 100L) {

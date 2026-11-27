@@ -135,8 +135,8 @@ upam_continuous <- evoland.plus:::allocate_clumpy_cpp(
 )
 expect_true(all(within_expected(upam_continuous == 2L, continuous, deciles(continuous))))
 
-# two transitions from one class (Mazy & Longaretti 2023, App. D.3.4) have a set of bins each,
-# and one MuST draw per cell decides between them
+# two transitions from one class (Mazy & Longaretti 2023, App. D.3.4) share joint bins of their
+# potentials, and one MuST draw per cell decides between them
 set.seed(1L)
 continuous_two <- list(stats::runif(150000L, 0, 0.4), stats::runif(150000L, 0, 0.2))
 set.seed(3L)
@@ -168,6 +168,40 @@ expect_true(all(within_expected(
   upam_two_way == 3L,
   continuous_two[[2L]],
   deciles(continuous_two[[2L]])
+)))
+
+# The bins are joint so that a cell taken by one transition gives the probability another loses
+# back to cells with the same potentials for both. B, independent of A, is allocated alike
+# where A is high and where it is low; with bins per transition, the cells A took, mostly where
+# it is high, gave B's probability back to all the cells of the same bin of B, so that B was
+# allocated on 0.121 of the cells where A is high and 0.180 where it is low, instead of 0.150.
+set.seed(1L)
+is_high <- stats::runif(40000L) < 0.5
+crossed <- list(ifelse(is_high, 0.6, 0.02), stats::runif(40000L, 0, 0.3))
+set.seed(5L)
+upam_crossed <- evoland.plus:::allocate_clumpy_cpp(
+  landscape = rep(1L, 40000L),
+  nrow = 200L,
+  ncol = 200L,
+  trans_from = c(1L, 1L),
+  trans_to = c(2L, 3L),
+  prob_cell = list(1:40000, 1:40000),
+  prob_value = crossed,
+  area_mean = c(1, 1),
+  area_var = c(0, 0),
+  elongation = c(0, 0),
+  target_rate = vapply(crossed, mean, numeric(1)),
+  method = 1L,
+  batch_size = 0L,
+  rarefy = TRUE,
+  shuffle = TRUE,
+  avoid_aggregation = FALSE,
+  area_dist = 1L
+)
+expect_true(all(within_binomial(
+  tapply(upam_crossed == 3L, is_high, mean),
+  tapply(crossed[[2L]], is_high, mean),
+  as.vector(table(is_high))
 )))
 
 # With patches, a patch counts as cells of its pivot's bin (App. E.2.3), so it is the pivots

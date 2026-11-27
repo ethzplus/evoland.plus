@@ -66,9 +66,9 @@ and allocate nothing (clumpy GaussianPatcher semantics).}
 
 \item{area_dist}{Patch-area distribution: 0 = log-normal, 1 = normal.}
 
-\item{n_bins}{uPAM only: maximum number of bins of potential per
-transition for the update of the probabilities (>= 1); fewer where the
-quota allows fewer than ten patches per bin.}
+\item{n_bins}{uPAM only: maximum number of joint bins of potential per
+anterior class for the update of the probabilities (>= 1); fewer where
+the quotas allow fewer than ten patches per bin.}
 }
 \value{
 IntegerVector (length n_cells) of the posterior LULC state.

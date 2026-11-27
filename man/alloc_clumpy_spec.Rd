@@ -36,10 +36,10 @@ the sum of its potentials, at the cost of more passes. Ignored for uSAM.}
 \item{default_elongation}{Numeric in [0, 1]; patch elongation for transitions whose
 \code{patch_elongation} is missing (0 isometric, 1 linear).}
 
-\item{n_bins}{Integer >= 1; uPAM maximum number of bins of potential per transition for the
-update of the probabilities (default 100). Fewer, wider bins share one update among more
-different potentials; bins expecting few patches each get a whole patch or none. Ignored for
-uSAM.}
+\item{n_bins}{Integer >= 1; uPAM maximum number of joint bins of potential per anterior class
+for the update of the probabilities (default 100), and so of bins per transition. Fewer,
+wider bins share one update among more different potentials; bins expecting few patches
+each get a whole patch or none. Ignored for uSAM.}
 }
 \value{
 An allocator specification for \code{\link[=allocate]{allocate()}}.
@@ -78,17 +78,22 @@ the end, cells of low potential are allocated more often than their potential, a
 high potential less often. Mazy & Longaretti (2023, \doi{10.1016/j.envsoft.2023.105706},
 sec. 4.2, App. D.3, E.2.3) update the probabilities after each patch, as an urn per bin
 that holds the cells still in the pool and the cells still expected to change. Here the bins
-are bins of the potential, per transition: cells of equal potential are exchangeable for the
-transition, so the update needs neither the predictors nor the model. The cells with a
-potential are cut into at most \code{n_bins} bins of about equal potential mass, never between
-equal potentials, and at most one bin per ten patches the quota allows. A bin starts with
-the sum of its potentials as its expected count, scaled so that the bins sum to the quota. A
-cell's probability is its own potential times the bin's remaining expected count over the
-remaining sum of potentials of its cells, so that cells of different potential within a bin
-keep their ratio, and the first pass draws from the potentials as they are. A successful
-patch counts as cells of its pivot's bin, as in the article's urn; all its cells, and those
-of failed patches, leave the pool and their bins. With several transitions from one class,
-each transition has its own bins, and a cell leaves all of them when it leaves the pool.
+are bins of the potential, joint over the transitions from one anterior class: cells with
+the same potential for every transition are exchangeable for all of them, so the update needs
+neither the predictors nor the model. The cells with a potential are cut in two, again and
+again, at about the median of the potential mass of the transition whose potentials spread most,
+never between equal potentials, into at most \code{n_bins} bins. Each transition expects at least
+ten patches in each of its bins: where a cut would leave it less on one side, it keeps the
+uncut group as one bin. With one transition, this gives bins of about equal potential mass,
+at most one per ten patches of the quota. Per transition, a bin starts with the sum of its
+potentials as its expected count, scaled so that the bins sum to the quota. A cell's
+probability is its own potential times the bin's remaining expected count over the remaining
+sum of potentials of its cells, so that cells of different potential within a bin keep their
+ratio, and the first pass draws from the potentials as they are. A successful patch counts as
+cells of its pivot's bin, as in the article's urn; all its cells, and those of failed
+patches, leave the pool and their bin of every transition. Because the bins are joint, the
+probability that one transition loses where another takes cells goes back to cells with the
+same potentials for both, not to cells that only share its own potential.
 The probabilities are recomputed for every MuST pass, so \code{batch_size} sets how many pivots
 share one update.
 

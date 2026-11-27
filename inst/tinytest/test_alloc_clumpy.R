@@ -314,19 +314,48 @@ expect_equal(
 ## uPAM: updating the probabilities ####
 # Mazy & Longaretti (2023), App. D.1, E.2.2: an urn per bin, here a bin of potential, with N
 # cells left and N_v of them still due to change; a cell's probability is its own potential
-# times N_v over the potentials of the N cells. 10 cells at 0.2 and 10 at 0.6, quota 8: two
-# bins, as equal potentials are never split, expecting 2 and 6 cells
-urn <- function(potential, quota, n_bins, pivot = integer(0), size = integer(0), removed = pivot) {
-  evoland.plus:::urn_bins_cpp(potential, quota, n_bins, pivot, size, removed)
+# times N_v over the potentials of the N cells. `potential` is a cells x transitions matrix,
+# a vector for one transition; patches are of transition `trans`, columns of `potential`.
+urn <- function(
+  potential,
+  quota,
+  n_bins,
+  pivot = integer(0),
+  size = integer(0),
+  removed = pivot,
+  trans = rep(1L, length(pivot)),
+  min_expected = 0
+) {
+  evoland.plus:::urn_bins_cpp(
+    as.matrix(potential),
+    quota,
+    n_bins,
+    rep_len(min_expected, length(quota)),
+    pivot,
+    trans,
+    size,
+    removed
+  )
 }
+# the bins, probabilities and expected counts of a single transition
+urn1 <- function(...) {
+  bins <- urn(...)
+  list(
+    bin = bins[["bin"]][, 1L],
+    probability = bins[["probability"]][, 1L],
+    expected = bins[["expected"]][[1L]]
+  )
+}
+# 10 cells at 0.2 and 10 at 0.6, quota 8: two bins, as equal potentials are never split,
+# expecting 2 and 6 cells
 two_strata <- rep(c(0.2, 0.6), each = 10L)
 expect_equal(
-  urn(two_strata, 8, n_bins = 10L),
+  urn1(two_strata, 8, n_bins = 10L),
   list(bin = rep(1:2, each = 10L), probability = two_strata, expected = c(2, 6))
 )
 # three cells of the second bin allocated, two of the first failed: 3 balls of state v among 7
 # in the second, 2 among 8 in the first
-after <- urn(
+after <- urn1(
   two_strata,
   8,
   n_bins = 10L,
@@ -338,23 +367,63 @@ expect_equal(after[["expected"]], c(2, 3))
 expect_equal(after[["probability"]], c(0, 0, rep(2 / 8, 8L), 0, 0, 0, rep(3 / 7, 7L)))
 # a patch of 3 cells from a pivot in the second bin, spilling into the first, counts as 3 cells
 # of the second bin; its other cells leave the first bin as failed cells do
-spilled <- urn(two_strata, 8, n_bins = 10L, pivot = 11L, size = 3L, removed = c(1:2, 11L))
+spilled <- urn1(two_strata, 8, n_bins = 10L, pivot = 11L, size = 3L, removed = c(1:2, 11L))
 expect_equal(spilled[["expected"]], c(2, 3))
 expect_equal(spilled[["probability"]][c(3L, 12L)], c(0.2 * 2 / 1.6, 0.6 * 3 / 5.4))
 # the expected counts are scaled to the quota, here half the sum of the potentials
-expect_equal(urn(two_strata, 4, n_bins = 10L)[["probability"]], two_strata / 2)
+expect_equal(urn1(two_strata, 4, n_bins = 10L)[["probability"]], two_strata / 2)
 # within a bin, the update is shared in proportion to the potentials: one bin of 0.2 and 0.6,
 # expecting 1.6 cells; once one cell is allocated, 0.6 cells are due from a mass of 1
-shared <- urn(c(0.2, 0.6, 0.2, 0.6), 1.6, n_bins = 1L, pivot = 2L, size = 1L)
+shared <- urn1(c(0.2, 0.6, 0.2, 0.6), 1.6, n_bins = 1L, pivot = 2L, size = 1L)
 expect_equal(shared[["probability"]], c(0.12, 0, 0.12, 0.36))
-# bins of about equal potential mass: 0.01, ..., 0.10 in two bins, the first closed once it
-# holds half the mass (0.01 + ... + 0.07 = 0.28 >= 0.275); cells without potential have none
-expect_equal(urn(c(1:10 / 100, 0), 0.55, n_bins = 2L)[["bin"]], c(rep(1L, 7L), rep(2L, 3L), 0L))
+# bins of about equal potential mass: 0.01, ..., 0.10 in two bins, cut where the first holds
+# half the mass (0.01 + ... + 0.07 = 0.28 >= 0.275); cells without potential have none
+expect_equal(urn1(c(1:10 / 100, 0), 0.55, n_bins = 2L)[["bin"]], c(rep(1L, 7L), rep(2L, 3L), 0L))
+# a bin must expect at least min_expected cells, which allows at most 5 bins of 0.1 here; the
+# cuts at whole cells leave 4
+expect_equal(
+  urn1(c(1:10 / 100, 0), 0.55, n_bins = 10L, min_expected = 0.1)[["expected"]],
+  c(0.15, 0.13, 0.17, 0.10)
+)
 # once a bin's expected count is used up, its cells are not drawn any more
 expect_equal(
-  urn(two_strata, 8, n_bins = 10L, pivot = 1L, size = 2L)[["probability"]],
+  urn1(two_strata, 8, n_bins = 10L, pivot = 1L, size = 2L)[["probability"]],
   c(0, rep(0, 9L), rep(0.6, 10L))
 )
+
+# With several transitions from one class, the bins are joint (App. D.3.4): cells with the
+# same potentials for all transitions are exchangeable for each of them. Transition A at 0.6 or
+# 0.1 and B at 0.2 or 0.4, two cells of each pair: the class is cut on A, which varies most,
+# then on B, into four bins. A, equal within either half, keeps one bin per half.
+joint_potential <- cbind(
+  A = rep(c(0.6, 0.1), each = 4L),
+  B = rep(c(0.2, 0.2, 0.4, 0.4), 2L)
+)
+joint <- urn(joint_potential, quota = c(2.8, 2.4), n_bins = 4L)
+expect_equal(joint[["leaf"]], c(3L, 3L, 4L, 4L, 1L, 1L, 2L, 2L))
+expect_equal(
+  joint[["bin"]],
+  cbind(rep(2:1, each = 4L), c(3L, 3L, 4L, 4L, 1L, 1L, 2L, 2L)),
+  check.attributes = FALSE
+)
+# a cell taken by A leaves B's bin of cells that share both its potentials: the probability B
+# loses there goes to cell 2, at 0.6 for A as cell 1, and not to cells 5 and 6, which share
+# only B's potential (bins per transition would give each of 2, 5, 6 a third of it)
+taken <- urn(joint_potential, quota = c(2.8, 2.4), n_bins = 4L, pivot = 1L, size = 1L)
+expect_equal(taken[["expected"]], list(c(0.4, 1.4), c(0.4, 0.8, 0.4, 0.8)))
+expect_equal(
+  taken[["probability"]],
+  cbind(
+    c(0, rep(0.6 * 1.4 / 1.8, 3L), rep(0.1, 4L)),
+    c(0, 0.4, 0.4, 0.4, 0.2, 0.2, 0.4, 0.4)
+  ),
+  check.attributes = FALSE
+)
+# a transition that would expect fewer than min_expected cells on a side of a cut keeps the
+# node as one bin: B expects 1.2 cells in either half, short of 1.3
+coarse <- urn(joint_potential, quota = c(2.8, 2.4), n_bins = 4L, min_expected = c(0, 1.3))
+expect_equal(coarse[["leaf"]], rep(2:1, each = 4L))
+expect_equal(coarse[["bin"]][, 2L], rep(1L, 8L))
 
 ## uPAM: quantity of change ####
 # Mazy sec. 3.4.2: patches are allocated until the quantity of change of the transition is
